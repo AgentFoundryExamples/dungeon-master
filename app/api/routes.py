@@ -168,7 +168,13 @@ def get_llm_client():
             "content": {
                 "application/json": {
                     "example": {
-                        "narrative": "You enter the ancient temple. Torches flicker along the walls..."
+                        "narrative": "You enter the ancient temple. Torches flicker along the walls...",
+                        "intents": {
+                            "quest_intent": {"action": "none"},
+                            "combat_intent": {"action": "none"},
+                            "poi_intent": {"action": "create", "name": "Ancient Temple"},
+                            "meta": None
+                        }
                     }
                 }
             }
@@ -268,12 +274,16 @@ async def process_turn(
                 trace_id=request.trace_id
             )
 
-        # Step 5: Return response
+        # Step 5: Return response with narrative and intents
+        # Extract intents from parsed outcome if validation succeeded
+        intents = parsed_outcome.outcome.intents if parsed_outcome.is_valid and parsed_outcome.outcome else None
+        
         logger.info(
             "Successfully processed turn",
-            narrative_length=len(narrative)
+            narrative_length=len(narrative),
+            has_intents=intents is not None
         )
-        return TurnResponse(narrative=narrative)
+        return TurnResponse(narrative=narrative, intents=intents)
 
     except JourneyLogNotFoundError as e:
         logger.error("Character not found", error=str(e))

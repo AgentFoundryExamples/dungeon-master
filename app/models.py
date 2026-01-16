@@ -73,11 +73,20 @@ class TurnResponse(BaseModel):
     
     Attributes:
         narrative: The AI-generated narrative response for the player's action
+        intents: Optional structured intents from the LLM (informational only, not persisted)
     """
     narrative: str = Field(
         ...,
         description="AI-generated narrative response",
         examples=["You search the dimly lit room and discover a glinting treasure chest..."]
+    )
+    intents: Optional["IntentsBlock"] = Field(
+        None,
+        description=(
+            "Structured intents from LLM output (informational only). "
+            "Only available when LLM response is valid. "
+            "Note: Only narrative is persisted to journey-log; intents are descriptive."
+        )
     )
 
 
@@ -495,3 +504,7 @@ def get_outcome_schema_example() -> str:
     )
     
     return example_model.model_dump_json(indent=2)
+
+
+# Resolve forward references for TurnResponse
+TurnResponse.model_rebuild()
