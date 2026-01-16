@@ -294,3 +294,140 @@ def test_user_prompt_reminds_json_only(prompt_builder, sample_context):
     # User prompt should remind to output only JSON
     assert "JSON" in user_prompt
     assert "ONLY" in user_prompt or "only" in user_prompt
+
+
+def test_prompt_includes_policy_hints_when_present(prompt_builder):
+    """Test that policy hints are included in prompt when provided."""
+    from app.models import PolicyHints, QuestTriggerDecision, POITriggerDecision
+    
+    # Create context with policy hints
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "origin:nexus", "display_name": "The Nexus"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        policy_hints=PolicyHints(
+            quest_trigger_decision=QuestTriggerDecision(
+                eligible=True,
+                probability=0.3,
+                roll_passed=True
+            ),
+            poi_trigger_decision=POITriggerDecision(
+                eligible=True,
+                probability=0.2,
+                roll_passed=False
+            )
+        )
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I explore"
+    )
+    
+    # Policy hints should be in the user prompt
+    assert "POLICY HINTS:" in user_prompt
+    assert "Quest Trigger:" in user_prompt
+    assert "POI Creation:" in user_prompt
+    # Should show ALLOWED/NOT ALLOWED status
+    assert "ALLOWED" in user_prompt
+    assert "NOT ALLOWED" in user_prompt
+
+
+def test_prompt_excludes_policy_hints_when_absent(prompt_builder):
+    """Test that policy hints are excluded when not provided."""
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "origin:nexus", "display_name": "The Nexus"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        policy_hints=None
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I explore"
+    )
+    
+    # Policy hints should NOT be in the user prompt
+    assert "POLICY HINTS:" not in user_prompt
+
+
+def test_policy_hints_format_quest_eligible_roll_passed(prompt_builder):
+    """Test policy hints formatting when quest is eligible and roll passes."""
+    from app.models import PolicyHints, QuestTriggerDecision, POITriggerDecision
+    
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "town:square", "display_name": "Town Square"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        policy_hints=PolicyHints(
+            quest_trigger_decision=QuestTriggerDecision(
+                eligible=True,
+                probability=0.5,
+                roll_passed=True
+            ),
+            poi_trigger_decision=POITriggerDecision(
+                eligible=False,
+                probability=0.2,
+                roll_passed=False
+            )
+        )
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I look around"
+    )
+    
+    # Quest should show ALLOWED
+    assert "Quest Trigger: ALLOWED" in user_prompt
+    # POI should show NOT ALLOWED
+    assert "POI Creation: NOT ALLOWED" in user_prompt
+    # Should include a reason for POI not being allowed
+    assert "Reason:" in user_prompt
+
+
+def test_policy_hints_format_all_ineligible(prompt_builder):
+    """Test policy hints formatting when both quest and POI are ineligible."""
+    from app.models import PolicyHints, QuestTriggerDecision, POITriggerDecision
+    
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "dungeon:room", "display_name": "Dark Room"},
+        active_quest={"name": "Active Quest", "description": "Ongoing", "completion_state": "in_progress"},
+        combat_state=None,
+        recent_history=[],
+        policy_hints=PolicyHints(
+            quest_trigger_decision=QuestTriggerDecision(
+                eligible=False,
+                probability=0.3,
+                roll_passed=False
+            ),
+            poi_trigger_decision=POITriggerDecision(
+                eligible=False,
+                probability=0.2,
+                roll_passed=False
+            )
+        )
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I continue my quest"
+    )
+    
+    # Both should show NOT ALLOWED
+    assert "POLICY HINTS:" in user_prompt
+    assert "Quest Trigger: NOT ALLOWED" in user_prompt
+    assert "POI Creation: NOT ALLOWED" in user_prompt
+    # Should include reasons for ineligibility
+    assert "Reason:" in user_prompt

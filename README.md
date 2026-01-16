@@ -98,25 +98,155 @@ The PolicyEngine provides deterministic quest and POI trigger evaluation with co
 | `QUEST_COOLDOWN_TURNS` | `5` | Turns between quest triggers (0 or greater) |
 | `POI_TRIGGER_PROB` | `0.2` | POI trigger probability (0.0-1.0) |
 | `POI_COOLDOWN_TURNS` | `3` | Turns between POI triggers (0 or greater) |
-| `RNG_SEED` | `<unset>` | Optional RNG seed for deterministic debugging |
+| `RNG_SEED` | (unset) | Optional RNG seed for deterministic behavior |
 
-**Notes:**
-- Probabilities outside [0,1] are rejected at config load and PolicyEngine initialization (fail-fast behavior)
-- Zero or negative cooldown values are valid and skip waiting periods
-- Seeded RNG respects character-specific seeds while allowing global fallback randomness
-- When `RNG_SEED` is unset (recommended for production), secure randomness is used
-- When `RNG_SEED` is set to an integer, enables reproducible behavior for testing/debugging
-- **Memory Management**: Seeded mode caches RNG instances per character. For long-running services with high character turnover, consider using unseeded mode or periodic service restarts
+## Policy Engine Debugging
 
-### Configuration Validation
+The PolicyEngine makes deterministic decisions about when to trigger quests and POIs independently of LLM outputs. This section explains how to debug and test policy behavior.
 
-The service validates all configuration at startup and will fail fast with actionable error messages if:
-- Required variables are missing
-- URLs are malformed
-- Numeric values are out of range
-- Invalid enum values are provided
+### Understanding Policy Decisions
 
-## API Documentation
+Each turn, the PolicyEngine evaluates two independent decisions:
+1. **Quest Trigger**: Should a new quest be offered?
+2. **POI Trigger**: Should a new point of interest be created?
+
+These decisions are based on:
+- **Eligibility**: Cooldown periods and game state (e.g., already has active quest)
+- **Probability**: Configurable random roll (e.g., 30% chance)
+- **Determinism**: Optional seeded RNG for reproducible testing
+
+Policy decisions are logged but **never exposed** to players in the API response.
+
+### Enabling Debug Logging
+
+To see detailed policy decision logs:
+
+1. Set log level to DEBUG in `.env`:
+```bash
+LOG_LEVEL=DEBUG
+```
+
+2. Run the service and watch logs:
+```bash
+python -m app.main
+```
+
+3. Look for log entries like:
+```
+Quest trigger evaluation: character_id=..., eligible=True, roll_passed=False, reasons=none
+POI trigger evaluation: character_id=..., eligible=True, roll_passed=True, reasons=none
+Policy decisions evaluated | quest_eligible=True quest_roll_passed=False poi_eligible=True poi_roll_passed=True
+```
+
+### Using Deterministic Seeds
+
+For reproducible testing and debugging, set an RNG seed:
+
+```bash
+# In .env
+RNG_SEED=42
+```
+
+With a seed set:
+- Each character gets their own deterministic RNG sequence
+- Restarting the service produces identical roll results
+- Tests can verify exact policy behavior
+
+**Important**: Don't use seeds in production - they reduce randomness security.
+
+### Policy Profiles
+
+The `.env.example` file includes several pre-configured profiles for common testing scenarios:
+
+#### High Frequency Profile
+Test frequent quest and POI triggers:
+```bash
+QUEST_TRIGGER_PROB=0.9
+QUEST_COOLDOWN_TURNS=1
+POI_TRIGGER_PROB=0.8
+POI_COOLDOWN_TURNS=1
+RNG_SEED=42
+```
+
+#### Low Frequency Profile
+Test rare triggers and long cooldowns:
+```bash
+QUEST_TRIGGER_PROB=0.1
+QUEST_COOLDOWN_TURNS=10
+POI_TRIGGER_PROB=0.1
+POI_COOLDOWN_TURNS=10
+RNG_SEED=42
+```
+
+#### Deterministic Testing Profile
+Guarantee triggers for testing:
+```bash
+QUEST_TRIGGER_PROB=1.0
+QUEST_COOLDOWN_TURNS=0
+POI_TRIGGER_PROB=1.0
+POI_COOLDOWN_TURNS=0
+RNG_SEED=999
+```
+
+#### Disabled Profile
+Completely disable triggers:
+```bash
+QUEST_TRIGGER_PROB=0.0
+QUEST_COOLDOWN_TURNS=999
+POI_TRIGGER_PROB=0.0
+POI_COOLDOWN_TURNS=999
+```
+
+### Interpreting Log Output
+
+Policy decision logs include these key fields:
+
+- **eligible**: Whether the trigger meets basic requirements (cooldown, no active quest, etc.)
+- **roll_passed**: Whether the random roll succeeded (based on configured probability)
+- **reasons**: Why the trigger was ineligible (if applicable)
+
+Example log analysis:
+```
+# Quest was eligible but roll failed (70% chance to fail with default 0.3 probability)
+Quest trigger evaluation: eligible=True, roll_passed=False
+
+# POI was ineligible due to cooldown
+POI trigger evaluation: eligible=False, roll_passed=False, reasons=cooldown_not_met (turns=2, required=3)
+```
+
+### Testing Policy Decisions
+
+The test suite includes comprehensive policy tests:
+
+```bash
+# Run policy engine unit tests
+python -m pytest tests/test_policy_engine.py -v
+
+# Run integration tests with policy decisions
+python -m pytest tests/test_turn_integration.py -v
+
+# Run prompt builder tests (verifies policy hints)
+python -m pytest tests/test_prompt_builder.py -v
+```
+
+Key test categories:
+- **Eligibility permutations**: Quest present/absent, combat active, cooldown boundaries
+- **Seeded randomness**: Deterministic outcomes with seeds
+- **Profile overrides**: High/low frequency settings
+- **Integration**: Policy hints in prompts, failed rolls blocking writes
+
+### Verifying Policy Independence
+
+To verify that policy decisions are independent of LLM outputs:
+
+1. Set `QUEST_TRIGGER_PROB=0.0` (disable quest triggers)
+2. Make a turn request asking for a quest: `"I ask the innkeeper for a quest"`
+3. Check logs - quest should be blocked despite LLM potentially suggesting one
+4. Verify response doesn't include quest-related updates
+
+The LLM may still generate quest-related narrative, but the quest won't be persisted to journey-log due to the failed policy roll.
+
+## API Endpoints
 
 ### POST /turn
 

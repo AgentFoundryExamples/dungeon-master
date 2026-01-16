@@ -177,3 +177,180 @@ def mock_journey_log_context():
             "recent_turns": []
         }
     }
+
+
+@pytest.fixture
+def client_with_failed_quest_roll(test_env):
+    """Fixture providing a test client with a policy engine that always fails quest rolls.
+    
+    This fixture is useful for testing that failed quest rolls block quest propagation
+    even if the LLM suggests a quest.
+    
+    Usage:
+        def test_example(client_with_failed_quest_roll):
+            response = client_with_failed_quest_roll.post("/turn", json={...})
+    """
+    with patch.dict(os.environ, test_env, clear=True):
+        from app.config import get_settings
+        get_settings.cache_clear()
+        
+        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine
+        from app.main import app
+        from httpx import AsyncClient
+        from app.services.journey_log_client import JourneyLogClient
+        from app.services.llm_client import LLMClient
+        from app.services.policy_engine import PolicyEngine
+        
+        test_http_client = AsyncClient()
+        
+        try:
+            settings = get_settings()
+            test_journey_log_client = JourneyLogClient(
+                base_url=settings.journey_log_base_url,
+                http_client=test_http_client,
+                timeout=settings.journey_log_timeout,
+                recent_n_default=settings.journey_log_recent_n
+            )
+            test_llm_client = LLMClient(
+                api_key=settings.openai_api_key,
+                model=settings.openai_model,
+                timeout=settings.openai_timeout,
+                stub_mode=True
+            )
+            # Policy engine that always fails quest rolls
+            test_policy_engine = PolicyEngine(
+                quest_trigger_prob=0.0,  # Always fail quest rolls
+                quest_cooldown_turns=0,
+                poi_trigger_prob=1.0,
+                poi_cooldown_turns=0,
+                rng_seed=42
+            )
+            
+            app.dependency_overrides[get_http_client] = lambda: test_http_client
+            app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
+            app.dependency_overrides[get_llm_client] = lambda: test_llm_client
+            app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
+            
+            with TestClient(app) as client:
+                yield client
+        finally:
+            asyncio.run(test_http_client.aclose())
+            app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client_with_failed_poi_roll(test_env):
+    """Fixture providing a test client with a policy engine that always fails POI rolls.
+    
+    This fixture is useful for testing that failed POI rolls block POI propagation
+    even if the LLM suggests a POI.
+    
+    Usage:
+        def test_example(client_with_failed_poi_roll):
+            response = client_with_failed_poi_roll.post("/turn", json={...})
+    """
+    with patch.dict(os.environ, test_env, clear=True):
+        from app.config import get_settings
+        get_settings.cache_clear()
+        
+        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine
+        from app.main import app
+        from httpx import AsyncClient
+        from app.services.journey_log_client import JourneyLogClient
+        from app.services.llm_client import LLMClient
+        from app.services.policy_engine import PolicyEngine
+        
+        test_http_client = AsyncClient()
+        
+        try:
+            settings = get_settings()
+            test_journey_log_client = JourneyLogClient(
+                base_url=settings.journey_log_base_url,
+                http_client=test_http_client,
+                timeout=settings.journey_log_timeout,
+                recent_n_default=settings.journey_log_recent_n
+            )
+            test_llm_client = LLMClient(
+                api_key=settings.openai_api_key,
+                model=settings.openai_model,
+                timeout=settings.openai_timeout,
+                stub_mode=True
+            )
+            # Policy engine that always fails POI rolls
+            test_policy_engine = PolicyEngine(
+                quest_trigger_prob=1.0,
+                quest_cooldown_turns=0,
+                poi_trigger_prob=0.0,  # Always fail POI rolls
+                poi_cooldown_turns=0,
+                rng_seed=42
+            )
+            
+            app.dependency_overrides[get_http_client] = lambda: test_http_client
+            app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
+            app.dependency_overrides[get_llm_client] = lambda: test_llm_client
+            app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
+            
+            with TestClient(app) as client:
+                yield client
+        finally:
+            asyncio.run(test_http_client.aclose())
+            app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client_with_deterministic_seed(test_env):
+    """Fixture providing a test client with a deterministic policy engine seed.
+    
+    This fixture is useful for testing that deterministic seeds produce consistent
+    policy decision results across multiple requests.
+    
+    Usage:
+        def test_example(client_with_deterministic_seed):
+            response = client_with_deterministic_seed.post("/turn", json={...})
+    """
+    with patch.dict(os.environ, test_env, clear=True):
+        from app.config import get_settings
+        get_settings.cache_clear()
+        
+        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine
+        from app.main import app
+        from httpx import AsyncClient
+        from app.services.journey_log_client import JourneyLogClient
+        from app.services.llm_client import LLMClient
+        from app.services.policy_engine import PolicyEngine
+        
+        test_http_client = AsyncClient()
+        
+        try:
+            settings = get_settings()
+            test_journey_log_client = JourneyLogClient(
+                base_url=settings.journey_log_base_url,
+                http_client=test_http_client,
+                timeout=settings.journey_log_timeout,
+                recent_n_default=settings.journey_log_recent_n
+            )
+            test_llm_client = LLMClient(
+                api_key=settings.openai_api_key,
+                model=settings.openai_model,
+                timeout=settings.openai_timeout,
+                stub_mode=True
+            )
+            # Policy engine with deterministic seed
+            test_policy_engine = PolicyEngine(
+                quest_trigger_prob=0.5,
+                quest_cooldown_turns=0,
+                poi_trigger_prob=0.5,
+                poi_cooldown_turns=0,
+                rng_seed=999  # Deterministic seed
+            )
+            
+            app.dependency_overrides[get_http_client] = lambda: test_http_client
+            app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
+            app.dependency_overrides[get_llm_client] = lambda: test_llm_client
+            app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
+            
+            with TestClient(app) as client:
+                yield client
+        finally:
+            asyncio.run(test_http_client.aclose())
+            app.dependency_overrides.clear()
