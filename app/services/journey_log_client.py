@@ -14,7 +14,8 @@
 """Journey-log service client for context retrieval and narrative persistence."""
 
 import time
-from typing import Optional
+from typing import Optional, Any
+from datetime import datetime
 from httpx import AsyncClient, HTTPStatusError, TimeoutException
 from app.models import JourneyLogContext, PolicyState
 from app.logging import StructuredLogger, redact_secrets
@@ -71,6 +72,74 @@ class JourneyLogClient:
             f"timeout={self.timeout}s, recent_n_default={self.recent_n_default}"
         )
 
+    @staticmethod
+    def _validate_timestamp(timestamp: Any, field_name: str) -> Optional[str]:
+        """Validate that a value is a valid ISO 8601 timestamp string.
+        
+        Args:
+            timestamp: Value to validate as ISO 8601 timestamp
+            field_name: The name of the field for logging purposes
+            
+        Returns:
+            The timestamp string if valid, otherwise None
+        """
+        if timestamp is None:
+            return None
+        if not isinstance(timestamp, str):
+            logger.warning(
+                f"Invalid type for {field_name}: {type(timestamp).__name__}, expected str. "
+                f"Defaulting to None."
+            )
+            return None
+        try:
+            # Use fromisoformat for basic validation
+            # Replace 'Z' with '+00:00' for compatibility
+            datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            return timestamp
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                f"Invalid ISO 8601 format for {field_name}: {timestamp}. "
+                f"Defaulting to None. Error: {e}"
+            )
+            return None
+
+    def _validate_turn_counter(self, value: Any, field_name: str) -> int:
+        """Validate turn counter is a non-negative integer, defaulting to 0.
+        
+        Args:
+            value: Value to validate as turn counter
+            field_name: The name of the field for logging purposes
+            
+        Returns:
+            The value if valid non-negative integer, otherwise 0
+        """
+        if not isinstance(value, int) or value < 0:
+            logger.warning(
+                f"Invalid {field_name} value: {value}, defaulting to 0"
+            )
+            return 0
+        return value
+
+    @staticmethod
+    def _validate_optional_bool(value: Any, field_name: str) -> Optional[bool]:
+        """Validate optional boolean flag value.
+        
+        Args:
+            value: Value to validate as optional boolean
+            field_name: The name of the field for logging purposes
+            
+        Returns:
+            The value if it's None or bool, otherwise None
+        """
+        if value is None or isinstance(value, bool):
+            return value
+        
+        logger.warning(
+            f"Invalid type for boolean flag '{field_name}': {type(value).__name__}. "
+            f"Value was '{value}'. Defaulting to None."
+        )
+        return None
+
     def _extract_policy_state(self, data: dict) -> PolicyState:
         """Extract policy-relevant state from journey-log response.
         
@@ -113,43 +182,37 @@ class JourneyLogClient:
         player_state = data.get("player_state", {})
         additional_fields = player_state.get("additional_fields", {})
         
-        # Extract quest state - quest field is authoritative
-        # Note: journey-log may provide has_active_quest flag, but we derive it
-        # from quest presence for consistency (None = no quest, dict = has quest)
+        # Extract quest state - prioritize explicit has_active_quest flag if present,
+        # fall back to quest field presence for backward compatibility
         quest = data.get("quest")
-        has_active_quest = quest is not None
+        has_active_quest = data.get("has_active_quest", quest is not None)
         
         # Extract combat state
         combat_data = data.get("combat", {})
         combat_active = combat_data.get("active", False)
         
-        # Extract timestamps from additional_fields (DM-managed until journey-log supports)
-        last_quest_offered_at = additional_fields.get("last_quest_offered_at")
-        last_poi_created_at = additional_fields.get("last_poi_created_at")
+        # Extract and validate timestamps from additional_fields (DM-managed until journey-log supports)
+        last_quest_offered_at = self._validate_timestamp(
+            additional_fields.get("last_quest_offered_at"), "last_quest_offered_at"
+        )
+        last_poi_created_at = self._validate_timestamp(
+            additional_fields.get("last_poi_created_at"), "last_poi_created_at"
+        )
         
-        # Extract turn counters from additional_fields with safe defaults
-        turns_since_last_quest = additional_fields.get("turns_since_last_quest", 0)
-        turns_since_last_poi = additional_fields.get("turns_since_last_poi", 0)
-        
-        # Ensure turn counters are non-negative integers
-        if not isinstance(turns_since_last_quest, int) or turns_since_last_quest < 0:
-            logger.warning(
-                f"Invalid turns_since_last_quest value: {turns_since_last_quest}, defaulting to 0"
-            )
-            turns_since_last_quest = 0
-        
-        if not isinstance(turns_since_last_poi, int) or turns_since_last_poi < 0:
-            logger.warning(
-                f"Invalid turns_since_last_poi value: {turns_since_last_poi}, defaulting to 0"
-            )
-            turns_since_last_poi = 0
+        # Extract and validate turn counters from additional_fields with safe defaults
+        turns_since_last_quest = self._validate_turn_counter(
+            additional_fields.get("turns_since_last_quest", 0), "turns_since_last_quest"
+        )
+        turns_since_last_poi = self._validate_turn_counter(
+            additional_fields.get("turns_since_last_poi", 0), "turns_since_last_poi"
+        )
         
         # Extract player engagement flags from additional_fields
         user_is_wandering = self._validate_optional_bool(
-            additional_fields.get("user_is_wandering")
+            additional_fields.get("user_is_wandering"), "user_is_wandering"
         )
         requested_guidance = self._validate_optional_bool(
-            additional_fields.get("requested_guidance")
+            additional_fields.get("requested_guidance"), "requested_guidance"
         )
         
         return PolicyState(
@@ -162,20 +225,6 @@ class JourneyLogClient:
             user_is_wandering=user_is_wandering,
             requested_guidance=requested_guidance
         )
-
-    @staticmethod
-    def _validate_optional_bool(value) -> Optional[bool]:
-        """Validate optional boolean flag value.
-        
-        Args:
-            value: Value to validate as optional boolean
-            
-        Returns:
-            The value if it's None or bool, otherwise None
-        """
-        if value is None or isinstance(value, bool):
-            return value
-        return None
 
     async def get_context(
         self,

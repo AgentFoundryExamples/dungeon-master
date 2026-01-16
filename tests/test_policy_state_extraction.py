@@ -302,3 +302,136 @@ async def test_policy_state_combat_inactive_no_state(journey_log_client, mock_ht
     
     # Combat should default to inactive
     assert context.policy_state.combat_active is False
+
+
+@pytest.mark.asyncio
+async def test_policy_state_invalid_timestamps(journey_log_client, mock_http_client):
+    """Test policy state handles invalid timestamp values."""
+    mock_response_data = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "identity": {"name": "Aria", "race": "Elf", "class": "Ranger"},
+            "status": "Healthy",
+            "location": {"id": "origin:nexus", "display_name": "The Nexus"},
+            "additional_fields": {
+                "last_quest_offered_at": "not-a-timestamp",  # Invalid format
+                "last_poi_created_at": 12345  # Invalid type (number)
+            }
+        },
+        "has_active_quest": False,
+        "combat": {"active": False},
+        "narrative": {"recent_turns": []},
+        "world": {},
+        "metadata": {}
+    }
+    
+    mock_response = AsyncMock(spec=Response)
+    mock_response.json.return_value = mock_response_data
+    mock_response.raise_for_status = AsyncMock()
+    mock_http_client.get.return_value = mock_response
+    
+    context = await journey_log_client.get_context(
+        character_id="550e8400-e29b-41d4-a716-446655440000"
+    )
+    
+    # Invalid timestamps should default to None
+    assert context.policy_state.last_quest_offered_at is None
+    assert context.policy_state.last_poi_created_at is None
+
+
+@pytest.mark.asyncio
+async def test_policy_state_valid_timestamps(journey_log_client, mock_http_client):
+    """Test policy state accepts valid ISO 8601 timestamps."""
+    mock_response_data = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "identity": {"name": "Aria", "race": "Elf", "class": "Ranger"},
+            "status": "Healthy",
+            "location": {"id": "origin:nexus", "display_name": "The Nexus"},
+            "additional_fields": {
+                "last_quest_offered_at": "2025-01-15T10:00:00Z",  # Valid with Z
+                "last_poi_created_at": "2025-01-15T09:30:00+00:00"  # Valid with timezone
+            }
+        },
+        "has_active_quest": False,
+        "combat": {"active": False},
+        "narrative": {"recent_turns": []},
+        "world": {},
+        "metadata": {}
+    }
+    
+    mock_response = AsyncMock(spec=Response)
+    mock_response.json.return_value = mock_response_data
+    mock_response.raise_for_status = AsyncMock()
+    mock_http_client.get.return_value = mock_response
+    
+    context = await journey_log_client.get_context(
+        character_id="550e8400-e29b-41d4-a716-446655440000"
+    )
+    
+    # Valid timestamps should be preserved
+    assert context.policy_state.last_quest_offered_at == "2025-01-15T10:00:00Z"
+    assert context.policy_state.last_poi_created_at == "2025-01-15T09:30:00+00:00"
+
+
+@pytest.mark.asyncio
+async def test_policy_state_explicit_has_active_quest_flag(journey_log_client, mock_http_client):
+    """Test that explicit has_active_quest flag is prioritized over quest presence."""
+    # Test case 1: has_active_quest=True but no quest object (edge case)
+    mock_response_data = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "identity": {"name": "Aria", "race": "Elf", "class": "Ranger"},
+            "status": "Healthy",
+            "location": {"id": "origin:nexus", "display_name": "The Nexus"}
+        },
+        "quest": None,
+        "has_active_quest": True,  # Explicit flag overrides quest presence
+        "combat": {"active": False},
+        "narrative": {"recent_turns": []},
+        "world": {},
+        "metadata": {}
+    }
+    
+    mock_response = AsyncMock(spec=Response)
+    mock_response.json.return_value = mock_response_data
+    mock_response.raise_for_status = AsyncMock()
+    mock_http_client.get.return_value = mock_response
+    
+    context = await journey_log_client.get_context(
+        character_id="550e8400-e29b-41d4-a716-446655440000"
+    )
+    
+    # Should use explicit flag
+    assert context.policy_state.has_active_quest is True
+
+
+@pytest.mark.asyncio
+async def test_policy_state_quest_presence_fallback(journey_log_client, mock_http_client):
+    """Test that quest presence is used when explicit flag is missing."""
+    mock_response_data = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "identity": {"name": "Aria", "race": "Elf", "class": "Ranger"},
+            "status": "Healthy",
+            "location": {"id": "origin:nexus", "display_name": "The Nexus"}
+        },
+        "quest": {"name": "Test Quest", "completion_state": "in_progress"},
+        # No explicit has_active_quest flag - should derive from quest presence
+        "combat": {"active": False},
+        "narrative": {"recent_turns": []},
+        "world": {},
+        "metadata": {}
+    }
+    
+    mock_response = AsyncMock(spec=Response)
+    mock_response.json.return_value = mock_response_data
+    mock_response.raise_for_status = AsyncMock()
+    mock_http_client.get.return_value = mock_response
+    
+    context = await journey_log_client.get_context(
+        character_id="550e8400-e29b-41d4-a716-446655440000"
+    )
+    
+    # Should derive from quest presence
+    assert context.policy_state.has_active_quest is True

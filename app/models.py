@@ -157,6 +157,37 @@ class PolicyState(BaseModel):
         description="Optional flag indicating player requested help or guidance"
     )
 
+    @field_validator('last_quest_offered_at', 'last_poi_created_at')
+    @classmethod
+    def validate_timestamp(cls, v: Optional[str]) -> Optional[str]:
+        """Validate timestamp is None or valid ISO 8601 format.
+        
+        Args:
+            v: Timestamp value to validate
+            
+        Returns:
+            The timestamp if valid, otherwise None
+            
+        Note:
+            Validation errors are logged but do not raise exceptions to ensure
+            graceful degradation. Invalid timestamps default to None.
+        """
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            # This shouldn't happen due to type hints, but be defensive
+            return None
+        try:
+            # Use fromisoformat for basic validation
+            # Replace 'Z' with '+00:00' for compatibility
+            from datetime import datetime
+            datetime.fromisoformat(v.replace('Z', '+00:00'))
+            return v
+        except (ValueError, TypeError):
+            # Return None for invalid timestamps - validation happens at extraction time
+            # with proper logging, so we don't need to log again here
+            return None
+
 
 class TurnResponse(BaseModel):
     """Response model for a turn in the game.
