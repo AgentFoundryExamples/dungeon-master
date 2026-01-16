@@ -293,9 +293,7 @@ async def process_turn(
                 poi_roll_passed=poi_decision.roll_passed
             )
             
-            # Record metrics for policy evaluations
-            if (collector := get_metrics_collector()):
-                collector.record_latency("policy_evaluation", 0)  # Tracked by MetricsTimer
+            # Metrics for policy evaluations are recorded by the MetricsTimer
 
         # Step 3: Build prompt
         with PhaseTimer("prompt_build", logger):

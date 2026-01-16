@@ -246,7 +246,7 @@ Output ONLY the JSON object, no other text."""
 
         return "\n".join(lines)
 
-    def _format_policy_hints(self, policy_hints) -> str:
+    def _format_policy_hints(self, policy_hints: "PolicyHints") -> str:
         """Format policy hints information.
         
         Args:
