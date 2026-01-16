@@ -224,9 +224,12 @@ class LLMClient:
                 logger.error(f"Failed to parse LLM response as JSON: {e}")
                 # With strict schema enforcement, we should not receive non-JSON responses
                 # If this happens, it indicates an API configuration issue
+                content_preview = content[:200] if len(content) > 200 else content
                 logger.warning(
                     "Received non-JSON response despite strict schema enforcement. "
-                    "This may indicate API compatibility issues or fallback behavior."
+                    f"Response preview: {content_preview}... "
+                    "Troubleshooting: 1) Verify API key has access to strict schema feature, "
+                    "2) Check model supports JSON mode, 3) Review prompt instructions."
                 )
                 raise LLMResponseError(
                     f"Failed to parse LLM response as JSON. "

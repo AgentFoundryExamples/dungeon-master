@@ -271,11 +271,17 @@ def test_prompt_clarifies_deterministic_subsystems(prompt_builder, sample_contex
     
     # Should clarify that LLM doesn't decide subsystem eligibility
     instructions_lower = system_instructions.lower()
-    has_deterministic = "DETERMINISTIC" in system_instructions or "deterministic" in instructions_lower
-    has_game_logic = "game" in instructions_lower and ("logic" in instructions_lower or "engine" in instructions_lower)
+    
+    # Check for deterministic policy mention
+    has_deterministic = "deterministic" in instructions_lower
+    
+    # Check for game system mention (logic or engine)
+    has_game_system = ("game logic" in instructions_lower or 
+                       "game engine" in instructions_lower or
+                       "game service" in instructions_lower)
     
     assert has_deterministic, "System instructions should mention deterministic behavior"
-    assert has_game_logic, "System instructions should mention game logic or engine"
+    assert has_game_system, "System instructions should clarify game system handles decisions"
 
 
 def test_user_prompt_reminds_json_only(prompt_builder, sample_context):
