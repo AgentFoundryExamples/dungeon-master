@@ -101,8 +101,8 @@ Total files: 24
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for prompt builder  
-**Size:** 7.57 KB  
-**LOC:** 156  
+**Size:** 10.34 KB  
+**LOC:** 195  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/__init__.py
@@ -128,8 +128,8 @@ Total files: 24
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for llm client  
-**Size:** 9.13 KB  
-**LOC:** 190  
+**Size:** 13.19 KB  
+**LOC:** 247  
 **TODOs/FIXMEs:** 0  
 
 ## example_openai_usage.py
@@ -137,8 +137,8 @@ Total files: 24
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for example openai usage  
-**Size:** 20.30 KB  
-**LOC:** 402  
+**Size:** 23.54 KB  
+**LOC:** 461  
 **TODOs/FIXMEs:** 0  
 
 ## tests/__init__.py
@@ -182,8 +182,8 @@ Total files: 24
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 7.05 KB  
-**LOC:** 159  
+**Size:** 12.12 KB  
+**LOC:** 273  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_metrics.py
@@ -209,8 +209,8 @@ Total files: 24
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 7.68 KB  
-**LOC:** 175  
+**Size:** 10.28 KB  
+**LOC:** 217  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_turn_integration.py

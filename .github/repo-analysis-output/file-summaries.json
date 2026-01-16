@@ -151,8 +151,8 @@
       "summary": "Python module for prompt builder",
       "summary_text": "Python module for prompt builder",
       "metrics": {
-        "size_bytes": 7750,
-        "loc": 156,
+        "size_bytes": 10586,
+        "loc": 195,
         "todo_count": 0
       }
     },
@@ -193,8 +193,8 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 9346,
-        "loc": 190,
+        "size_bytes": 13511,
+        "loc": 247,
         "todo_count": 0
       }
     },
@@ -207,8 +207,8 @@
       "summary": "Python module for example openai usage",
       "summary_text": "Python module for example openai usage",
       "metrics": {
-        "size_bytes": 20786,
-        "loc": 402,
+        "size_bytes": 24107,
+        "loc": 461,
         "todo_count": 0
       }
     },
@@ -277,8 +277,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 7220,
-        "loc": 159,
+        "size_bytes": 12411,
+        "loc": 273,
         "todo_count": 0
       }
     },
@@ -319,8 +319,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 7867,
-        "loc": 175,
+        "size_bytes": 10522,
+        "loc": 217,
         "todo_count": 0
       }
     },

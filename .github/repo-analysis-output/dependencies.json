@@ -153,6 +153,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "json",
           "typing.Tuple"
         ],
         "third-party": []
@@ -195,7 +196,8 @@
         ],
         "third-party": [
           "openai",
-          "openai.AsyncOpenAI"
+          "openai.AsyncOpenAI",
+          "pydantic.ValidationError"
         ]
       }
     },
@@ -437,6 +439,10 @@
       "target": "app/logging.py"
     },
     {
+      "source": "app/services/llm_client.py",
+      "target": "app/models.py"
+    },
+    {
       "source": "example_openai_usage.py",
       "target": "app/services/llm_client.py"
     },
@@ -499,6 +505,10 @@
     {
       "source": "tests/test_llm_client.py",
       "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_llm_client.py",
+      "target": "app/models.py"
     },
     {
       "source": "tests/test_metrics.py",
