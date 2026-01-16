@@ -16,11 +16,18 @@
 This module defines the request/response schemas and context models
 used by the Dungeon Master service for communication with clients
 and the journey-log service.
+
+Includes DungeonMasterOutcome models for structured LLM outputs with
+strict JSON contracts for narrative and intents.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Literal
 from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
+
+# Internal version constant for outcome schema evolution
+# Do NOT include this in LLM outputs; it's for internal tracking only
+OUTCOME_VERSION = 1
 
 
 class TurnRequest(BaseModel):
@@ -173,3 +180,318 @@ class ErrorResponse(BaseModel):
         ...,
         description="Error details"
     )
+
+
+# ============================================================================
+# DungeonMaster Outcome Models - Structured LLM Output Schema
+# ============================================================================
+# These models define strict JSON contracts for LLM outputs.
+# The LLM generates narrative and intents, but does NOT decide subsystem
+# eligibility - that's handled by the DungeonMaster service logic.
+
+
+class EnemyDescriptor(BaseModel):
+    """Descriptor for an enemy in combat.
+    
+    Used by CombatIntent to describe enemies encountered in combat.
+    
+    Attributes:
+        name: Optional name of the enemy (e.g., "Goblin Scout")
+        description: Optional description of the enemy's appearance or behavior
+        threat: Optional threat level or classification (e.g., "low", "medium", "high")
+    """
+    name: Optional[str] = Field(
+        None,
+        description="Name of the enemy",
+        examples=["Goblin Scout", "Shadow Wraith"]
+    )
+    description: Optional[str] = Field(
+        None,
+        description="Description of the enemy's appearance or behavior",
+        examples=["A small, cunning creature with sharp teeth"]
+    )
+    threat: Optional[str] = Field(
+        None,
+        description="Threat level or classification",
+        examples=["low", "medium", "high"]
+    )
+
+
+class QuestIntent(BaseModel):
+    """Quest-related intent from LLM output.
+    
+    Indicates what quest action the narrative implies, if any.
+    The LLM only suggests intents; the service decides actual quest operations.
+    
+    Attributes:
+        action: Quest action type - "none", "offer", "complete", or "abandon"
+        quest_title: Optional title of the quest
+        quest_summary: Optional brief summary of the quest
+        quest_details: Optional dictionary of additional quest metadata
+    """
+    action: Literal["none", "offer", "complete", "abandon"] = Field(
+        default="none",
+        description="Quest action to perform"
+    )
+    quest_title: Optional[str] = Field(
+        None,
+        description="Title of the quest",
+        examples=["Rescue the Innkeeper's Daughter"]
+    )
+    quest_summary: Optional[str] = Field(
+        None,
+        description="Brief summary of the quest objective",
+        examples=["Find the missing girl last seen near the old mill"]
+    )
+    quest_details: Optional[dict] = Field(
+        None,
+        description="Additional quest metadata and details"
+    )
+
+
+class CombatIntent(BaseModel):
+    """Combat-related intent from LLM output.
+    
+    Indicates what combat action the narrative implies, if any.
+    The LLM only suggests intents; the service decides actual combat operations.
+    
+    Attributes:
+        action: Combat action type - "none", "start", "continue", or "end"
+        enemies: Optional list of enemy descriptors
+        combat_notes: Optional notes about the combat situation
+    """
+    action: Literal["none", "start", "continue", "end"] = Field(
+        default="none",
+        description="Combat action to perform"
+    )
+    enemies: Optional[List[EnemyDescriptor]] = Field(
+        None,
+        description="List of enemies in the encounter"
+    )
+    combat_notes: Optional[str] = Field(
+        None,
+        description="Additional notes about the combat situation",
+        examples=["The goblins are hiding behind barrels"]
+    )
+
+
+class POIIntent(BaseModel):
+    """Point-of-Interest intent from LLM output.
+    
+    Indicates what POI action the narrative implies, if any.
+    The LLM only suggests intents; the service decides actual POI operations.
+    
+    Attributes:
+        action: POI action type - "none", "create", or "reference"
+        name: Optional name of the point of interest
+        description: Optional description of the location
+        reference_tags: Optional list of tags for referencing this POI later
+    """
+    action: Literal["none", "create", "reference"] = Field(
+        default="none",
+        description="Point-of-interest action to perform"
+    )
+    name: Optional[str] = Field(
+        None,
+        description="Name of the point of interest",
+        examples=["The Old Mill", "Shadowfen Swamp"]
+    )
+    description: Optional[str] = Field(
+        None,
+        description="Description of the location",
+        examples=["An abandoned mill at the edge of the forest"]
+    )
+    reference_tags: Optional[List[str]] = Field(
+        None,
+        description="Tags for referencing this POI in future context",
+        examples=[["mill", "forest", "quest_location"]]
+    )
+
+
+class MetaIntent(BaseModel):
+    """Meta-level intent about player engagement and pacing.
+    
+    Provides hints about player mood and game pacing for the service to consider.
+    The LLM observes and reports; the service decides actual pacing adjustments.
+    
+    Attributes:
+        player_mood: Optional assessment of player's emotional state
+        pacing_hint: Optional pacing suggestion - "slow", "normal", or "fast"
+        user_is_wandering: Optional flag indicating player seems directionless
+        user_asked_for_guidance: Optional flag indicating player requested help
+    """
+    player_mood: Optional[str] = Field(
+        None,
+        description="Assessment of player's emotional state",
+        examples=["excited", "cautious", "frustrated", "engaged"]
+    )
+    pacing_hint: Optional[Literal["slow", "normal", "fast"]] = Field(
+        None,
+        description="Suggested pacing for the game flow"
+    )
+    user_is_wandering: Optional[bool] = Field(
+        None,
+        description="Flag indicating player seems to lack direction"
+    )
+    user_asked_for_guidance: Optional[bool] = Field(
+        None,
+        description="Flag indicating player explicitly requested help or guidance"
+    )
+
+
+class IntentsBlock(BaseModel):
+    """Collection of all intent types from LLM output.
+    
+    Groups all possible intents that the LLM can suggest based on the narrative.
+    All fields are optional as the LLM may not suggest any specific intent.
+    
+    Note: The LLM fills these intents based on narrative content, but the
+    DungeonMaster service logic determines actual subsystem eligibility and
+    operations based on game state.
+    
+    Attributes:
+        quest_intent: Optional quest-related intent
+        combat_intent: Optional combat-related intent
+        poi_intent: Optional point-of-interest intent
+        meta: Optional meta-level intent about player engagement
+    """
+    quest_intent: Optional[QuestIntent] = Field(
+        None,
+        description="Quest-related intent, if any"
+    )
+    combat_intent: Optional[CombatIntent] = Field(
+        None,
+        description="Combat-related intent, if any"
+    )
+    poi_intent: Optional[POIIntent] = Field(
+        None,
+        description="Point-of-interest intent, if any"
+    )
+    meta: Optional[MetaIntent] = Field(
+        None,
+        description="Meta-level intent about player engagement and pacing"
+    )
+
+
+class DungeonMasterOutcome(BaseModel):
+    """Structured outcome from LLM for a turn.
+    
+    This is the top-level schema that the LLM must conform to when generating
+    responses. It enforces a strict JSON contract with narrative text and
+    structured intents.
+    
+    The LLM generates narrative and suggests intents, but does NOT decide
+    subsystem eligibility or perform state changes - those are handled by
+    the DungeonMaster service based on game rules and current state.
+    
+    Attributes:
+        narrative: The narrative text response to the player's action
+        intents: Structured intents derived from the narrative content
+    
+    Example:
+        {
+            "narrative": "You enter the tavern and see a grizzled innkeeper...",
+            "intents": {
+                "quest_intent": {
+                    "action": "offer",
+                    "quest_title": "Find My Daughter",
+                    "quest_summary": "The innkeeper's daughter is missing"
+                },
+                "combat_intent": {"action": "none"},
+                "poi_intent": {"action": "create", "name": "The Rusty Tankard Inn"},
+                "meta": {"player_mood": "curious", "pacing_hint": "normal"}
+            }
+        }
+    """
+    narrative: str = Field(
+        ...,
+        description="The narrative text response for this turn",
+        min_length=1
+    )
+    intents: IntentsBlock = Field(
+        ...,
+        description="Structured intents derived from the narrative"
+    )
+
+
+def get_outcome_json_schema() -> dict:
+    """Get JSON Schema for DungeonMasterOutcome.
+    
+    Returns the JSON Schema representation of the DungeonMasterOutcome model
+    suitable for embedding in LLM prompts to enforce structured output.
+    
+    This schema can be used with OpenAI's Responses API text.format parameter,
+    or with other LLMs that support JSON Schema validation. The schema is
+    configured with strict validation to prevent additional properties.
+    
+    Returns:
+        Dictionary containing the JSON Schema for DungeonMasterOutcome
+    
+    Example:
+        >>> schema = get_outcome_json_schema()
+        >>> # Use with OpenAI Responses API:
+        >>> response = client.responses.create(
+        ...     model="gpt-5.1",
+        ...     input="...",
+        ...     text={"format": {"type": "json_schema", "schema": schema, "strict": True}}
+        ... )
+    """
+    schema = DungeonMasterOutcome.model_json_schema()
+    
+    # Configure schema for stricter LLM adherence
+    # Set additionalProperties to false recursively for all object types
+    def set_strict_mode(obj):
+        if isinstance(obj, dict):
+            if obj.get("type") == "object" and "properties" in obj:
+                obj["additionalProperties"] = False
+            for value in obj.values():
+                set_strict_mode(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                set_strict_mode(item)
+    
+    set_strict_mode(schema)
+    return schema
+
+
+def get_outcome_schema_example() -> str:
+    """Get a JSON string example of DungeonMasterOutcome.
+    
+    Returns a formatted JSON example of the outcome schema suitable for
+    including in prompts as a reference. This example is generated from
+    actual model instances to ensure it matches the schema validation.
+    
+    Returns:
+        JSON string with formatted example
+    """
+    example_model = DungeonMasterOutcome(
+        narrative="You push open the heavy oak door and step into the dimly lit tavern. "
+                  "The smell of ale and smoke fills the air. Behind the bar, a grizzled "
+                  "innkeeper looks up at you with worried eyes.",
+        intents=IntentsBlock(
+            quest_intent=QuestIntent(
+                action="offer",
+                quest_title="Find the Missing Daughter",
+                quest_summary="The innkeeper's daughter hasn't returned from the forest",
+                quest_details={
+                    "difficulty": "medium",
+                    "suggested_level": 3
+                }
+            ),
+            combat_intent=CombatIntent(action="none"),
+            poi_intent=POIIntent(
+                action="create",
+                name="The Rusty Tankard Inn",
+                description="A weathered tavern at the edge of town",
+                reference_tags=["inn", "town", "quest_hub"]
+            ),
+            meta=MetaIntent(
+                player_mood="curious",
+                pacing_hint="normal",
+                user_is_wandering=False,
+                user_asked_for_guidance=False
+            )
+        )
+    )
+    
+    return example_model.model_dump_json(indent=2)
