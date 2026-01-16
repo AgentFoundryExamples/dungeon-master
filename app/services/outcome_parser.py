@@ -71,11 +71,92 @@ class OutcomeParser:
     - Always extracts narrative text as fallback
     - Returns ParsedOutcome with both typed object and raw narrative
     - Tracks metrics for schema conformance rate
+    - Normalizes QuestIntent with deterministic fallbacks
     """
     
     def __init__(self):
         """Initialize outcome parser."""
         self.schema_version = OUTCOME_VERSION
+    
+    def normalize_quest_intent(
+        self,
+        quest_intent: Optional[QuestIntent],
+        policy_triggered: bool = False
+    ) -> Optional[QuestIntent]:
+        """Normalize QuestIntent with deterministic fallbacks for missing fields.
+        
+        When the policy engine triggers a quest opportunity but the LLM intent
+        is missing or incomplete, this method provides deterministic fallback
+        values to ensure a valid quest can still be offered.
+        
+        Fallback rules:
+        - If quest_intent is None and policy_triggered=True, create minimal "offer" intent
+        - If title is missing and action="offer", provide generic fallback title
+        - If summary is missing and action="offer", provide generic fallback summary
+        - If details is missing and action="offer", provide empty dict
+        
+        Note: The action field is validated by Pydantic as a Literal type, so
+        invalid values cannot reach this method.
+        
+        Args:
+            quest_intent: QuestIntent from LLM (may be None or incomplete)
+            policy_triggered: Whether policy engine triggered quest opportunity
+            
+        Returns:
+            Normalized QuestIntent with fallbacks applied, or None if not applicable
+        """
+        # If no intent and policy didn't trigger, nothing to normalize
+        if quest_intent is None and not policy_triggered:
+            return None
+        
+        # If no intent but policy triggered, create minimal offer intent
+        if quest_intent is None and policy_triggered:
+            logger.info(
+                "Quest policy triggered but no LLM intent - using fallback",
+                action="offer"
+            )
+            return QuestIntent(
+                action="offer",
+                quest_title="A New Opportunity",
+                quest_summary="An opportunity for adventure presents itself.",
+                quest_details={}
+            )
+        
+        # Get validated action (Pydantic ensures it's valid)
+        action = quest_intent.action
+        
+        # If action is "none", no normalization needed
+        if action == "none":
+            return quest_intent
+        
+        # Normalize "offer" action fields
+        if action == "offer":
+            title = quest_intent.quest_title
+            summary = quest_intent.quest_summary
+            details = quest_intent.quest_details
+            
+            # Apply fallbacks for missing fields
+            if not title or not isinstance(title, str) or len(title.strip()) == 0:
+                title = "A New Opportunity"
+                logger.info("Quest offer missing title - using fallback")
+            
+            if not summary or not isinstance(summary, str) or len(summary.strip()) == 0:
+                summary = "An opportunity for adventure presents itself."
+                logger.info("Quest offer missing summary - using fallback")
+            
+            if details is None:
+                details = {}
+                logger.debug("Quest offer missing details - using empty dict")
+            
+            return QuestIntent(
+                action="offer",
+                quest_title=title,
+                quest_summary=summary,
+                quest_details=details
+            )
+        
+        # For "complete" and "abandon" actions, return as-is
+        return quest_intent
     
     def parse(
         self,

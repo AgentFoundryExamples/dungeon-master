@@ -198,6 +198,23 @@ class TurnOrchestrator:
             intents_valid=intents is not None
         )
         
+        # Step 2b: Normalize quest intent with fallbacks
+        if intents:
+            from app.services.outcome_parser import OutcomeParser
+            parser = OutcomeParser()
+            normalized_quest = parser.normalize_quest_intent(
+                quest_intent=intents.quest_intent,
+                policy_triggered=quest_decision.roll_passed
+            )
+            if normalized_quest != intents.quest_intent:
+                logger.info(
+                    "Quest intent normalized",
+                    original_action=intents.quest_intent.action if intents.quest_intent else "none",
+                    normalized_action=normalized_quest.action if normalized_quest else "none"
+                )
+                # Update intents with normalized quest intent
+                intents.quest_intent = normalized_quest
+        
         # Step 3: Derive subsystem actions
         logger.debug("Step 3: Deriving subsystem actions from policy and intents")
         actions = self._derive_subsystem_actions(
@@ -449,6 +466,7 @@ class TurnOrchestrator:
         - Catches JourneyLogClientError and all subclasses (NotFound, Timeout)
         - Continues execution without retrying (including for DELETE operations)
         - Logs structured error and updates summary with failure details
+        - HTTP 409 conflicts are logged and marked as skipped without crash
         - This allows narrative to complete even if quest write fails
         
         Args:
@@ -461,9 +479,36 @@ class TurnOrchestrator:
         
         try:
             if action.action_type == "offer":
+                # Build payload matching journey-log Quest schema
+                # Map from intent_data {title, summary, details} to API {name, description, requirements, rewards, completion_state, updated_at}
+                from datetime import datetime, timezone
+                
+                title = action.intent_data.get("title", "A New Opportunity")
+                summary_text = action.intent_data.get("summary", "An opportunity for adventure presents itself.")
+                details = action.intent_data.get("details") or {}
+                
+                quest_payload = {
+                    "name": title,
+                    "description": summary_text,
+                    "requirements": details.get("requirements", []),
+                    "rewards": {
+                        "items": details.get("reward_items", []),
+                        "currency": details.get("reward_currency", {}),
+                        "experience": details.get("reward_experience")
+                    },
+                    "completion_state": "not_started",
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                
+                logger.debug(
+                    "Built quest payload",
+                    quest_name=quest_payload["name"],
+                    quest_description_length=len(quest_payload["description"])
+                )
+                
                 await self.journey_log_client.put_quest(
                     character_id=character_id,
-                    quest_data=action.intent_data,
+                    quest_data=quest_payload,
                     trace_id=trace_id
                 )
                 summary.quest_change = SubsystemActionType(
@@ -471,7 +516,7 @@ class TurnOrchestrator:
                     success=True,
                     error=None
                 )
-                logger.info("Quest offer successful")
+                logger.info("Quest offer successful", quest_name=title)
             
             elif action.action_type in ["complete", "abandon"]:
                 # DELETE operation - no retry on failure per design
@@ -487,20 +532,35 @@ class TurnOrchestrator:
                 logger.info(f"Quest {action.action_type} successful")
         
         except JourneyLogClientError as e:
-            # Catches all journey-log errors: NotFound, Timeout, Client errors
-            # Continue without retry (including for DELETE operations)
-            error_msg = f"Quest {action.action_type} failed: {str(e)}"
-            logger.error(
-                "Quest action failed - continuing with narrative",
-                action=action.action_type,
-                error=str(e),
-                is_destructive=action.action_type in ["complete", "abandon"]
-            )
-            summary.quest_change = SubsystemActionType(
-                action=action.action_type,
-                success=False,
-                error=error_msg
-            )
+            # Check for HTTP 409 Conflict (active quest already exists)
+            error_str = str(e)
+            if "409" in error_str or "conflict" in error_str.lower():
+                # HTTP 409: Active quest already exists
+                logger.warning(
+                    "Quest PUT skipped - active quest already exists (HTTP 409)",
+                    action=action.action_type,
+                    error=error_str
+                )
+                summary.quest_change = SubsystemActionType(
+                    action="skipped",
+                    success=False,
+                    error="Active quest already exists (HTTP 409 Conflict)"
+                )
+            else:
+                # Other journey-log errors: NotFound, Timeout, Client errors
+                # Continue without retry (including for DELETE operations)
+                error_msg = f"Quest {action.action_type} failed: {str(e)}"
+                logger.error(
+                    "Quest action failed - continuing with narrative",
+                    action=action.action_type,
+                    error=str(e),
+                    is_destructive=action.action_type in ["complete", "abandon"]
+                )
+                summary.quest_change = SubsystemActionType(
+                    action=action.action_type,
+                    success=False,
+                    error=error_msg
+                )
     
     async def _execute_combat_action(
         self,
