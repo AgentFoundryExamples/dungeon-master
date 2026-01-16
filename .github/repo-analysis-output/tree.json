@@ -180,6 +180,10 @@
         },
         {
           "type": "file",
+          "name": "test_outcome_models.py"
+        },
+        {
+          "type": "file",
           "name": "test_prompt_builder.py"
         },
         {

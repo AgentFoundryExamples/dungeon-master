@@ -40,6 +40,7 @@
   ├── test_journey_log_client.py
   ├── test_llm_client.py
   ├── test_metrics.py
+  ├── test_outcome_models.py
   ├── test_prompt_builder.py
   └── test_turn_integration.py
 ├── .env.example

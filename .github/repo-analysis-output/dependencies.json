@@ -127,6 +127,7 @@
       "external_dependencies": {
         "stdlib": [
           "typing.List",
+          "typing.Literal",
           "typing.Optional",
           "uuid.UUID"
         ],
@@ -305,6 +306,20 @@
         ],
         "third-party": [
           "fastapi.testclient.TestClient"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_outcome_models.py",
+      "path": "tests/test_outcome_models.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json"
+        ],
+        "third-party": [
+          "pydantic.ValidationError",
+          "pytest"
         ]
       }
     },
@@ -498,6 +513,10 @@
       "target": "app/main.py"
     },
     {
+      "source": "tests/test_outcome_models.py",
+      "target": "app/models.py"
+    },
+    {
       "source": "tests/test_prompt_builder.py",
       "target": "app/prompting/prompt_builder.py"
     },
@@ -528,6 +547,7 @@
       "typing.Callable",
       "typing.Dict",
       "typing.List",
+      "typing.Literal",
       "typing.Optional",
       "typing.Tuple",
       "unittest.mock.AsyncMock",
@@ -564,7 +584,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 23,
+    "stdlib_count": 24,
     "third-party_count": 26
   }
 }

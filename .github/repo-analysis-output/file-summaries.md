@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 23
+Total files: 24
 
 ## app/__init__.py
 **Language:** Python  
@@ -83,8 +83,8 @@ Total files: 23
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 5.38 KB  
-**LOC:** 139  
+**Size:** 17.01 KB  
+**LOC:** 403  
 **TODOs/FIXMEs:** 0  
 
 ## app/prompting/__init__.py
@@ -193,6 +193,15 @@ Total files: 23
 **Summary:** Python test file (role: test)  
 **Size:** 6.49 KB  
 **LOC:** 135  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_outcome_models.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 19.43 KB  
+**LOC:** 426  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_prompt_builder.py
