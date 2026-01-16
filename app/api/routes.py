@@ -241,10 +241,21 @@ async def process_turn(
         # Step 3: Call LLM for narrative generation
         with PhaseTimer("llm_call", logger), MetricsTimer("llm_call"):
             logger.debug("Generating narrative with LLM")
-            narrative = await llm_client.generate_narrative(
+            parsed_outcome = await llm_client.generate_narrative(
                 system_instructions=system_instructions,
                 user_prompt=user_prompt,
                 trace_id=request.trace_id
+            )
+        
+        # Extract narrative from parsed outcome (always available even if invalid)
+        narrative = parsed_outcome.narrative
+        
+        # Log if we're using fallback narrative
+        if not parsed_outcome.is_valid:
+            logger.warning(
+                "Using fallback narrative due to validation failure",
+                error_type=parsed_outcome.error_type,
+                error_count=len(parsed_outcome.error_details) if parsed_outcome.error_details else 0
             )
 
         # Step 4: Persist to journey-log

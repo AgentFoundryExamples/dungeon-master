@@ -21,7 +21,16 @@ import openai
 from pydantic import ValidationError
 
 from app.logging import StructuredLogger, redact_secrets
-from app.models import DungeonMasterOutcome, get_outcome_json_schema
+from app.models import (
+    DungeonMasterOutcome,
+    get_outcome_json_schema,
+    IntentsBlock,
+    QuestIntent,
+    CombatIntent,
+    POIIntent
+)
+from app.services.outcome_parser import OutcomeParser, ParsedOutcome
+from app.metrics import get_metrics_collector
 
 logger = StructuredLogger(__name__)
 
@@ -97,6 +106,7 @@ class LLMClient:
         self.model = model
         self.timeout = timeout
         self.stub_mode = stub_mode
+        self.parser = OutcomeParser()
 
         if not stub_mode:
             self.client = AsyncOpenAI(
@@ -116,7 +126,7 @@ class LLMClient:
         user_prompt: str,
         trace_id: Optional[str] = None,
         json_schema: Optional[dict] = None
-    ) -> str:
+    ) -> ParsedOutcome:
         """Generate narrative using the LLM with strict JSON enforcement.
         
         This method calls the OpenAI Responses API with the DungeonMasterOutcome
@@ -136,7 +146,7 @@ class LLMClient:
                         If not provided, schema will be generated via get_outcome_json_schema().
             
         Returns:
-            Generated narrative text (extracted from DungeonMasterOutcome.narrative)
+            ParsedOutcome with validated outcome (if successful) and narrative text
             
         Raises:
             LLMTimeoutError: If request times out
@@ -149,7 +159,7 @@ class LLMClient:
             indicates a configuration error or API compatibility issue.
         """
         if self.stub_mode:
-            return self._generate_stub_narrative(user_prompt)
+            return self._generate_stub_outcome(user_prompt)
 
         logger.info(
             "Generating narrative with LLM using DungeonMasterOutcome schema",
@@ -206,64 +216,34 @@ class LLMClient:
                 logger.error("OpenAI API returned empty content")
                 raise LLMResponseError("LLM returned empty content")
 
-            # Parse the JSON response to extract DungeonMasterOutcome
-            try:
-                response_data = json.loads(content)
-                
-                # Validate against DungeonMasterOutcome model
-                outcome = DungeonMasterOutcome.model_validate(response_data)
-                
-                # Extract narrative from the structured outcome
-                narrative = outcome.narrative.strip()
-
-                if not narrative:
-                    logger.error("LLM response missing 'narrative' field or empty")
-                    raise LLMResponseError("LLM response missing narrative field")
-
-                duration_ms = (time.time() - start_time) * 1000
+            # Parse the response using the outcome parser
+            # This handles JSON validation, error logging, and fallback behavior
+            parsed = self.parser.parse(content, trace_id=trace_id)
+            
+            # Record schema conformance metrics
+            if (collector := get_metrics_collector()):
+                if parsed.is_valid:
+                    collector.record_error("llm_parse_success")
+                else:
+                    collector.record_error(f"llm_parse_failure_{parsed.error_type}")
+            
+            duration_ms = (time.time() - start_time) * 1000
+            
+            if parsed.is_valid:
                 logger.info(
-                    "Successfully generated narrative with structured outcome",
-                    narrative_length=len(narrative),
-                    has_quest_intent=outcome.intents.quest_intent is not None,
-                    has_combat_intent=outcome.intents.combat_intent is not None,
-                    has_poi_intent=outcome.intents.poi_intent is not None,
-                    has_meta_intent=outcome.intents.meta is not None,
+                    "Successfully generated narrative with valid schema",
+                    narrative_length=len(parsed.narrative),
                     duration_ms=f"{duration_ms:.2f}"
                 )
-                return narrative
-
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse LLM response as JSON: {e}")
-                # With strict schema enforcement, we should not receive non-JSON responses
-                # If this happens, it indicates an API configuration issue
-                content_preview = content[:200] if len(content) > 200 else content
+            else:
                 logger.warning(
-                    "Received non-JSON response despite strict schema enforcement. "
-                    f"Response preview: {content_preview}... "
-                    "Troubleshooting: 1) Verify API key has access to strict schema feature, "
-                    "2) Check model supports JSON mode, 3) Review prompt instructions."
+                    "Generated narrative but schema validation failed - using fallback",
+                    narrative_length=len(parsed.narrative),
+                    error_type=parsed.error_type,
+                    duration_ms=f"{duration_ms:.2f}"
                 )
-                raise LLMResponseError(
-                    f"Failed to parse LLM response as JSON. "
-                    f"Strict schema enforcement should prevent this: {e}"
-                ) from e
-            except ValidationError as e:
-                # Pydantic validation error - response JSON doesn't match DungeonMasterOutcome schema
-                logger.error(
-                    f"LLM response failed Pydantic validation against DungeonMasterOutcome schema: {e}"
-                )
-                raise LLMResponseError(
-                    f"LLM response structure validation failed. "
-                    f"The JSON does not conform to DungeonMasterOutcome schema: {e}"
-                ) from e
-            except Exception as e:
-                # Unexpected error during validation/parsing
-                logger.error(
-                    f"Unexpected error during LLM response validation: {type(e).__name__}: {e}"
-                )
-                raise LLMResponseError(
-                    f"Unexpected error validating LLM response: {e}"
-                ) from e
+            
+            return parsed
 
         except openai.APITimeoutError as e:
             duration_ms = (time.time() - start_time) * 1000
@@ -307,22 +287,39 @@ class LLMClient:
             )
             raise LLMClientError(f"Failed to generate narrative: {e}") from e
 
-    def _generate_stub_narrative(self, user_prompt: str) -> str:
-        """Generate stub narrative for offline development.
+    def _generate_stub_outcome(self, user_prompt: str) -> ParsedOutcome:
+        """Generate stub outcome for offline development.
         
         Args:
             user_prompt: The user prompt (for extracting action)
             
         Returns:
-            Stub narrative response
+            ParsedOutcome with stub narrative
         """
-        logger.debug("Generating stub narrative (API not called)")
+        logger.debug("Generating stub outcome (API not called)")
 
         # Extract a snippet from the prompt to make the stub response more relevant
         prompt_snippet = user_prompt[:100] if len(user_prompt) > 100 else user_prompt
 
-        return (
+        narrative = (
             f"[STUB MODE] This is a placeholder narrative response. "
             f"In production, this would be generated by {self.model}. "
             f"Based on your prompt: '{prompt_snippet}...'"
+        )
+        
+        # Create a valid outcome for stub mode
+        outcome = DungeonMasterOutcome(
+            narrative=narrative,
+            intents=IntentsBlock(
+                quest_intent=QuestIntent(action="none"),
+                combat_intent=CombatIntent(action="none"),
+                poi_intent=POIIntent(action="none"),
+                meta=None
+            )
+        )
+        
+        return ParsedOutcome(
+            outcome=outcome,
+            narrative=narrative,
+            is_valid=True
         )
