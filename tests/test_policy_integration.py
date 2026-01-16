@@ -223,8 +223,11 @@ async def test_policy_guardrails_block_quest_intent():
         assert response.narrative
         assert "mysterious stranger" in response.narrative.lower()
         
-        # NEW BEHAVIOR: Intents reflect what LLM suggested (not modified by policy)
-        # The actual action taken is reflected in subsystem_summary
+        # NEW BEHAVIOR (Intentional): Intents reflect what LLM suggested (not modified by policy)
+        # Rationale: Intents are informational and show what the LLM understood/suggested.
+        # The actual action taken is reflected in subsystem_summary for accuracy.
+        # This separation makes debugging easier: intents show LLM output,
+        # subsystem_summary shows what actually executed (after policy gating).
         assert response.intents is not None
         assert response.intents.quest_intent is not None
         # The LLM still suggested "offer"

@@ -328,27 +328,31 @@ class TurnOrchestrator:
             intent_action = intents.quest_intent.action
             
             # Gate by policy for "offer" action
+            # Logic: BOTH policy roll AND context state must allow the action
             if intent_action == "offer":
-                if quest_decision.roll_passed:
-                    # Additional validation: no active quest
-                    if not context.policy_state.has_active_quest:
-                        actions["quest"] = SubsystemAction(
-                            subsystem="quest",
-                            action_type=intent_action,
-                            intent_data={
-                                "title": intents.quest_intent.quest_title,
-                                "summary": intents.quest_intent.quest_summary,
-                                "details": intents.quest_intent.quest_details,
-                            },
-                            should_execute=True
-                        )
-                        logger.debug("Quest offer action derived", title=intents.quest_intent.quest_title)
-                    else:
-                        logger.info("Quest offer skipped - already has active quest")
-                else:
+                # Check policy roll first
+                if not quest_decision.roll_passed:
+                    # Policy denied - skip regardless of context state
                     logger.info("Quest offer skipped - policy roll failed")
+                # Policy passed - now check context state
+                elif context.policy_state.has_active_quest:
+                    # Context state invalid (already has quest) - skip
+                    logger.info("Quest offer skipped - already has active quest")
+                else:
+                    # Both policy AND context state allow - execute
+                    actions["quest"] = SubsystemAction(
+                        subsystem="quest",
+                        action_type=intent_action,
+                        intent_data={
+                            "title": intents.quest_intent.quest_title,
+                            "summary": intents.quest_intent.quest_summary,
+                            "details": intents.quest_intent.quest_details,
+                        },
+                        should_execute=True
+                    )
+                    logger.debug("Quest offer action derived", title=intents.quest_intent.quest_title)
             
-            # Other quest actions don't require policy roll
+            # Other quest actions don't require policy roll, only context state
             elif intent_action in ["complete", "abandon"]:
                 # Validation: must have active quest
                 if context.policy_state.has_active_quest:
@@ -441,6 +445,12 @@ class TurnOrchestrator:
         Handles: PUT (offer), DELETE (complete/abandon)
         On failure: logs error, continues, updates summary
         
+        Error Handling:
+        - Catches JourneyLogClientError and all subclasses (NotFound, Timeout)
+        - Continues execution without retrying (including for DELETE operations)
+        - Logs structured error and updates summary with failure details
+        - This allows narrative to complete even if quest write fails
+        
         Args:
             character_id: Character UUID
             action: SubsystemAction to execute
@@ -464,6 +474,7 @@ class TurnOrchestrator:
                 logger.info("Quest offer successful")
             
             elif action.action_type in ["complete", "abandon"]:
+                # DELETE operation - no retry on failure per design
                 await self.journey_log_client.delete_quest(
                     character_id=character_id,
                     trace_id=trace_id
@@ -476,11 +487,14 @@ class TurnOrchestrator:
                 logger.info(f"Quest {action.action_type} successful")
         
         except JourneyLogClientError as e:
+            # Catches all journey-log errors: NotFound, Timeout, Client errors
+            # Continue without retry (including for DELETE operations)
             error_msg = f"Quest {action.action_type} failed: {str(e)}"
             logger.error(
                 "Quest action failed - continuing with narrative",
                 action=action.action_type,
-                error=str(e)
+                error=str(e),
+                is_destructive=action.action_type in ["complete", "abandon"]
             )
             summary.quest_change = SubsystemActionType(
                 action=action.action_type,
@@ -499,6 +513,11 @@ class TurnOrchestrator:
         
         Handles: PUT (start/continue/end)
         On failure: logs error, continues, updates summary
+        
+        Error Handling:
+        - Catches JourneyLogClientError and all subclasses (NotFound, Timeout)
+        - Continues execution without retrying
+        - Logs structured error and updates summary with failure details
         
         Args:
             character_id: Character UUID
@@ -523,6 +542,7 @@ class TurnOrchestrator:
             logger.info(f"Combat {action.action_type} successful")
         
         except JourneyLogClientError as e:
+            # Catches all journey-log errors: NotFound, Timeout, Client errors
             error_msg = f"Combat {action.action_type} failed: {str(e)}"
             logger.error(
                 "Combat action failed - continuing with narrative",
@@ -547,6 +567,11 @@ class TurnOrchestrator:
         Handles: POST (create/reference)
         On failure: logs error, continues, updates summary
         
+        Error Handling:
+        - Catches JourneyLogClientError and all subclasses (NotFound, Timeout)
+        - Continues execution without retrying
+        - Logs structured error and updates summary with failure details
+        
         Args:
             character_id: Character UUID
             action: SubsystemAction to execute
@@ -570,6 +595,7 @@ class TurnOrchestrator:
             logger.info(f"POI {action.action_type} successful")
         
         except JourneyLogClientError as e:
+            # Catches all journey-log errors: NotFound, Timeout, Client errors
             error_msg = f"POI {action.action_type} failed: {str(e)}"
             logger.error(
                 "POI action failed - continuing with narrative",
@@ -594,6 +620,11 @@ class TurnOrchestrator:
         
         This is always attempted, even if subsystem actions failed.
         On failure: logs error, updates summary (but doesn't raise)
+        
+        Error Handling:
+        - Catches JourneyLogClientError and all subclasses (NotFound, Timeout)
+        - Does not raise exception - narrative failure is captured in summary
+        - This allows the turn to complete with a response even if persistence fails
         
         Args:
             character_id: Character UUID
