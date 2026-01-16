@@ -610,4 +610,51 @@ def test_memory_sparks_handles_missing_fields(prompt_builder):
     
     # Should not crash and should include what's available
     assert "MEMORY SPARKS" in user_prompt
-    assert "Minimal POI" in user_prompt or "Unknown Location" in user_prompt
+    # Verify both the named POI and the fallback for the unnamed one are present
+    assert "Minimal POI" in user_prompt
+    assert "Unknown Location" in user_prompt
+
+
+def test_memory_sparks_sorts_missing_timestamps_last(prompt_builder):
+    """Test that POIs without timestamps sort last, not first."""
+    memory_sparks = [
+        {
+            "id": "poi-1",
+            "name": "No Timestamp POI",
+            # No timestamp - should sort last
+        },
+        {
+            "id": "poi-2",
+            "name": "Recent POI",
+            "timestamp_discovered": "2025-01-15T10:00:00Z"
+        },
+        {
+            "id": "poi-3",
+            "name": "Older POI",
+            "timestamp_discovered": "2025-01-15T08:00:00Z"
+        }
+    ]
+    
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "test:location", "display_name": "Test Location"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        memory_sparks=memory_sparks
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I explore"
+    )
+    
+    # POIs with timestamps should appear first (newest to oldest)
+    # POI without timestamp should appear last
+    recent_pos = user_prompt.index("Recent POI")
+    older_pos = user_prompt.index("Older POI")
+    no_timestamp_pos = user_prompt.index("No Timestamp POI")
+    
+    assert recent_pos < older_pos, "Recent POI should appear before Older POI"
+    assert older_pos < no_timestamp_pos, "POI without timestamp should appear last"

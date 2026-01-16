@@ -264,18 +264,16 @@ Output ONLY the JSON object, no other text."""
         Returns:
             Formatted memory sparks string with deterministic ordering
         """
-        if not memory_sparks:
-            return "  (No memory sparks available)"
-        
         lines = []
         lines.append(f"  {len(memory_sparks)} previously discovered location(s):")
         
         # Sort by timestamp_discovered descending (newest first) for deterministic order
-        # If timestamp not present, sort by name as fallback
+        # POIs without timestamps sort last (using empty string as minimum timestamp)
+        # then by name for stable ordering
         sorted_sparks = sorted(
             memory_sparks,
             key=lambda poi: (
-                poi.get("timestamp_discovered", ""),
+                poi.get("timestamp_discovered") or "",  # Empty string sorts last in reverse
                 poi.get("name", "")
             ),
             reverse=True
