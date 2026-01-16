@@ -110,34 +110,35 @@ def client(test_env):
         # Create test HTTP client
         test_http_client = AsyncClient()
         
-        # Create test service clients
-        settings = get_settings()
-        test_journey_log_client = JourneyLogClient(
-            base_url=settings.journey_log_base_url,
-            http_client=test_http_client,
-            timeout=settings.journey_log_timeout,
-            recent_n_default=settings.journey_log_recent_n
-        )
-        test_llm_client = LLMClient(
-            api_key=settings.openai_api_key,
-            model=settings.openai_model,
-            timeout=settings.openai_timeout,
-            stub_mode=True  # Always use stub mode in tests
-        )
-        
-        # Override all dependencies
-        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
-        app.dependency_overrides[get_http_client] = lambda: test_http_client
-        app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
-        app.dependency_overrides[get_llm_client] = lambda: test_llm_client
-        
-        client = TestClient(app)
-        
-        yield client
-        
-        # Cleanup
-        asyncio.run(test_http_client.aclose())
-        app.dependency_overrides.clear()
+        try:
+            # Create test service clients
+            settings = get_settings()
+            test_journey_log_client = JourneyLogClient(
+                base_url=settings.journey_log_base_url,
+                http_client=test_http_client,
+                timeout=settings.journey_log_timeout,
+                recent_n_default=settings.journey_log_recent_n
+            )
+            test_llm_client = LLMClient(
+                api_key=settings.openai_api_key,
+                model=settings.openai_model,
+                timeout=settings.openai_timeout,
+                stub_mode=True  # Always use stub mode in tests
+            )
+            
+            # Override all dependencies
+            from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
+            app.dependency_overrides[get_http_client] = lambda: test_http_client
+            app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
+            app.dependency_overrides[get_llm_client] = lambda: test_llm_client
+            
+            client = TestClient(app)
+            
+            yield client
+        finally:
+            # Cleanup - close async client and clear overrides
+            asyncio.run(test_http_client.aclose())
+            app.dependency_overrides.clear()
 
 
 @pytest.fixture
