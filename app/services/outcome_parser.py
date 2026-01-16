@@ -19,6 +19,7 @@ ensuring narrative text is always preserved for persistence.
 """
 
 import json
+import re
 from typing import Optional, Tuple, List
 from dataclasses import dataclass
 from pydantic import ValidationError
@@ -180,13 +181,13 @@ class OutcomeParser:
         
         except Exception as e:
             # Unexpected error during validation
-            error_msg = f"{type(e).__name__}: {str(e)}"
+            error_list = [f"{type(e).__name__}: {str(e)}"]
             
             logger.error(
                 "Unexpected error during LLM response validation",
                 schema_version=self.schema_version,
                 error_type="unexpected_error",
-                error_details=error_msg,
+                error_details=error_list,
                 payload_preview=truncated_payload,
                 trace_id=trace_id
             )
@@ -199,7 +200,7 @@ class OutcomeParser:
                 narrative=fallback_narrative,
                 is_valid=False,
                 error_type="unexpected_error",
-                error_details=[error_msg]
+                error_details=error_list
             )
     
     def _truncate_for_log(self, text: str) -> str:
@@ -261,8 +262,8 @@ class OutcomeParser:
         # Try to get narrative field directly
         if isinstance(json_data, dict):
             narrative = json_data.get("narrative")
-            if narrative and isinstance(narrative, str) and len(narrative.strip()) > 0:
-                return narrative.strip()
+            if narrative and isinstance(narrative, str) and len(narrative) > 0:
+                return narrative
         
         # Fallback to raw text extraction
         return self._extract_fallback_narrative(raw_text)
@@ -285,7 +286,6 @@ class OutcomeParser:
         # If the text looks like it might contain JSON, try to extract narrative field
         if "{" in text and "narrative" in text:
             # Try to find text after "narrative": or "narrative":"
-            import re
             match = re.search(r'"narrative"\s*:\s*"([^"]+)"', text)
             if match:
                 return match.group(1)
