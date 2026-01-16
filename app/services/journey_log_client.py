@@ -14,9 +14,10 @@
 """Journey-log service client for context retrieval and narrative persistence."""
 
 import time
-from typing import Optional
+from typing import Optional, Any
+from datetime import datetime
 from httpx import AsyncClient, HTTPStatusError, TimeoutException
-from app.models import JourneyLogContext
+from app.models import JourneyLogContext, PolicyState
 from app.logging import StructuredLogger, redact_secrets
 
 logger = StructuredLogger(__name__)
@@ -69,6 +70,160 @@ class JourneyLogClient:
         logger.info(
             f"Initialized JourneyLogClient with base_url={self.base_url}, "
             f"timeout={self.timeout}s, recent_n_default={self.recent_n_default}"
+        )
+
+    @staticmethod
+    def _validate_timestamp(timestamp: Any, field_name: str) -> Optional[str]:
+        """Validate that a value is a valid ISO 8601 timestamp string.
+        
+        Args:
+            timestamp: Value to validate as ISO 8601 timestamp
+            field_name: The name of the field for logging purposes
+            
+        Returns:
+            The timestamp string if valid, otherwise None
+        """
+        if timestamp is None:
+            return None
+        if not isinstance(timestamp, str):
+            logger.warning(
+                f"Invalid type for {field_name}: {type(timestamp).__name__}, expected str. "
+                f"Defaulting to None."
+            )
+            return None
+        try:
+            # Use fromisoformat for basic validation
+            # Replace 'Z' with '+00:00' for compatibility
+            datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            return timestamp
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                f"Invalid ISO 8601 format for {field_name}: {timestamp}. "
+                f"Defaulting to None. Error: {e}"
+            )
+            return None
+
+    def _validate_turn_counter(self, value: Any, field_name: str) -> int:
+        """Validate turn counter is a non-negative integer, defaulting to 0.
+        
+        Args:
+            value: Value to validate as turn counter
+            field_name: The name of the field for logging purposes
+            
+        Returns:
+            The value if valid non-negative integer, otherwise 0
+        """
+        if not isinstance(value, int) or value < 0:
+            logger.warning(
+                f"Invalid {field_name} value: {value}, defaulting to 0"
+            )
+            return 0
+        return value
+
+    @staticmethod
+    def _validate_optional_bool(value: Any, field_name: str) -> Optional[bool]:
+        """Validate optional boolean flag value.
+        
+        Args:
+            value: Value to validate as optional boolean
+            field_name: The name of the field for logging purposes
+            
+        Returns:
+            The value if it's None or bool, otherwise None
+        """
+        if value is None or isinstance(value, bool):
+            return value
+        
+        logger.warning(
+            f"Invalid type for boolean flag '{field_name}': {type(value).__name__}. "
+            f"Value was '{value}'. Defaulting to None."
+        )
+        return None
+
+    def _extract_policy_state(self, data: dict) -> PolicyState:
+        """Extract policy-relevant state from journey-log response.
+        
+        This method parses the journey-log response to extract policy inputs
+        for quest and POI trigger evaluation. It handles:
+        - Quest presence and timestamps from quest field or additional_fields
+        - POI timestamps from additional_fields (since journey-log may not track)
+        - Combat active flag from combat envelope
+        - Turn counters from additional_fields or defaults to 0
+        - Player engagement flags from additional_fields
+        
+        **Authoritative Sources:**
+        - has_active_quest: Derived from journey-log quest field (authoritative)
+        - combat_active: Derived from journey-log combat.active field (authoritative)
+        - last_quest_offered_at: DM-managed in additional_fields (interim until journey-log support)
+        - last_poi_created_at: DM-managed in additional_fields (interim until journey-log support)
+        - turns_since_last_quest: DM-managed in additional_fields (interim until journey-log support)
+        - turns_since_last_poi: DM-managed in additional_fields (interim until journey-log support)
+        - user_is_wandering: DM-managed in additional_fields (may move to journey-log)
+        - requested_guidance: DM-managed in additional_fields (may move to journey-log)
+        
+        **Journey-Log Coordination Plan:**
+        The DM service currently manages quest/POI timestamps and turn counters in
+        additional_fields as a temporary storage solution. Future journey-log enhancements
+        will provide first-class fields for:
+        - Quest history timestamps (last_quest_offered_at, quest_completed_at)
+        - POI creation timestamps (last_poi_created_at)
+        - Turn counter tracking (turns_since_last_quest, turns_since_last_poi)
+        
+        When journey-log adds these fields, this method will prioritize reading from
+        first-class fields while maintaining backward compatibility with additional_fields.
+        
+        Args:
+            data: Raw journey-log response dictionary
+            
+        Returns:
+            PolicyState with extracted and normalized values
+        """
+        # Extract additional_fields from player_state for DM-managed state
+        player_state = data.get("player_state", {})
+        additional_fields = player_state.get("additional_fields", {})
+        
+        # Extract quest state - prioritize explicit has_active_quest flag if present,
+        # fall back to quest field presence for backward compatibility
+        quest = data.get("quest")
+        has_active_quest = data.get("has_active_quest", quest is not None)
+        
+        # Extract combat state
+        combat_data = data.get("combat", {})
+        combat_active = combat_data.get("active", False)
+        
+        # Extract and validate timestamps from additional_fields (DM-managed until journey-log supports)
+        last_quest_offered_at = self._validate_timestamp(
+            additional_fields.get("last_quest_offered_at"), "last_quest_offered_at"
+        )
+        last_poi_created_at = self._validate_timestamp(
+            additional_fields.get("last_poi_created_at"), "last_poi_created_at"
+        )
+        
+        # Extract and validate turn counters from additional_fields with safe defaults
+        turns_since_last_quest = self._validate_turn_counter(
+            additional_fields.get("turns_since_last_quest", 0), "turns_since_last_quest"
+        )
+        turns_since_last_poi = self._validate_turn_counter(
+            additional_fields.get("turns_since_last_poi", 0), "turns_since_last_poi"
+        )
+        
+        # Extract player engagement flags from additional_fields
+        user_is_wandering = self._validate_optional_bool(
+            additional_fields.get("user_is_wandering"), "user_is_wandering"
+        )
+        requested_guidance = self._validate_optional_bool(
+            additional_fields.get("requested_guidance"), "requested_guidance"
+        )
+        
+        return PolicyState(
+            last_quest_offered_at=last_quest_offered_at,
+            last_poi_created_at=last_poi_created_at,
+            turns_since_last_quest=turns_since_last_quest,
+            turns_since_last_poi=turns_since_last_poi,
+            has_active_quest=has_active_quest,
+            combat_active=combat_active,
+            user_is_wandering=user_is_wandering,
+            requested_guidance=requested_guidance
         )
 
     async def get_context(
@@ -148,6 +303,12 @@ class JourneyLogClient:
             if not player_state.get("location"):
                 raise JourneyLogClientError("Response missing required 'player_state.location' field")
 
+            # Extract policy state from response
+            policy_state = self._extract_policy_state(data)
+            
+            # Extract additional_fields for DM-managed state
+            additional_fields = player_state.get("additional_fields", {})
+
             context = JourneyLogContext(
                 character_id=data["character_id"],
                 status=player_state["status"],
@@ -161,14 +322,18 @@ class JourneyLogClient:
                         "timestamp": turn.get("timestamp", "")
                     }
                     for turn in narrative_data.get("recent_turns", [])
-                ]
+                ],
+                policy_state=policy_state,
+                additional_fields=additional_fields
             )
 
             logger.info(
                 "Successfully fetched context",
                 status=context.status,
                 has_quest=context.active_quest is not None,
-                history_turns=len(context.recent_history)
+                history_turns=len(context.recent_history),
+                combat_active=policy_state.combat_active,
+                turns_since_last_quest=policy_state.turns_since_last_quest
             )
 
             return context

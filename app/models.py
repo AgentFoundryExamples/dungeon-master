@@ -21,7 +21,7 @@ Includes DungeonMasterOutcome models for structured LLM outputs with
 strict JSON contracts for narrative and intents.
 """
 
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 
@@ -68,6 +68,127 @@ class TurnRequest(BaseModel):
             raise ValueError(f"character_id must be a valid UUID, got: {v}")
 
 
+class PolicyState(BaseModel):
+    """Policy-relevant state for quest and POI trigger evaluation.
+    
+    This model captures all state necessary for PolicyEngine to evaluate
+    quest and POI eligibility, including timestamps, turn counters, combat flags,
+    and player engagement metadata.
+    
+    **Field Authoritative Sources:**
+    
+    Journey-log managed (authoritative):
+    - has_active_quest: Derived from quest field in CharacterContextResponse
+    - combat_active: Derived from combat.active field in CharacterContextResponse
+    
+    DM-managed via additional_fields (interim storage until journey-log support):
+    - last_quest_offered_at: Timestamp when DM last offered a quest
+    - last_poi_created_at: Timestamp when DM last created a POI
+    - turns_since_last_quest: Turn counter incremented by DM per narrative turn
+    - turns_since_last_poi: Turn counter incremented by DM per narrative turn
+    - user_is_wandering: Flag set by DM based on LLM meta intents
+    - requested_guidance: Flag set by DM when player explicitly asks for help
+    
+    **Coordination with Journey-Log:**
+    
+    The DM service currently stores quest/POI timestamps and turn counters in
+    journey-log's player_state.additional_fields as a temporary solution. These
+    fields enable policy decisions without waiting for journey-log schema evolution.
+    
+    Future journey-log enhancements will provide first-class fields for quest/POI
+    history, at which point the DM service will migrate to reading from those
+    authoritative sources. The additional_fields storage mechanism ensures forward
+    compatibility and allows policy logic to work today.
+    
+    **State Write Pattern (Not Implemented Yet):**
+    
+    When the DM service makes policy decisions (e.g., offer quest, create POI),
+    it will eventually write back to journey-log to update:
+    - Quest history timestamps (via future journey-log endpoints)
+    - POI creation timestamps (via future journey-log endpoints)
+    - Turn counters (incremented on each narrative append)
+    
+    The write-back mechanism is deliberately not implemented yet to avoid coupling
+    with journey-log schema changes. For now, the DM service reads state from
+    additional_fields and can mock writes locally for testing.
+    
+    Attributes:
+        last_quest_offered_at: Timestamp when last quest was offered (ISO 8601 or None)
+        last_poi_created_at: Timestamp when last POI was created (ISO 8601 or None)
+        turns_since_last_quest: Number of turns since last quest trigger (0 if no quest history)
+        turns_since_last_poi: Number of turns since last POI trigger (0 if no POI history)
+        has_active_quest: Whether character has an active quest
+        combat_active: Whether character is currently in combat
+        user_is_wandering: Optional flag indicating player seems directionless
+        requested_guidance: Optional flag indicating player requested help
+    """
+    last_quest_offered_at: Optional[str] = Field(
+        None,
+        description="ISO 8601 timestamp when last quest was offered, or None if no quest history"
+    )
+    last_poi_created_at: Optional[str] = Field(
+        None,
+        description="ISO 8601 timestamp when last POI was created, or None if no POI history"
+    )
+    turns_since_last_quest: int = Field(
+        0,
+        ge=0,
+        description="Number of turns since last quest trigger (0 if no quest history)"
+    )
+    turns_since_last_poi: int = Field(
+        0,
+        ge=0,
+        description="Number of turns since last POI trigger (0 if no POI history)"
+    )
+    has_active_quest: bool = Field(
+        False,
+        description="Whether character has an active quest"
+    )
+    combat_active: bool = Field(
+        False,
+        description="Whether character is currently in combat"
+    )
+    user_is_wandering: Optional[bool] = Field(
+        None,
+        description="Optional flag indicating player seems directionless"
+    )
+    requested_guidance: Optional[bool] = Field(
+        None,
+        description="Optional flag indicating player requested help or guidance"
+    )
+
+    @field_validator('last_quest_offered_at', 'last_poi_created_at')
+    @classmethod
+    def validate_timestamp(cls, v: Optional[str]) -> Optional[str]:
+        """Validate timestamp is None or valid ISO 8601 format.
+        
+        Args:
+            v: Timestamp value to validate
+            
+        Returns:
+            The timestamp if valid, otherwise None
+            
+        Note:
+            Validation errors are logged but do not raise exceptions to ensure
+            graceful degradation. Invalid timestamps default to None.
+        """
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            # This shouldn't happen due to type hints, but be defensive
+            return None
+        try:
+            # Use fromisoformat for basic validation
+            # Replace 'Z' with '+00:00' for compatibility
+            from datetime import datetime
+            datetime.fromisoformat(v.replace('Z', '+00:00'))
+            return v
+        except (ValueError, TypeError):
+            # Return None for invalid timestamps - validation happens at extraction time
+            # with proper logging, so we don't need to log again here
+            return None
+
+
 class TurnResponse(BaseModel):
     """Response model for a turn in the game.
     
@@ -94,7 +215,37 @@ class JourneyLogContext(BaseModel):
     """Context model representing character state from journey-log service.
     
     This model contains pass-through fields that will be fetched from
-    the journey-log service and used for LLM context generation.
+    the journey-log service and used for LLM context generation, including
+    enriched policy state for quest and POI trigger evaluation.
+    
+    **Data Flow:**
+    
+    1. Journey-log provides authoritative character state (status, location, quest, combat)
+    2. DM extracts policy state from journey-log response and additional_fields
+    3. PolicyEngine uses policy_state for deterministic quest/POI decisions
+    4. PromptBuilder serializes full context for LLM narrative generation
+    
+    **Field Sources:**
+    
+    From journey-log first-class fields:
+    - character_id: CharacterContextResponse.character_id
+    - status: CharacterContextResponse.player_state.status
+    - location: CharacterContextResponse.player_state.location
+    - active_quest: CharacterContextResponse.quest
+    - combat_state: CharacterContextResponse.combat.state
+    - recent_history: CharacterContextResponse.narrative.recent_turns
+    
+    From journey-log additional_fields (DM-managed interim storage):
+    - policy_state fields: Extracted from player_state.additional_fields
+    - additional_fields: Pass-through of player_state.additional_fields
+    
+    **Coordination Notes:**
+    
+    The additional_fields dictionary serves as forward-compatible storage for
+    DM-managed state that journey-log doesn't yet track. As journey-log adds
+    first-class fields for quest/POI history, the extraction logic in
+    journey_log_client._extract_policy_state() will migrate to read from those
+    authoritative sources while maintaining backward compatibility.
     
     Attributes:
         character_id: UUID identifier for the character
@@ -103,6 +254,8 @@ class JourneyLogContext(BaseModel):
         active_quest: Current active quest information (if any)
         combat_state: Current combat state information (if any)
         recent_history: List of recent narrative turns
+        policy_state: Policy-relevant state for quest/POI trigger evaluation
+        additional_fields: Generic map for extensible DM-managed state
     """
     character_id: str = Field(
         ...,
@@ -129,6 +282,22 @@ class JourneyLogContext(BaseModel):
     recent_history: List[dict] = Field(
         default_factory=list,
         description="Recent narrative turns from character history"
+    )
+    policy_state: PolicyState = Field(
+        default_factory=PolicyState,
+        description=(
+            "Policy-relevant state for quest and POI trigger evaluation. "
+            "Includes timestamps, turn counters, combat flags, and player engagement metadata. "
+            "Derived from journey-log data and DM-managed additional_fields."
+        )
+    )
+    additional_fields: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Generic map for extensible DM-managed state. "
+            "Fields here may be used for policy evaluation until journey-log "
+            "provides first-class support. Forward-compatible with unexpected keys."
+        )
     )
 
 
