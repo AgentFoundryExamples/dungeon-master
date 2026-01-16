@@ -35,11 +35,11 @@ class PromptBuilder:
     - When models evolve, update get_outcome_json_schema() in models.py
     - The schema is automatically included in prompts
     - Test with new models to ensure compatibility
-    - Consider token limits when schema grows (currently ~2-3KB)
+    - Consider token limits when schema grows (currently ~9KB)
     
     Token Management:
-    - Schema text: ~2-3KB (acceptable for GPT-5+ context windows)
-    - Recent history: Last 5 turns with truncation at 200/300 chars
+    - Schema text: ~9KB (acceptable for GPT-5+ context windows)
+    - Recent history: Last 20 turns with truncation at 200/300 chars
     - If needed, reduce history window or omit optional schema descriptions
     """
 
@@ -244,9 +244,13 @@ Output ONLY the JSON object, no other text."""
     def _format_history(self, history: list) -> str:
         """Format recent narrative history.
         
-        Displays the last ~20 turns of narrative history to provide context
+        Displays up to the last 20 turns of narrative history to provide context
         for the LLM while keeping token usage reasonable. Long text is
         truncated to prevent excessive prompt length.
+        
+        The number of turns shown matches the JOURNEY_LOG_RECENT_N default (20)
+        configured in the journey-log service fetches. This ensures consistency
+        between what's fetched and what's displayed.
         
         Args:
             history: List of recent turn dicts from context
@@ -257,7 +261,7 @@ Output ONLY the JSON object, no other text."""
         if not history:
             return "  (No recent history)"
 
-        # Show last 20 turns for context (configurable via JOURNEY_LOG_RECENT_N)
+        # Show last 20 turns for context (matches journey-log fetch default)
         # This provides sufficient story continuity while managing token usage
         recent_turns = history[-20:]
 

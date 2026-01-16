@@ -239,7 +239,7 @@ def test_prompt_includes_json_schema(prompt_builder, sample_context):
     
     # System instructions should include schema
     assert "DungeonMasterOutcome" in system_instructions
-    assert "json_schema" in system_instructions.lower() or "schema" in system_instructions.lower()
+    assert "schema" in system_instructions.lower()
     assert '"narrative"' in system_instructions
     assert '"intents"' in system_instructions
     
