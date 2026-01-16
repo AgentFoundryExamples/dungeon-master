@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from httpx import AsyncClient
 import re
 
-from app.models import TurnRequest, TurnResponse, HealthResponse
+from app.models import TurnRequest, TurnResponse, HealthResponse, DebugParseRequest
 from app.config import get_settings, Settings
 from app.services.journey_log_client import (
     JourneyLogClient,
@@ -38,6 +38,7 @@ from app.services.llm_client import (
     LLMResponseError,
     LLMClientError
 )
+from app.services.outcome_parser import OutcomeParser
 from app.prompting.prompt_builder import PromptBuilder
 from app.logging import (
     StructuredLogger,
@@ -168,7 +169,13 @@ def get_llm_client():
             "content": {
                 "application/json": {
                     "example": {
-                        "narrative": "You enter the ancient temple. Torches flicker along the walls..."
+                        "narrative": "You enter the ancient temple. Torches flicker along the walls...",
+                        "intents": {
+                            "quest_intent": {"action": "none"},
+                            "combat_intent": {"action": "none"},
+                            "poi_intent": {"action": "create", "name": "Ancient Temple"},
+                            "meta": None
+                        }
                     }
                 }
             }
@@ -268,12 +275,18 @@ async def process_turn(
                 trace_id=request.trace_id
             )
 
-        # Step 5: Return response
+        # Step 5: Return response with narrative and intents
+        # Extract intents from parsed outcome if validation succeeded
+        intents = None
+        if parsed_outcome.is_valid and parsed_outcome.outcome and parsed_outcome.outcome.intents:
+            intents = parsed_outcome.outcome.intents
+        
         logger.info(
             "Successfully processed turn",
-            narrative_length=len(narrative)
+            narrative_length=len(narrative),
+            has_intents=intents is not None
         )
-        return TurnResponse(narrative=narrative)
+        return TurnResponse(narrative=narrative, intents=intents)
 
     except JourneyLogNotFoundError as e:
         logger.error("Character not found", error=str(e))
@@ -515,3 +528,92 @@ async def get_metrics(settings: Settings = Depends(get_settings)):
         )
     
     return collector.get_metrics()
+
+
+@router.post(
+    "/debug/parse_llm",
+    status_code=status.HTTP_200_OK,
+    summary="Debug endpoint to test LLM response parsing",
+    description=(
+        "Test the outcome parser with raw LLM response JSON. "
+        "Only available when ENABLE_DEBUG_ENDPOINTS is true. "
+        "This endpoint is intended for local development and debugging only. "
+        "It validates the response against the DungeonMasterOutcome schema and "
+        "returns detailed parsing results including any validation errors."
+    ),
+    responses={
+        200: {
+            "description": "Parse results with validation status",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "is_valid": True,
+                        "narrative": "You discover a treasure chest...",
+                        "has_outcome": True,
+                        "error_type": None,
+                        "error_details": None,
+                        "intents_summary": {
+                            "has_quest_intent": False,
+                            "has_combat_intent": False,
+                            "has_poi_intent": True,
+                            "has_meta_intent": True
+                        }
+                    }
+                }
+            }
+        },
+        404: {"description": "Debug endpoints disabled"}
+    }
+)
+async def debug_parse_llm(
+    request: DebugParseRequest,
+    settings: Settings = Depends(get_settings)
+):
+    """Debug endpoint to test LLM response parsing.
+    
+    Accepts raw JSON that would be returned from the LLM and validates it
+    against the DungeonMasterOutcome schema. Returns detailed parsing results
+    including validation status, extracted narrative, and any errors.
+    
+    Only available when ENABLE_DEBUG_ENDPOINTS configuration is enabled.
+    This endpoint should NOT be enabled in production environments.
+    
+    Args:
+        request: Pydantic model with "llm_response" and optional "trace_id"
+        settings: Application settings (injected)
+        
+    Returns:
+        Dictionary with parsing results and validation details
+        
+    Raises:
+        HTTPException: If debug endpoints are disabled
+    """
+    if not settings.enable_debug_endpoints:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Debug endpoints are disabled. Set ENABLE_DEBUG_ENDPOINTS=true to enable."
+        )
+    
+    # Parse the response using the outcome parser
+    parser = OutcomeParser()
+    parsed = parser.parse(request.llm_response, trace_id=request.trace_id)
+    
+    # Build summary of intents if outcome is valid
+    intents_summary = None
+    if parsed.is_valid and parsed.outcome and parsed.outcome.intents:
+        intents_summary = {
+            "has_quest_intent": parsed.outcome.intents.quest_intent is not None,
+            "has_combat_intent": parsed.outcome.intents.combat_intent is not None,
+            "has_poi_intent": parsed.outcome.intents.poi_intent is not None,
+            "has_meta_intent": parsed.outcome.intents.meta is not None
+        }
+    
+    return {
+        "is_valid": parsed.is_valid,
+        "narrative": parsed.narrative,
+        "has_outcome": parsed.outcome is not None,
+        "error_type": parsed.error_type,
+        "error_details": parsed.error_details,
+        "intents_summary": intents_summary,
+        "schema_version": parser.schema_version
+    }

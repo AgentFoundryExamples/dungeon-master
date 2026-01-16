@@ -86,6 +86,7 @@ All configuration is managed through environment variables. Copy `.env.example` 
 | `LOG_LEVEL` | `INFO` | Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL) |
 | `LOG_JSON_FORMAT` | `false` | Enable JSON structured logging output |
 | `ENABLE_METRICS` | `false` | Enable metrics collection and /metrics endpoint |
+| `ENABLE_DEBUG_ENDPOINTS` | `false` | Enable debug endpoints (local development only) |
 
 ### Configuration Validation
 
@@ -107,7 +108,7 @@ Process a player turn and generate AI-powered narrative response.
 3. Builds a structured prompt with system instructions and context
 4. Calls OpenAI Responses API (gpt-5.1) for narrative generation
 5. Persists the user_action and generated narrative to journey-log
-6. Returns the narrative to the client
+6. Returns the narrative and intents to the client
 
 **Request:**
 ```json
@@ -121,9 +122,30 @@ Process a player turn and generate AI-powered narrative response.
 **Response:**
 ```json
 {
-  "narrative": "You search the dimly lit room and discover a glinting treasure chest..."
+  "narrative": "You search the dimly lit room and discover a glinting treasure chest...",
+  "intents": {
+    "quest_intent": {"action": "none"},
+    "combat_intent": {"action": "none"},
+    "poi_intent": {
+      "action": "create",
+      "name": "Hidden Chamber",
+      "description": "A secret room filled with treasures"
+    },
+    "meta": {
+      "player_mood": "excited",
+      "pacing_hint": "normal"
+    }
+  }
 }
 ```
+
+**Response Fields:**
+- `narrative` (string, required): AI-generated narrative text that is persisted to journey-log
+- `intents` (object, optional): Structured intents from LLM output (informational only, not persisted)
+  - Present when LLM response is valid
+  - Null when LLM response fails validation
+  - Contains quest, combat, POI, and meta intents
+  - **Important**: Only `narrative` is persisted to journey-log; intents are descriptive and informational
 
 **Status Codes:**
 - `200`: Success - narrative generated and persisted
@@ -209,6 +231,45 @@ Get service metrics including request counts, error rates, and operation latenci
 **Status Codes:**
 - `200`: Metrics available
 - `404`: Metrics endpoint disabled (set `ENABLE_METRICS=true`)
+
+### POST /debug/parse_llm
+
+**WARNING: Local development only. Do NOT enable in production.**
+
+Test the LLM response parser with raw JSON payloads (requires `ENABLE_DEBUG_ENDPOINTS=true`).
+
+This debug endpoint allows developers to submit raw LLM responses and receive detailed validation results, making it easier to test and debug the outcome parser behavior.
+
+**Request:**
+```json
+{
+  "llm_response": "{\"narrative\": \"You discover a treasure chest.\", \"intents\": {...}}",
+  "trace_id": "debug-test-123"
+}
+```
+
+**Response:**
+```json
+{
+  "is_valid": true,
+  "narrative": "You discover a treasure chest.",
+  "has_outcome": true,
+  "error_type": null,
+  "error_details": null,
+  "intents_summary": {
+    "has_quest_intent": false,
+    "has_combat_intent": false,
+    "has_poi_intent": true,
+    "has_meta_intent": true
+  },
+  "schema_version": 1
+}
+```
+
+**Status Codes:**
+- `200`: Parse results returned (regardless of validation outcome)
+- `400`: Invalid request (missing required fields)
+- `404`: Debug endpoints disabled (set `ENABLE_DEBUG_ENDPOINTS=true`)
 
 ## Observability
 
