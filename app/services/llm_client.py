@@ -18,8 +18,10 @@ import time
 from typing import Optional
 from openai import AsyncOpenAI
 import openai
+from pydantic import ValidationError
 
 from app.logging import StructuredLogger, redact_secrets
+from app.models import DungeonMasterOutcome, get_outcome_json_schema
 
 logger = StructuredLogger(__name__)
 
@@ -49,9 +51,29 @@ class LLMClient:
     
     This client:
     - Uses the OpenAI Responses API (gpt-5.1)
-    - Extracts narrative text from JSON responses
+    - Enforces JSON-only output with DungeonMasterOutcome schema
+    - Uses response_format with strict JSON schema validation
+    - Returns structured DungeonMasterOutcome objects (or narrative string for backward compatibility)
     - Handles errors and provides fallback mechanisms
     - Supports stub/mock mode for offline development
+    
+    The client enforces strict JSON output to ensure:
+    - LLM only returns valid JSON matching DungeonMasterOutcome schema
+    - No prose or explanatory text outside JSON structure
+    - Rich narrative text is in the 'narrative' field
+    - Concise intents are in structured 'intents' block
+    
+    Token Usage Considerations:
+    - Schema injection adds ~9KB per request (acceptable for GPT-5+ 128K context)
+    - History includes up to 20 turns (~5KB)
+    - Total overhead: ~14KB per request
+    - Monitor token consumption in production; consider fallback strategies
+      for cost control or older models with smaller context windows
+    
+    When models evolve:
+    - Update get_outcome_json_schema() in models.py
+    - Test with new model to ensure schema compatibility
+    - The schema is automatically used in all API calls
     """
 
     def __init__(
@@ -92,28 +114,45 @@ class LLMClient:
         self,
         system_instructions: str,
         user_prompt: str,
-        trace_id: Optional[str] = None
+        trace_id: Optional[str] = None,
+        json_schema: Optional[dict] = None
     ) -> str:
-        """Generate narrative using the LLM.
+        """Generate narrative using the LLM with strict JSON enforcement.
+        
+        This method calls the OpenAI Responses API with the DungeonMasterOutcome
+        JSON schema to enforce structured output. The API will reject responses
+        that don't match the schema when using strict=True mode.
+        
+        The prompt (system_instructions) should already include:
+        - Instructions to output only valid JSON
+        - The DungeonMasterOutcome schema specification
+        - Example JSON output
         
         Args:
-            system_instructions: System-level instructions for the LLM
+            system_instructions: System-level instructions for the LLM (includes schema)
             user_prompt: The user prompt containing context and action
             trace_id: Optional trace ID for request correlation
+            json_schema: Optional pre-generated JSON schema to avoid redundant generation.
+                        If not provided, schema will be generated via get_outcome_json_schema().
             
         Returns:
-            Generated narrative text
+            Generated narrative text (extracted from DungeonMasterOutcome.narrative)
             
         Raises:
             LLMTimeoutError: If request times out
             LLMResponseError: If response is invalid or missing narrative
             LLMClientError: For other errors
+            
+        Note:
+            With strict schema enforcement enabled, the OpenAI API should reject
+            non-JSON responses upstream. If a non-JSON response is received, it
+            indicates a configuration error or API compatibility issue.
         """
         if self.stub_mode:
             return self._generate_stub_narrative(user_prompt)
 
         logger.info(
-            "Generating narrative with LLM",
+            "Generating narrative with LLM using DungeonMasterOutcome schema",
             model=self.model,
             instructions_length=len(system_instructions),
             prompt_length=len(user_prompt)
@@ -121,26 +160,25 @@ class LLMClient:
 
         start_time = time.time()
         try:
-            # Use OpenAI Responses API as per LLMs.md guidelines
+            # Use the provided schema, or generate it if not available
+            # Passing schema as parameter avoids redundant generation on repeated calls
+            schema = json_schema or get_outcome_json_schema()
+            
+            # Use OpenAI Responses API with strict JSON schema enforcement
             # The Responses API uses 'instructions' for system context and 'input' for user message
             response = await self.client.responses.create(
                 model=self.model,
                 instructions=system_instructions,
                 input=user_prompt,
                 max_output_tokens=4000,  # Reasonable limit for narrative generation
-                # Using text format for simple narrative generation
-                # For structured outputs, we would use text.format with JSON schema
-                text={"format": {"type": "json_schema", "name": "narrative_response", "strict": True, "schema": {
-                    "type": "object",
-                    "properties": {
-                        "narrative": {
-                            "type": "string",
-                            "description": "The generated narrative response"
-                        }
-                    },
-                    "required": ["narrative"],
-                    "additionalProperties": False
-                }}}
+                # Use text.format with JSON schema to enforce structured output
+                # strict=True ensures the API rejects responses not matching the schema
+                text={"format": {
+                    "type": "json_schema",
+                    "name": "dungeon_master_outcome",
+                    "strict": True,
+                    "schema": schema
+                }}
             )
 
             # Extract content from Responses API structure
@@ -168,10 +206,15 @@ class LLMClient:
                 logger.error("OpenAI API returned empty content")
                 raise LLMResponseError("LLM returned empty content")
 
-            # Parse the JSON response to extract narrative
+            # Parse the JSON response to extract DungeonMasterOutcome
             try:
                 response_data = json.loads(content)
-                narrative = response_data.get("narrative", "").strip()
+                
+                # Validate against DungeonMasterOutcome model
+                outcome = DungeonMasterOutcome.model_validate(response_data)
+                
+                # Extract narrative from the structured outcome
+                narrative = outcome.narrative.strip()
 
                 if not narrative:
                     logger.error("LLM response missing 'narrative' field or empty")
@@ -179,8 +222,12 @@ class LLMClient:
 
                 duration_ms = (time.time() - start_time) * 1000
                 logger.info(
-                    "Successfully generated narrative",
+                    "Successfully generated narrative with structured outcome",
                     narrative_length=len(narrative),
+                    has_quest_intent=outcome.intents.quest_intent is not None,
+                    has_combat_intent=outcome.intents.combat_intent is not None,
+                    has_poi_intent=outcome.intents.poi_intent is not None,
+                    has_meta_intent=outcome.intents.meta is not None,
                     duration_ms=f"{duration_ms:.2f}"
                 )
                 return narrative
@@ -188,8 +235,34 @@ class LLMClient:
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse LLM response as JSON: {e}")
                 # With strict schema enforcement, we should not receive non-JSON responses
+                # If this happens, it indicates an API configuration issue
+                content_preview = content[:200] if len(content) > 200 else content
+                logger.warning(
+                    "Received non-JSON response despite strict schema enforcement. "
+                    f"Response preview: {content_preview}... "
+                    "Troubleshooting: 1) Verify API key has access to strict schema feature, "
+                    "2) Check model supports JSON mode, 3) Review prompt instructions."
+                )
                 raise LLMResponseError(
-                    f"Failed to parse LLM response as JSON. Strict schema enforcement should prevent this: {e}"
+                    f"Failed to parse LLM response as JSON. "
+                    f"Strict schema enforcement should prevent this: {e}"
+                ) from e
+            except ValidationError as e:
+                # Pydantic validation error - response JSON doesn't match DungeonMasterOutcome schema
+                logger.error(
+                    f"LLM response failed Pydantic validation against DungeonMasterOutcome schema: {e}"
+                )
+                raise LLMResponseError(
+                    f"LLM response structure validation failed. "
+                    f"The JSON does not conform to DungeonMasterOutcome schema: {e}"
+                ) from e
+            except Exception as e:
+                # Unexpected error during validation/parsing
+                logger.error(
+                    f"Unexpected error during LLM response validation: {type(e).__name__}: {e}"
+                )
+                raise LLMResponseError(
+                    f"Unexpected error validating LLM response: {e}"
                 ) from e
 
         except openai.APITimeoutError as e:

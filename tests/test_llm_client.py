@@ -77,16 +77,24 @@ async def test_generate_narrative_stub_mode():
 
 @pytest.mark.asyncio
 async def test_generate_narrative_success():
-    """Test successful narrative generation."""
+    """Test successful narrative generation with DungeonMasterOutcome."""
     client = LLMClient(
         api_key="sk-test-key",
         model="gpt-5.1",
         stub_mode=False
     )
     
-    # Mock the OpenAI client response
+    # Mock the OpenAI client response with full DungeonMasterOutcome structure
     mock_output_item = MagicMock()
-    mock_output_item.content = '{"narrative": "You discover a hidden treasure chest in the corner."}'
+    mock_output_item.content = '''{
+        "narrative": "You discover a hidden treasure chest in the corner.",
+        "intents": {
+            "quest_intent": {"action": "none"},
+            "combat_intent": {"action": "none"},
+            "poi_intent": {"action": "none"},
+            "meta": null
+        }
+    }'''
     
     mock_response = MagicMock()
     mock_response.output = [mock_output_item]
@@ -143,7 +151,7 @@ async def test_generate_narrative_missing_narrative_field():
     with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_response
         
-        with pytest.raises(LLMResponseError, match="missing narrative"):
+        with pytest.raises(LLMResponseError, match="validation failed"):
             await client.generate_narrative(
                 system_instructions="You are a game master",
                 user_prompt="The player searches the room"
@@ -222,3 +230,142 @@ async def test_generate_narrative_invalid_json_raises_error():
                 system_instructions="You are a game master",
                 user_prompt="The player searches the room"
             )
+
+
+@pytest.mark.asyncio
+async def test_generate_narrative_uses_dungeon_master_outcome_schema():
+    """Test that generate_narrative uses DungeonMasterOutcome schema in API call."""
+    client = LLMClient(
+        api_key="sk-test-key",
+        model="gpt-5.1",
+        stub_mode=False
+    )
+    
+    # Mock successful response
+    mock_output_item = MagicMock()
+    mock_output_item.content = '''{
+        "narrative": "Test narrative",
+        "intents": {
+            "quest_intent": {"action": "none"},
+            "combat_intent": {"action": "none"},
+            "poi_intent": {"action": "none"},
+            "meta": null
+        }
+    }'''
+    
+    mock_response = MagicMock()
+    mock_response.output = [mock_output_item]
+    
+    with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = mock_response
+        
+        await client.generate_narrative(
+            system_instructions="You are a game master",
+            user_prompt="The player searches the room"
+        )
+        
+        # Verify the API call includes the text.format parameter with schema
+        call_kwargs = mock_create.call_args.kwargs
+        assert "text" in call_kwargs
+        assert "format" in call_kwargs["text"]
+        assert call_kwargs["text"]["format"]["type"] == "json_schema"
+        assert call_kwargs["text"]["format"]["strict"] is True
+        assert "schema" in call_kwargs["text"]["format"]
+        # Verify schema contains key fields
+        schema = call_kwargs["text"]["format"]["schema"]
+        assert "narrative" in str(schema)
+        assert "intents" in str(schema)
+
+
+@pytest.mark.asyncio
+async def test_generate_narrative_with_full_outcome():
+    """Test narrative generation with full DungeonMasterOutcome including intents."""
+    client = LLMClient(
+        api_key="sk-test-key",
+        model="gpt-5.1",
+        stub_mode=False
+    )
+    
+    # Mock response with full outcome including intents
+    mock_output_item = MagicMock()
+    mock_output_item.content = '''{
+        "narrative": "You enter the tavern and meet a grizzled innkeeper.",
+        "intents": {
+            "quest_intent": {
+                "action": "offer",
+                "quest_title": "Find My Daughter",
+                "quest_summary": "The innkeeper's daughter is missing"
+            },
+            "combat_intent": {"action": "none"},
+            "poi_intent": {
+                "action": "create",
+                "name": "The Rusty Tankard",
+                "description": "A weathered tavern"
+            },
+            "meta": {
+                "player_mood": "curious",
+                "pacing_hint": "normal"
+            }
+        }
+    }'''
+    
+    mock_response = MagicMock()
+    mock_response.output = [mock_output_item]
+    
+    with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = mock_response
+        
+        narrative = await client.generate_narrative(
+            system_instructions="You are a game master",
+            user_prompt="The player enters the tavern"
+        )
+        
+        # Should extract narrative text
+        assert narrative == "You enter the tavern and meet a grizzled innkeeper."
+        mock_create.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_generate_narrative_with_provided_schema():
+    """Test that generate_narrative uses provided schema instead of regenerating."""
+    client = LLMClient(
+        api_key="sk-test-key",
+        model="gpt-5.1",
+        stub_mode=False
+    )
+    
+    # Mock successful response
+    mock_output_item = MagicMock()
+    mock_output_item.content = '''{
+        "narrative": "Test narrative with provided schema",
+        "intents": {
+            "quest_intent": {"action": "none"},
+            "combat_intent": {"action": "none"},
+            "poi_intent": {"action": "none"},
+            "meta": null
+        }
+    }'''
+    
+    mock_response = MagicMock()
+    mock_response.output = [mock_output_item]
+    
+    # Pre-generate schema once
+    from app.models import get_outcome_json_schema
+    pre_generated_schema = get_outcome_json_schema()
+    
+    with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = mock_response
+        
+        # Call with provided schema
+        narrative = await client.generate_narrative(
+            system_instructions="You are a game master",
+            user_prompt="The player searches",
+            json_schema=pre_generated_schema
+        )
+        
+        # Verify narrative extracted correctly
+        assert narrative == "Test narrative with provided schema"
+        
+        # Verify the provided schema was used in the API call
+        call_kwargs = mock_create.call_args.kwargs
+        assert call_kwargs["text"]["format"]["schema"] == pre_generated_schema

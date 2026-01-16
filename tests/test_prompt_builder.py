@@ -228,3 +228,69 @@ def test_history_truncation(prompt_builder):
     assert "Turn 1:" in user_prompt or "Turn 5:" in user_prompt
     # Long texts should be truncated (indicated by ...)
     assert "..." in user_prompt
+
+
+def test_prompt_includes_json_schema(prompt_builder, sample_context):
+    """Test that prompt includes DungeonMasterOutcome JSON schema."""
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=sample_context,
+        user_action="I search the room"
+    )
+    
+    # System instructions should include schema
+    assert "DungeonMasterOutcome" in system_instructions
+    assert "schema" in system_instructions.lower()
+    assert '"narrative"' in system_instructions
+    assert '"intents"' in system_instructions
+    
+    # Should have explicit JSON-only instructions
+    assert "JSON" in system_instructions
+    assert "valid JSON" in system_instructions or "ONLY" in system_instructions
+
+
+def test_prompt_includes_example_json(prompt_builder, sample_context):
+    """Test that prompt includes example JSON output."""
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=sample_context,
+        user_action="I search the room"
+    )
+    
+    # Should include example output
+    assert "EXAMPLE" in system_instructions or "example" in system_instructions
+    # Example should be valid JSON
+    assert '"narrative":' in system_instructions
+    assert '"intents":' in system_instructions
+
+
+def test_prompt_clarifies_deterministic_subsystems(prompt_builder, sample_context):
+    """Test that prompt clarifies subsystem decisions are deterministic."""
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=sample_context,
+        user_action="I search the room"
+    )
+    
+    # Should clarify that LLM doesn't decide subsystem eligibility
+    instructions_lower = system_instructions.lower()
+    
+    # Check for deterministic policy mention
+    has_deterministic = "deterministic" in instructions_lower
+    
+    # Check for game system mention (logic or engine)
+    has_game_system = ("game logic" in instructions_lower or 
+                       "game engine" in instructions_lower or
+                       "game service" in instructions_lower)
+    
+    assert has_deterministic, "System instructions should mention deterministic behavior"
+    assert has_game_system, "System instructions should clarify game system handles decisions"
+
+
+def test_user_prompt_reminds_json_only(prompt_builder, sample_context):
+    """Test that user prompt reminds to output only JSON."""
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=sample_context,
+        user_action="I search the room"
+    )
+    
+    # User prompt should remind to output only JSON
+    assert "JSON" in user_prompt
+    assert "ONLY" in user_prompt or "only" in user_prompt
