@@ -212,6 +212,10 @@
         },
         {
           "type": "file",
+          "name": "test_policy_integration.py"
+        },
+        {
+          "type": "file",
           "name": "test_policy_models.py"
         },
         {

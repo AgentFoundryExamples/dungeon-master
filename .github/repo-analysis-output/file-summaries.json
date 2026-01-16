@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 33,
+  "total_files": 34,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 22594,
-        "loc": 513,
+        "size_bytes": 26200,
+        "loc": 569,
         "todo_count": 0
       }
     },
@@ -81,8 +81,8 @@
       "summary": "Python main entry point (role: entry-point)",
       "summary_text": "Python main entry point (role: entry-point)",
       "metrics": {
-        "size_bytes": 7468,
-        "loc": 150,
+        "size_bytes": 8552,
+        "loc": 173,
         "todo_count": 0
       }
     },
@@ -123,8 +123,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 28070,
-        "loc": 614,
+        "size_bytes": 29204,
+        "loc": 639,
         "todo_count": 0
       }
     },
@@ -151,8 +151,8 @@
       "summary": "Python module for prompt builder",
       "summary_text": "Python module for prompt builder",
       "metrics": {
-        "size_bytes": 10586,
-        "loc": 195,
+        "size_bytes": 12163,
+        "loc": 224,
         "todo_count": 0
       }
     },
@@ -263,8 +263,8 @@
       "summary": "Python test implementation (role: test)",
       "summary_text": "Python test implementation (role: test)",
       "metrics": {
-        "size_bytes": 6213,
-        "loc": 123,
+        "size_bytes": 6846,
+        "loc": 132,
         "todo_count": 0
       }
     },
@@ -277,8 +277,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 13394,
-        "loc": 253,
+        "size_bytes": 13645,
+        "loc": 260,
         "todo_count": 0
       }
     },
@@ -291,8 +291,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 19922,
-        "loc": 413,
+        "size_bytes": 20423,
+        "loc": 422,
         "todo_count": 0
       }
     },
@@ -405,6 +405,20 @@
       "metrics": {
         "size_bytes": 12162,
         "loc": 281,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_policy_integration.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 9386,
+        "loc": 199,
         "todo_count": 0
       }
     },

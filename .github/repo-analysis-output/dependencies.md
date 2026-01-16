@@ -8,8 +8,8 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 33
-- **Intra-repo dependencies**: 72
+- **Total files**: 34
+- **Intra-repo dependencies**: 84
 - **External stdlib dependencies**: 27
 - **External third-party dependencies**: 26
 
@@ -69,26 +69,26 @@ Total: 26 unique packages
 
 ## Most Depended Upon Files (Intra-Repo)
 
-- `app/models.py` (16 dependents)
-- `app/services/llm_client.py` (8 dependents)
-- `app/config.py` (7 dependents)
-- `app/services/journey_log_client.py` (7 dependents)
+- `app/models.py` (17 dependents)
+- `app/services/llm_client.py` (9 dependents)
+- `app/services/policy_engine.py` (9 dependents)
+- `app/config.py` (8 dependents)
+- `app/services/journey_log_client.py` (8 dependents)
 - `app/logging.py` (7 dependents)
 - `app/services/outcome_parser.py` (6 dependents)
 - `app/metrics.py` (6 dependents)
-- `app/api/routes.py` (4 dependents)
-- `app/main.py` (3 dependents)
-- `app/services/policy_engine.py` (3 dependents)
+- `app/api/routes.py` (5 dependents)
+- `app/prompting/prompt_builder.py` (3 dependents)
 
 ## Files with Most Dependencies (Intra-Repo)
 
-- `app/api/routes.py` (8 dependencies)
-- `app/main.py` (7 dependencies)
-- `tests/test_acceptance_criteria.py` (7 dependencies)
-- `tests/test_api.py` (7 dependencies)
-- `tests/conftest.py` (5 dependencies)
+- `app/api/routes.py` (9 dependencies)
+- `app/main.py` (8 dependencies)
+- `tests/test_acceptance_criteria.py` (8 dependencies)
+- `tests/test_api.py` (8 dependencies)
+- `tests/test_policy_integration.py` (7 dependencies)
+- `tests/conftest.py` (6 dependencies)
 - `app/services/llm_client.py` (4 dependencies)
 - `example_openai_usage.py` (3 dependencies)
 - `tests/test_llm_client.py` (3 dependencies)
 - `tests/test_metrics.py` (3 dependencies)
-- `app/middleware.py` (2 dependencies)

@@ -436,6 +436,23 @@
       }
     },
     {
+      "id": "tests/test_policy_integration.py",
+      "path": "tests/test_policy_integration.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "unittest.mock.AsyncMock",
+          "unittest.mock.MagicMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "httpx.AsyncClient",
+          "httpx.Response",
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_policy_models.py",
       "path": "tests/test_policy_models.py",
       "type": "file",
@@ -513,6 +530,10 @@
     },
     {
       "source": "app/api/routes.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "app/api/routes.py",
       "target": "app/services/outcome_parser.py"
     },
     {
@@ -554,6 +575,10 @@
     {
       "source": "app/main.py",
       "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/services/policy_engine.py"
     },
     {
       "source": "app/middleware.py",
@@ -625,6 +650,10 @@
     },
     {
       "source": "tests/conftest.py",
+      "target": "app/api/routes.py"
+    },
+    {
+      "source": "tests/conftest.py",
       "target": "app/main.py"
     },
     {
@@ -637,7 +666,7 @@
     },
     {
       "source": "tests/conftest.py",
-      "target": "app/api/routes.py"
+      "target": "app/services/policy_engine.py"
     },
     {
       "source": "tests/test_acceptance_criteria.py",
@@ -668,6 +697,10 @@
       "target": "app/config.py"
     },
     {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
       "source": "tests/test_api.py",
       "target": "app/config.py"
     },
@@ -682,6 +715,10 @@
     {
       "source": "tests/test_api.py",
       "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_api.py",
+      "target": "app/services/policy_engine.py"
     },
     {
       "source": "tests/test_api.py",
@@ -758,6 +795,34 @@
     {
       "source": "tests/test_policy_engine.py",
       "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_policy_integration.py",
+      "target": "app/api/routes.py"
+    },
+    {
+      "source": "tests/test_policy_integration.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_policy_integration.py",
+      "target": "app/config.py"
+    },
+    {
+      "source": "tests/test_policy_integration.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_policy_integration.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_policy_integration.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "tests/test_policy_integration.py",
+      "target": "app/prompting/prompt_builder.py"
     },
     {
       "source": "tests/test_policy_models.py",
