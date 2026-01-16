@@ -167,7 +167,7 @@ class TurnOrchestrator:
         context.policy_hints = policy_hints
         
         logger.info(
-            "Policy decisions computed",
+            "Policy decisions evaluated",
             quest_eligible=quest_decision.eligible,
             quest_roll_passed=quest_decision.roll_passed,
             poi_eligible=poi_decision.eligible,

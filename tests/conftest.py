@@ -103,13 +103,21 @@ def client(test_env):
         get_settings.cache_clear()
         
         # Import dependencies FIRST before importing app
-        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine
+        from app.api.routes import (
+            get_http_client,
+            get_journey_log_client,
+            get_llm_client,
+            get_policy_engine,
+            get_turn_orchestrator
+        )
         
         from app.main import app
         from httpx import AsyncClient
         from app.services.journey_log_client import JourneyLogClient
         from app.services.llm_client import LLMClient
         from app.services.policy_engine import PolicyEngine
+        from app.services.turn_orchestrator import TurnOrchestrator
+        from app.prompting.prompt_builder import PromptBuilder
         
         # Create test HTTP client
         test_http_client = AsyncClient()
@@ -136,12 +144,20 @@ def client(test_env):
                 poi_cooldown_turns=settings.poi_cooldown_turns,
                 rng_seed=settings.rng_seed
             )
+            test_prompt_builder = PromptBuilder()
+            test_turn_orchestrator = TurnOrchestrator(
+                policy_engine=test_policy_engine,
+                llm_client=test_llm_client,
+                journey_log_client=test_journey_log_client,
+                prompt_builder=test_prompt_builder
+            )
             
             # Override dependencies (don't clear - just overwrite the ones from main.py)
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
             app.dependency_overrides[get_llm_client] = lambda: test_llm_client
             app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
+            app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
             
             with TestClient(app) as client:
                 yield client
@@ -194,12 +210,20 @@ def client_with_failed_quest_roll(test_env):
         from app.config import get_settings
         get_settings.cache_clear()
         
-        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine
+        from app.api.routes import (
+            get_http_client,
+            get_journey_log_client,
+            get_llm_client,
+            get_policy_engine,
+            get_turn_orchestrator
+        )
         from app.main import app
         from httpx import AsyncClient
         from app.services.journey_log_client import JourneyLogClient
         from app.services.llm_client import LLMClient
         from app.services.policy_engine import PolicyEngine
+        from app.services.turn_orchestrator import TurnOrchestrator
+        from app.prompting.prompt_builder import PromptBuilder
         
         test_http_client = AsyncClient()
         
@@ -225,11 +249,19 @@ def client_with_failed_quest_roll(test_env):
                 poi_cooldown_turns=0,
                 rng_seed=42
             )
+            test_prompt_builder = PromptBuilder()
+            test_turn_orchestrator = TurnOrchestrator(
+                policy_engine=test_policy_engine,
+                llm_client=test_llm_client,
+                journey_log_client=test_journey_log_client,
+                prompt_builder=test_prompt_builder
+            )
             
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
             app.dependency_overrides[get_llm_client] = lambda: test_llm_client
             app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
+            app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
             
             with TestClient(app) as client:
                 yield client
@@ -253,12 +285,20 @@ def client_with_failed_poi_roll(test_env):
         from app.config import get_settings
         get_settings.cache_clear()
         
-        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine
+        from app.api.routes import (
+            get_http_client,
+            get_journey_log_client,
+            get_llm_client,
+            get_policy_engine,
+            get_turn_orchestrator
+        )
         from app.main import app
         from httpx import AsyncClient
         from app.services.journey_log_client import JourneyLogClient
         from app.services.llm_client import LLMClient
         from app.services.policy_engine import PolicyEngine
+        from app.services.turn_orchestrator import TurnOrchestrator
+        from app.prompting.prompt_builder import PromptBuilder
         
         test_http_client = AsyncClient()
         
@@ -284,11 +324,19 @@ def client_with_failed_poi_roll(test_env):
                 poi_cooldown_turns=0,
                 rng_seed=42
             )
+            test_prompt_builder = PromptBuilder()
+            test_turn_orchestrator = TurnOrchestrator(
+                policy_engine=test_policy_engine,
+                llm_client=test_llm_client,
+                journey_log_client=test_journey_log_client,
+                prompt_builder=test_prompt_builder
+            )
             
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
             app.dependency_overrides[get_llm_client] = lambda: test_llm_client
             app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
+            app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
             
             with TestClient(app) as client:
                 yield client
@@ -312,12 +360,20 @@ def client_with_deterministic_seed(test_env):
         from app.config import get_settings
         get_settings.cache_clear()
         
-        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine
+        from app.api.routes import (
+            get_http_client,
+            get_journey_log_client,
+            get_llm_client,
+            get_policy_engine,
+            get_turn_orchestrator
+        )
         from app.main import app
         from httpx import AsyncClient
         from app.services.journey_log_client import JourneyLogClient
         from app.services.llm_client import LLMClient
         from app.services.policy_engine import PolicyEngine
+        from app.services.turn_orchestrator import TurnOrchestrator
+        from app.prompting.prompt_builder import PromptBuilder
         
         test_http_client = AsyncClient()
         
@@ -343,11 +399,19 @@ def client_with_deterministic_seed(test_env):
                 poi_cooldown_turns=0,
                 rng_seed=999  # Deterministic seed
             )
+            test_prompt_builder = PromptBuilder()
+            test_turn_orchestrator = TurnOrchestrator(
+                policy_engine=test_policy_engine,
+                llm_client=test_llm_client,
+                journey_log_client=test_journey_log_client,
+                prompt_builder=test_prompt_builder
+            )
             
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
             app.dependency_overrides[get_llm_client] = lambda: test_llm_client
             app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
+            app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
             
             with TestClient(app) as client:
                 yield client
