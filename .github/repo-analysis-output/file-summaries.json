@@ -263,8 +263,8 @@
       "summary": "Python test implementation (role: test)",
       "summary_text": "Python test implementation (role: test)",
       "metrics": {
-        "size_bytes": 6846,
-        "loc": 132,
+        "size_bytes": 14205,
+        "loc": 279,
         "todo_count": 0
       }
     },
@@ -403,8 +403,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 12162,
-        "loc": 281,
+        "size_bytes": 21615,
+        "loc": 492,
         "todo_count": 0
       }
     },
@@ -459,8 +459,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 10522,
-        "loc": 217,
+        "size_bytes": 15248,
+        "loc": 326,
         "todo_count": 0
       }
     },
@@ -473,8 +473,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 17673,
-        "loc": 344,
+        "size_bytes": 28709,
+        "loc": 547,
         "todo_count": 0
       }
     }

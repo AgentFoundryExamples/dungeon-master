@@ -173,8 +173,8 @@ Total files: 34
 **Role:** test  
 **Role Justification:** located in 'tests' directory  
 **Summary:** Python test implementation (role: test)  
-**Size:** 6.69 KB  
-**LOC:** 132  
+**Size:** 13.87 KB  
+**LOC:** 279  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_acceptance_criteria.py
@@ -263,8 +263,8 @@ Total files: 34
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 11.88 KB  
-**LOC:** 281  
+**Size:** 21.11 KB  
+**LOC:** 492  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_policy_integration.py
@@ -299,8 +299,8 @@ Total files: 34
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 10.28 KB  
-**LOC:** 217  
+**Size:** 14.89 KB  
+**LOC:** 326  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_turn_integration.py
@@ -308,6 +308,6 @@ Total files: 34
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 17.26 KB  
-**LOC:** 344  
+**Size:** 28.04 KB  
+**LOC:** 547  
 **TODOs/FIXMEs:** 0  
