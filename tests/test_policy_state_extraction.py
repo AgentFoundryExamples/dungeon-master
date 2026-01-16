@@ -90,14 +90,22 @@ async def test_policy_state_extraction_full_data(journey_log_client, mock_http_c
 
 @pytest.mark.asyncio
 async def test_policy_state_extraction_defaults(journey_log_client, mock_http_client):
-    """Test policy state extraction with missing fields uses safe defaults."""
+    """Test policy state extraction with missing fields uses safe defaults.
+    
+    This test verifies that when the journey-log response lacks additional_fields
+    or policy-relevant metadata, the extraction logic provides safe default values:
+    - Timestamps default to None
+    - Turn counters default to 0
+    - Boolean flags default to False or None
+    - No crashes or exceptions occur
+    """
     mock_response_data = {
         "character_id": "550e8400-e29b-41d4-a716-446655440000",
         "player_state": {
             "identity": {"name": "Aria", "race": "Elf", "class": "Ranger"},
             "status": "Healthy",
             "location": {"id": "origin:nexus", "display_name": "The Nexus"}
-            # No additional_fields
+            # Missing additional_fields - testing default behavior
         },
         "has_active_quest": False,
         "combat": {"active": False},

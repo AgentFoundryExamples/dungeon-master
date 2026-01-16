@@ -113,11 +113,9 @@ class JourneyLogClient:
         player_state = data.get("player_state", {})
         additional_fields = player_state.get("additional_fields", {})
         
-        # Extract quest state
-        has_active_quest = data.get("has_active_quest", False)
+        # Extract quest state - quest field is authoritative
         quest = data.get("quest")
-        if quest is not None:
-            has_active_quest = True
+        has_active_quest = quest is not None
         
         # Extract combat state
         combat_data = data.get("combat", {})
@@ -145,14 +143,12 @@ class JourneyLogClient:
             turns_since_last_poi = 0
         
         # Extract player engagement flags from additional_fields
-        user_is_wandering = additional_fields.get("user_is_wandering")
-        requested_guidance = additional_fields.get("requested_guidance")
-        
-        # Ensure boolean flags are None or bool
-        if user_is_wandering is not None and not isinstance(user_is_wandering, bool):
-            user_is_wandering = None
-        if requested_guidance is not None and not isinstance(requested_guidance, bool):
-            requested_guidance = None
+        user_is_wandering = self._validate_optional_bool(
+            additional_fields.get("user_is_wandering")
+        )
+        requested_guidance = self._validate_optional_bool(
+            additional_fields.get("requested_guidance")
+        )
         
         return PolicyState(
             last_quest_offered_at=last_quest_offered_at,
@@ -164,6 +160,20 @@ class JourneyLogClient:
             user_is_wandering=user_is_wandering,
             requested_guidance=requested_guidance
         )
+
+    @staticmethod
+    def _validate_optional_bool(value) -> Optional[bool]:
+        """Validate optional boolean flag value.
+        
+        Args:
+            value: Value to validate as optional boolean
+            
+        Returns:
+            The value if it's None or bool, otherwise None
+        """
+        if value is None or isinstance(value, bool):
+            return value
+        return None
 
     async def get_context(
         self,
