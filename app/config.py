@@ -93,6 +93,12 @@ class Settings(BaseSettings):
         default=False,
         description="Enable metrics collection and /metrics endpoint"
     )
+    
+    # Debug Configuration
+    enable_debug_endpoints: bool = Field(
+        default=False,
+        description="Enable debug endpoints like /debug/parse_llm (for local development only)"
+    )
 
     @field_validator('journey_log_base_url')
     @classmethod

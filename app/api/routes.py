@@ -525,3 +525,110 @@ async def get_metrics(settings: Settings = Depends(get_settings)):
         )
     
     return collector.get_metrics()
+
+
+@router.post(
+    "/debug/parse_llm",
+    status_code=status.HTTP_200_OK,
+    summary="Debug endpoint to test LLM response parsing",
+    description=(
+        "Test the outcome parser with raw LLM response JSON. "
+        "Only available when ENABLE_DEBUG_ENDPOINTS is true. "
+        "This endpoint is intended for local development and debugging only. "
+        "It validates the response against the DungeonMasterOutcome schema and "
+        "returns detailed parsing results including any validation errors."
+    ),
+    responses={
+        200: {
+            "description": "Parse results with validation status",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "is_valid": True,
+                        "narrative": "You discover a treasure chest...",
+                        "has_outcome": True,
+                        "error_type": None,
+                        "error_details": None,
+                        "intents_summary": {
+                            "has_quest_intent": False,
+                            "has_combat_intent": False,
+                            "has_poi_intent": True,
+                            "has_meta_intent": True
+                        }
+                    }
+                }
+            }
+        },
+        404: {"description": "Debug endpoints disabled"}
+    }
+)
+async def debug_parse_llm(
+    request: dict,
+    settings: Settings = Depends(get_settings)
+):
+    """Debug endpoint to test LLM response parsing.
+    
+    Accepts raw JSON that would be returned from the LLM and validates it
+    against the DungeonMasterOutcome schema. Returns detailed parsing results
+    including validation status, extracted narrative, and any errors.
+    
+    Only available when ENABLE_DEBUG_ENDPOINTS configuration is enabled.
+    This endpoint should NOT be enabled in production environments.
+    
+    Args:
+        request: Dictionary with "llm_response" key containing raw JSON string
+        settings: Application settings (injected)
+        
+    Returns:
+        Dictionary with parsing results and validation details
+        
+    Raises:
+        HTTPException: If debug endpoints are disabled or request is malformed
+    """
+    if not settings.enable_debug_endpoints:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Debug endpoints are disabled. Set ENABLE_DEBUG_ENDPOINTS=true to enable."
+        )
+    
+    # Validate request has llm_response field
+    if "llm_response" not in request:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Request must include 'llm_response' field with JSON string to parse"
+        )
+    
+    llm_response = request["llm_response"]
+    
+    if not isinstance(llm_response, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="'llm_response' must be a string containing JSON"
+        )
+    
+    # Parse the response using the outcome parser
+    from app.services.outcome_parser import OutcomeParser
+    parser = OutcomeParser()
+    
+    trace_id = request.get("trace_id", "debug-request")
+    parsed = parser.parse(llm_response, trace_id=trace_id)
+    
+    # Build summary of intents if outcome is valid
+    intents_summary = None
+    if parsed.is_valid and parsed.outcome:
+        intents_summary = {
+            "has_quest_intent": parsed.outcome.intents.quest_intent is not None,
+            "has_combat_intent": parsed.outcome.intents.combat_intent is not None,
+            "has_poi_intent": parsed.outcome.intents.poi_intent is not None,
+            "has_meta_intent": parsed.outcome.intents.meta is not None
+        }
+    
+    return {
+        "is_valid": parsed.is_valid,
+        "narrative": parsed.narrative,
+        "has_outcome": parsed.outcome is not None,
+        "error_type": parsed.error_type,
+        "error_details": parsed.error_details,
+        "intents_summary": intents_summary,
+        "schema_version": parser.schema_version
+    }

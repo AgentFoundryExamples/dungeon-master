@@ -409,3 +409,151 @@ def test_turn_response_model_with_intents():
     assert response.narrative == "Test narrative"
     assert response.intents is not None
     assert response.intents.quest_intent.action == "offer"
+
+
+def test_debug_parse_llm_endpoint_disabled(client):
+    """Test that /debug/parse_llm returns 404 when disabled."""
+    response = client.post(
+        "/debug/parse_llm",
+        json={
+            "llm_response": '{"narrative": "test", "intents": {}}'
+        }
+    )
+    assert response.status_code == 404
+
+
+def test_debug_parse_llm_endpoint_enabled(test_env):
+    """Test that /debug/parse_llm works when enabled."""
+    import os
+    from unittest.mock import patch
+    
+    # Enable debug endpoints
+    test_env["ENABLE_DEBUG_ENDPOINTS"] = "true"
+    
+    with patch.dict(os.environ, test_env, clear=True):
+        from app.config import get_settings
+        get_settings.cache_clear()
+        
+        from app.main import app
+        from fastapi.testclient import TestClient
+        from httpx import AsyncClient
+        from app.services.journey_log_client import JourneyLogClient
+        from app.services.llm_client import LLMClient
+        
+        test_http_client = AsyncClient()
+        settings = get_settings()
+        test_journey_log_client = JourneyLogClient(
+            base_url=settings.journey_log_base_url,
+            http_client=test_http_client,
+            timeout=settings.journey_log_timeout,
+            recent_n_default=settings.journey_log_recent_n
+        )
+        test_llm_client = LLMClient(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            timeout=settings.openai_timeout,
+            stub_mode=True
+        )
+        
+        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
+        app.dependency_overrides[get_http_client] = lambda: test_http_client
+        app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
+        app.dependency_overrides[get_llm_client] = lambda: test_llm_client
+        
+        test_client = TestClient(app)
+        
+        try:
+            # Test with valid JSON
+            valid_response = {
+                "narrative": "You discover a treasure chest.",
+                "intents": {
+                    "quest_intent": {"action": "none"},
+                    "combat_intent": {"action": "none"},
+                    "poi_intent": {"action": "create", "name": "Hidden Room"},
+                    "meta": {"player_mood": "excited"}
+                }
+            }
+            
+            import json
+            response = test_client.post(
+                "/debug/parse_llm",
+                json={
+                    "llm_response": json.dumps(valid_response)
+                }
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["is_valid"] is True
+            assert data["has_outcome"] is True
+            assert data["narrative"] == "You discover a treasure chest."
+            assert data["intents_summary"]["has_poi_intent"] is True
+            assert data["error_type"] is None
+            
+            # Test with invalid JSON
+            response = test_client.post(
+                "/debug/parse_llm",
+                json={
+                    "llm_response": "not valid json"
+                }
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["is_valid"] is False
+            assert data["has_outcome"] is False
+            assert data["error_type"] == "json_decode_error"
+            assert data["error_details"] is not None
+        finally:
+            app.dependency_overrides.clear()
+
+
+def test_debug_parse_llm_endpoint_missing_field(test_env):
+    """Test that /debug/parse_llm requires llm_response field."""
+    import os
+    from unittest.mock import patch
+    
+    test_env["ENABLE_DEBUG_ENDPOINTS"] = "true"
+    
+    with patch.dict(os.environ, test_env, clear=True):
+        from app.config import get_settings
+        get_settings.cache_clear()
+        
+        from app.main import app
+        from fastapi.testclient import TestClient
+        from httpx import AsyncClient
+        from app.services.journey_log_client import JourneyLogClient
+        from app.services.llm_client import LLMClient
+        
+        test_http_client = AsyncClient()
+        settings = get_settings()
+        test_journey_log_client = JourneyLogClient(
+            base_url=settings.journey_log_base_url,
+            http_client=test_http_client,
+            timeout=settings.journey_log_timeout,
+            recent_n_default=settings.journey_log_recent_n
+        )
+        test_llm_client = LLMClient(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            timeout=settings.openai_timeout,
+            stub_mode=True
+        )
+        
+        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
+        app.dependency_overrides[get_http_client] = lambda: test_http_client
+        app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
+        app.dependency_overrides[get_llm_client] = lambda: test_llm_client
+        
+        test_client = TestClient(app)
+        
+        try:
+            response = test_client.post(
+                "/debug/parse_llm",
+                json={}
+            )
+            
+            assert response.status_code == 400
+            assert "llm_response" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
