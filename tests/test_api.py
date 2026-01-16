@@ -74,11 +74,21 @@ def client(test_env):
             stub_mode=True  # Always use stub mode in tests
         )
         
+        from app.services.policy_engine import PolicyEngine
+        test_policy_engine = PolicyEngine(
+            quest_trigger_prob=settings.quest_trigger_prob,
+            quest_cooldown_turns=settings.quest_cooldown_turns,
+            poi_trigger_prob=settings.poi_trigger_prob,
+            poi_cooldown_turns=settings.poi_cooldown_turns,
+            rng_seed=settings.rng_seed
+        )
+        
         # Override all dependencies for testing
-        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
+        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine
         app.dependency_overrides[get_http_client] = lambda: test_http_client
         app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
         app.dependency_overrides[get_llm_client] = lambda: test_llm_client
+        app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
         
         client = TestClient(app)
         

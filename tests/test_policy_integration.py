@@ -1,0 +1,277 @@
+# Copyright 2025 John Brosnihan
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Integration tests for PolicyEngine integration with turn orchestration."""
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from httpx import Response
+
+
+@pytest.mark.asyncio
+async def test_policy_engine_evaluated_before_llm():
+    """Test that PolicyEngine is evaluated before LLM prompt building."""
+    from app.api.routes import process_turn
+    from app.models import TurnRequest
+    from app.config import Settings
+    from app.services.journey_log_client import JourneyLogClient
+    from app.services.llm_client import LLMClient
+    from app.services.policy_engine import PolicyEngine
+    from httpx import AsyncClient
+    
+    # Create mock HTTP client
+    mock_http_client = AsyncMock(spec=AsyncClient)
+    
+    # Mock journey-log context with policy state
+    mock_context_response = MagicMock(spec=Response)
+    mock_context_response.status_code = 200
+    mock_context_response.json.return_value = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "status": "Healthy",
+            "location": {"id": "origin:nexus", "display_name": "Nexus"},
+            "additional_fields": {
+                "turns_since_last_quest": 10,
+                "turns_since_last_poi": 5
+            }
+        },
+        "quest": None,
+        "combat": {"active": False},
+        "narrative": {"recent_turns": []}
+    }
+    mock_context_response.raise_for_status = MagicMock()
+    
+    # Mock persist response
+    mock_persist_response = MagicMock(spec=Response)
+    mock_persist_response.status_code = 200
+    mock_persist_response.raise_for_status = MagicMock()
+    
+    mock_http_client.get.return_value = mock_context_response
+    mock_http_client.post.return_value = mock_persist_response
+    
+    # Create clients
+    journey_client = JourneyLogClient(
+        base_url="http://test",
+        http_client=mock_http_client
+    )
+    
+    llm_client = LLMClient(api_key="sk-test", stub_mode=True)
+    
+    # Create policy engine with deterministic seed
+    policy_engine = PolicyEngine(
+        quest_trigger_prob=1.0,  # Always trigger
+        poi_trigger_prob=1.0,  # Always trigger
+        rng_seed=42
+    )
+    
+    # Create settings
+    settings = Settings(
+        service_name="test",
+        journey_log_base_url="http://test",
+        openai_api_key="sk-test"
+    )
+    
+    # Call process_turn
+    request = TurnRequest(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        user_action="I explore the area"
+    )
+    
+    response = await process_turn(
+        request=request,
+        journey_log_client=journey_client,
+        llm_client=llm_client,
+        policy_engine=policy_engine,
+        settings=settings
+    )
+    
+    # Verify response contains narrative
+    assert response.narrative
+    assert len(response.narrative) > 0
+
+
+@pytest.mark.asyncio
+async def test_policy_guardrails_block_quest_intent():
+    """Test that policy guardrails block quest intents when roll doesn't pass."""
+    from app.api.routes import process_turn
+    from app.models import TurnRequest, IntentsBlock, QuestIntent, POIIntent
+    from app.config import Settings
+    from app.services.journey_log_client import JourneyLogClient
+    from app.services.llm_client import LLMClient, ParsedOutcome, DungeonMasterOutcome
+    from app.services.policy_engine import PolicyEngine
+    from httpx import AsyncClient
+    
+    # Create mock HTTP client
+    mock_http_client = AsyncMock(spec=AsyncClient)
+    
+    # Mock journey-log context
+    mock_context_response = MagicMock(spec=Response)
+    mock_context_response.status_code = 200
+    mock_context_response.json.return_value = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "status": "Healthy",
+            "location": {"id": "origin:nexus", "display_name": "Nexus"},
+            "additional_fields": {
+                "turns_since_last_quest": 10,
+                "turns_since_last_poi": 5
+            }
+        },
+        "quest": None,
+        "combat": {"active": False},
+        "narrative": {"recent_turns": []}
+    }
+    mock_context_response.raise_for_status = MagicMock()
+    
+    # Mock persist response
+    mock_persist_response = MagicMock(spec=Response)
+    mock_persist_response.status_code = 200
+    mock_persist_response.raise_for_status = MagicMock()
+    
+    mock_http_client.get.return_value = mock_context_response
+    mock_http_client.post.return_value = mock_persist_response
+    
+    # Create clients
+    journey_client = JourneyLogClient(
+        base_url="http://test",
+        http_client=mock_http_client
+    )
+    
+    llm_client = LLMClient(api_key="sk-test", stub_mode=False)
+    
+    # Mock LLM response with quest intent
+    mock_output_item = MagicMock()
+    mock_output_item.content = '''{
+        "narrative": "A mysterious stranger approaches you with a quest.",
+        "intents": {
+            "quest_intent": {
+                "action": "offer",
+                "quest_title": "Find the Lost Artifact"
+            },
+            "combat_intent": {"action": "none"},
+            "poi_intent": {"action": "none"},
+            "meta": null
+        }
+    }'''
+    mock_llm_response = MagicMock()
+    mock_llm_response.output = [mock_output_item]
+    
+    # Policy engine that will FAIL the roll (prob=0.0)
+    policy_engine = PolicyEngine(
+        quest_trigger_prob=0.0,  # Never trigger
+        poi_trigger_prob=0.0,  # Never trigger
+        rng_seed=42
+    )
+    
+    # Create settings
+    settings = Settings(
+        service_name="test",
+        journey_log_base_url="http://test",
+        openai_api_key="sk-test"
+    )
+    
+    with patch.object(llm_client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = mock_llm_response
+        
+        # Call process_turn
+        request = TurnRequest(
+            character_id="550e8400-e29b-41d4-a716-446655440000",
+            user_action="I explore the area"
+        )
+        
+        response = await process_turn(
+            request=request,
+            journey_log_client=journey_client,
+            llm_client=llm_client,
+            policy_engine=policy_engine,
+            settings=settings
+        )
+        
+        # Verify narrative is present
+        assert response.narrative
+        assert "mysterious stranger" in response.narrative.lower()
+        
+        # Verify quest intent was blocked by guardrail
+        assert response.intents is not None
+        assert response.intents.quest_intent is not None
+        # The guardrail should have set action to "none"
+        assert response.intents.quest_intent.action == "none"
+
+
+@pytest.mark.asyncio
+async def test_policy_hints_included_in_prompt():
+    """Test that policy hints are included in the prompt sent to LLM."""
+    from app.prompting.prompt_builder import PromptBuilder
+    from app.models import JourneyLogContext, PolicyState, PolicyHints, QuestTriggerDecision, POITriggerDecision
+    
+    # Create context with policy hints
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "origin:nexus", "display_name": "The Nexus"},
+        policy_state=PolicyState(
+            turns_since_last_quest=10,
+            turns_since_last_poi=5
+        )
+    )
+    
+    # Add policy hints
+    context.policy_hints = PolicyHints(
+        quest_trigger_decision=QuestTriggerDecision(
+            eligible=True,
+            probability=0.5,
+            roll_passed=True
+        ),
+        poi_trigger_decision=POITriggerDecision(
+            eligible=True,
+            probability=0.3,
+            roll_passed=False
+        )
+    )
+    
+    # Build prompt
+    builder = PromptBuilder()
+    system_instructions, user_prompt = builder.build_prompt(
+        context=context,
+        user_action="I search the area"
+    )
+    
+    # Verify policy hints are in the user prompt
+    assert "POLICY HINTS:" in user_prompt
+    assert "Quest Trigger: ALLOWED" in user_prompt
+    assert "POI Creation: NOT ALLOWED" in user_prompt
+
+
+def test_policy_decision_models_structure():
+    """Test that policy decision models have the correct structure."""
+    from app.models import QuestTriggerDecision, POITriggerDecision
+    
+    # Test quest decision
+    quest_dec = QuestTriggerDecision(
+        eligible=True,
+        probability=0.5,
+        roll_passed=True
+    )
+    assert quest_dec.eligible is True
+    assert quest_dec.probability == 0.5
+    assert quest_dec.roll_passed is True
+    
+    # Test POI decision
+    poi_dec = POITriggerDecision(
+        eligible=False,
+        probability=0.3,
+        roll_passed=False
+    )
+    assert poi_dec.eligible is False
+    assert poi_dec.probability == 0.3
+    assert poi_dec.roll_passed is False

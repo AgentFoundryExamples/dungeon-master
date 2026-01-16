@@ -102,10 +102,14 @@ def client(test_env):
         from app.config import get_settings
         get_settings.cache_clear()
         
+        # Import dependencies FIRST before importing app
+        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine
+        
         from app.main import app
         from httpx import AsyncClient
         from app.services.journey_log_client import JourneyLogClient
         from app.services.llm_client import LLMClient
+        from app.services.policy_engine import PolicyEngine
         
         # Create test HTTP client
         test_http_client = AsyncClient()
@@ -125,16 +129,22 @@ def client(test_env):
                 timeout=settings.openai_timeout,
                 stub_mode=True  # Always use stub mode in tests
             )
+            test_policy_engine = PolicyEngine(
+                quest_trigger_prob=settings.quest_trigger_prob,
+                quest_cooldown_turns=settings.quest_cooldown_turns,
+                poi_trigger_prob=settings.poi_trigger_prob,
+                poi_cooldown_turns=settings.poi_cooldown_turns,
+                rng_seed=settings.rng_seed
+            )
             
-            # Override all dependencies
-            from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
+            # Override dependencies (don't clear - just overwrite the ones from main.py)
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
             app.dependency_overrides[get_llm_client] = lambda: test_llm_client
+            app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
             
-            client = TestClient(app)
-            
-            yield client
+            with TestClient(app) as client:
+                yield client
         finally:
             # Cleanup - close async client and clear overrides
             asyncio.run(test_http_client.aclose())

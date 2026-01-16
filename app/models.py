@@ -291,6 +291,14 @@ class JourneyLogContext(BaseModel):
             "Derived from journey-log data and DM-managed additional_fields."
         )
     )
+    policy_hints: Optional["PolicyHints"] = Field(
+        None,
+        description=(
+            "Policy hints containing PolicyEngine decisions to inform LLM narrative generation. "
+            "Includes quest and POI trigger decisions with eligibility and roll results. "
+            "Added during turn orchestration after PolicyEngine evaluation."
+        )
+    )
     additional_fields: Dict[str, Any] = Field(
         default_factory=dict,
         description=(
@@ -751,6 +759,27 @@ class POITriggerDecision(BaseModel):
     roll_passed: bool = Field(
         ...,
         description="Whether the probabilistic roll succeeded"
+    )
+
+
+class PolicyHints(BaseModel):
+    """Policy hints containing policy decisions to inform LLM narrative generation.
+    
+    This model carries PolicyEngine decisions into the prompt so the LLM
+    knows when it may propose quests or POIs. The LLM should respect these
+    hints when generating narrative and intents.
+    
+    Attributes:
+        quest_trigger_decision: Decision about whether to trigger a quest
+        poi_trigger_decision: Decision about whether to trigger a POI
+    """
+    quest_trigger_decision: QuestTriggerDecision = Field(
+        ...,
+        description="Quest trigger decision from PolicyEngine"
+    )
+    poi_trigger_decision: POITriggerDecision = Field(
+        ...,
+        description="POI trigger decision from PolicyEngine"
     )
 
 
