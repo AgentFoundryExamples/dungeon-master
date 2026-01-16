@@ -16,7 +16,7 @@
 import time
 from typing import Optional
 from httpx import AsyncClient, HTTPStatusError, TimeoutException
-from app.models import JourneyLogContext
+from app.models import JourneyLogContext, PolicyState
 from app.logging import StructuredLogger, redact_secrets
 
 logger = StructuredLogger(__name__)
@@ -69,6 +69,79 @@ class JourneyLogClient:
         logger.info(
             f"Initialized JourneyLogClient with base_url={self.base_url}, "
             f"timeout={self.timeout}s, recent_n_default={self.recent_n_default}"
+        )
+
+    def _extract_policy_state(self, data: dict) -> PolicyState:
+        """Extract policy-relevant state from journey-log response.
+        
+        This method parses the journey-log response to extract policy inputs
+        for quest and POI trigger evaluation. It handles:
+        - Quest presence and timestamps from quest field or additional_fields
+        - POI timestamps from additional_fields (since journey-log may not track)
+        - Combat active flag from combat envelope
+        - Turn counters from additional_fields or defaults to 0
+        - Player engagement flags from additional_fields
+        
+        Args:
+            data: Raw journey-log response dictionary
+            
+        Returns:
+            PolicyState with extracted and normalized values
+        """
+        # Extract additional_fields from player_state for DM-managed state
+        player_state = data.get("player_state", {})
+        additional_fields = player_state.get("additional_fields", {})
+        
+        # Extract quest state
+        has_active_quest = data.get("has_active_quest", False)
+        quest = data.get("quest")
+        if quest is not None:
+            has_active_quest = True
+        
+        # Extract combat state
+        combat_data = data.get("combat", {})
+        combat_active = combat_data.get("active", False)
+        
+        # Extract timestamps from additional_fields (DM-managed until journey-log supports)
+        last_quest_offered_at = additional_fields.get("last_quest_offered_at")
+        last_poi_created_at = additional_fields.get("last_poi_created_at")
+        
+        # Extract turn counters from additional_fields with safe defaults
+        turns_since_last_quest = additional_fields.get("turns_since_last_quest", 0)
+        turns_since_last_poi = additional_fields.get("turns_since_last_poi", 0)
+        
+        # Ensure turn counters are non-negative integers
+        if not isinstance(turns_since_last_quest, int) or turns_since_last_quest < 0:
+            logger.warning(
+                f"Invalid turns_since_last_quest value: {turns_since_last_quest}, defaulting to 0"
+            )
+            turns_since_last_quest = 0
+        
+        if not isinstance(turns_since_last_poi, int) or turns_since_last_poi < 0:
+            logger.warning(
+                f"Invalid turns_since_last_poi value: {turns_since_last_poi}, defaulting to 0"
+            )
+            turns_since_last_poi = 0
+        
+        # Extract player engagement flags from additional_fields
+        user_is_wandering = additional_fields.get("user_is_wandering")
+        requested_guidance = additional_fields.get("requested_guidance")
+        
+        # Ensure boolean flags are None or bool
+        if user_is_wandering is not None and not isinstance(user_is_wandering, bool):
+            user_is_wandering = None
+        if requested_guidance is not None and not isinstance(requested_guidance, bool):
+            requested_guidance = None
+        
+        return PolicyState(
+            last_quest_offered_at=last_quest_offered_at,
+            last_poi_created_at=last_poi_created_at,
+            turns_since_last_quest=turns_since_last_quest,
+            turns_since_last_poi=turns_since_last_poi,
+            has_active_quest=has_active_quest,
+            combat_active=combat_active,
+            user_is_wandering=user_is_wandering,
+            requested_guidance=requested_guidance
         )
 
     async def get_context(
@@ -148,6 +221,12 @@ class JourneyLogClient:
             if not player_state.get("location"):
                 raise JourneyLogClientError("Response missing required 'player_state.location' field")
 
+            # Extract policy state from response
+            policy_state = self._extract_policy_state(data)
+            
+            # Extract additional_fields for DM-managed state
+            additional_fields = player_state.get("additional_fields", {})
+
             context = JourneyLogContext(
                 character_id=data["character_id"],
                 status=player_state["status"],
@@ -161,14 +240,18 @@ class JourneyLogClient:
                         "timestamp": turn.get("timestamp", "")
                     }
                     for turn in narrative_data.get("recent_turns", [])
-                ]
+                ],
+                policy_state=policy_state,
+                additional_fields=additional_fields
             )
 
             logger.info(
                 "Successfully fetched context",
                 status=context.status,
                 has_quest=context.active_quest is not None,
-                history_turns=len(context.recent_history)
+                history_turns=len(context.recent_history),
+                combat_active=policy_state.combat_active,
+                turns_since_last_quest=policy_state.turns_since_last_quest
             )
 
             return context

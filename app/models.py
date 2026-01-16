@@ -21,7 +21,7 @@ Includes DungeonMasterOutcome models for structured LLM outputs with
 strict JSON contracts for narrative and intents.
 """
 
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 
@@ -68,6 +68,59 @@ class TurnRequest(BaseModel):
             raise ValueError(f"character_id must be a valid UUID, got: {v}")
 
 
+class PolicyState(BaseModel):
+    """Policy-relevant state for quest and POI trigger evaluation.
+    
+    This model captures all state necessary for PolicyEngine to evaluate
+    quest and POI eligibility, including timestamps, turn counters, combat flags,
+    and player engagement metadata.
+    
+    Attributes:
+        last_quest_offered_at: Timestamp when last quest was offered (ISO 8601 or None)
+        last_poi_created_at: Timestamp when last POI was created (ISO 8601 or None)
+        turns_since_last_quest: Number of turns since last quest trigger (0 if no quest history)
+        turns_since_last_poi: Number of turns since last POI trigger (0 if no POI history)
+        has_active_quest: Whether character has an active quest
+        combat_active: Whether character is currently in combat
+        user_is_wandering: Optional flag indicating player seems directionless
+        requested_guidance: Optional flag indicating player requested help
+    """
+    last_quest_offered_at: Optional[str] = Field(
+        None,
+        description="ISO 8601 timestamp when last quest was offered, or None if no quest history"
+    )
+    last_poi_created_at: Optional[str] = Field(
+        None,
+        description="ISO 8601 timestamp when last POI was created, or None if no POI history"
+    )
+    turns_since_last_quest: int = Field(
+        0,
+        ge=0,
+        description="Number of turns since last quest trigger (0 if no quest history)"
+    )
+    turns_since_last_poi: int = Field(
+        0,
+        ge=0,
+        description="Number of turns since last POI trigger (0 if no POI history)"
+    )
+    has_active_quest: bool = Field(
+        False,
+        description="Whether character has an active quest"
+    )
+    combat_active: bool = Field(
+        False,
+        description="Whether character is currently in combat"
+    )
+    user_is_wandering: Optional[bool] = Field(
+        None,
+        description="Optional flag indicating player seems directionless"
+    )
+    requested_guidance: Optional[bool] = Field(
+        None,
+        description="Optional flag indicating player requested help or guidance"
+    )
+
+
 class TurnResponse(BaseModel):
     """Response model for a turn in the game.
     
@@ -94,7 +147,8 @@ class JourneyLogContext(BaseModel):
     """Context model representing character state from journey-log service.
     
     This model contains pass-through fields that will be fetched from
-    the journey-log service and used for LLM context generation.
+    the journey-log service and used for LLM context generation, including
+    enriched policy state for quest and POI trigger evaluation.
     
     Attributes:
         character_id: UUID identifier for the character
@@ -103,6 +157,8 @@ class JourneyLogContext(BaseModel):
         active_quest: Current active quest information (if any)
         combat_state: Current combat state information (if any)
         recent_history: List of recent narrative turns
+        policy_state: Policy-relevant state for quest/POI trigger evaluation
+        additional_fields: Generic map for extensible DM-managed state
     """
     character_id: str = Field(
         ...,
@@ -129,6 +185,22 @@ class JourneyLogContext(BaseModel):
     recent_history: List[dict] = Field(
         default_factory=list,
         description="Recent narrative turns from character history"
+    )
+    policy_state: PolicyState = Field(
+        default_factory=PolicyState,
+        description=(
+            "Policy-relevant state for quest and POI trigger evaluation. "
+            "Includes timestamps, turn counters, combat flags, and player engagement metadata. "
+            "Derived from journey-log data and DM-managed additional_fields."
+        )
+    )
+    additional_fields: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Generic map for extensible DM-managed state. "
+            "Fields here may be used for policy evaluation until journey-log "
+            "provides first-class support. Forward-compatible with unexpected keys."
+        )
     )
 
 
