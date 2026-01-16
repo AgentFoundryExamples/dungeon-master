@@ -111,6 +111,9 @@ class TurnOrchestrator:
         self.llm_client = llm_client
         self.journey_log_client = journey_log_client
         self.prompt_builder = prompt_builder
+        # Import and instantiate parser once to avoid repeated instantiation
+        from app.services.outcome_parser import OutcomeParser
+        self.outcome_parser = OutcomeParser()
     
     async def orchestrate_turn(
         self,
@@ -200,9 +203,7 @@ class TurnOrchestrator:
         
         # Step 2b: Normalize quest intent with fallbacks
         if intents:
-            from app.services.outcome_parser import OutcomeParser
-            parser = OutcomeParser()
-            normalized_quest = parser.normalize_quest_intent(
+            normalized_quest = self.outcome_parser.normalize_quest_intent(
                 quest_intent=intents.quest_intent,
                 policy_triggered=quest_decision.roll_passed
             )
@@ -483,18 +484,43 @@ class TurnOrchestrator:
                 # Map from intent_data {title, summary, details} to API {name, description, requirements, rewards, completion_state, updated_at}
                 from datetime import datetime, timezone
                 
-                title = action.intent_data.get("title", "A New Opportunity")
-                summary_text = action.intent_data.get("summary", "An opportunity for adventure presents itself.")
-                details = action.intent_data.get("details") or {}
+                # Parser already applied fallbacks, so these should always be present
+                title = action.intent_data["title"]
+                summary_text = action.intent_data["summary"]
+                details = action.intent_data["details"]
+                
+                # Validate and extract requirements (must be list of strings)
+                requirements = details.get("requirements", [])
+                if not isinstance(requirements, list):
+                    logger.warning("Invalid requirements type, using empty list", type=type(requirements).__name__)
+                    requirements = []
+                
+                # Validate and extract reward items (must be list)
+                reward_items = details.get("reward_items", [])
+                if not isinstance(reward_items, list):
+                    logger.warning("Invalid reward_items type, using empty list", type=type(reward_items).__name__)
+                    reward_items = []
+                
+                # Validate and extract reward currency (must be dict)
+                reward_currency = details.get("reward_currency", {})
+                if not isinstance(reward_currency, dict):
+                    logger.warning("Invalid reward_currency type, using empty dict", type=type(reward_currency).__name__)
+                    reward_currency = {}
+                
+                # Validate and extract reward experience (must be int or None)
+                reward_experience = details.get("reward_experience")
+                if reward_experience is not None and not isinstance(reward_experience, int):
+                    logger.warning("Invalid reward_experience type, setting to None", type=type(reward_experience).__name__)
+                    reward_experience = None
                 
                 quest_payload = {
                     "name": title,
                     "description": summary_text,
-                    "requirements": details.get("requirements", []),
+                    "requirements": requirements,
                     "rewards": {
-                        "items": details.get("reward_items", []),
-                        "currency": details.get("reward_currency", {}),
-                        "experience": details.get("reward_experience")
+                        "items": reward_items,
+                        "currency": reward_currency,
+                        "experience": reward_experience
                     },
                     "completion_state": "not_started",
                     "updated_at": datetime.now(timezone.utc).isoformat()
@@ -532,14 +558,13 @@ class TurnOrchestrator:
                 logger.info(f"Quest {action.action_type} successful")
         
         except JourneyLogClientError as e:
-            # Check for HTTP 409 Conflict (active quest already exists)
-            error_str = str(e)
-            if "409" in error_str or "conflict" in error_str.lower():
+            # Check for HTTP 409 Conflict using status_code attribute
+            if getattr(e, 'status_code', None) == 409:
                 # HTTP 409: Active quest already exists
                 logger.warning(
                     "Quest PUT skipped - active quest already exists (HTTP 409)",
                     action=action.action_type,
-                    error=error_str
+                    error=str(e)
                 )
                 summary.quest_change = SubsystemActionType(
                     action="skipped",

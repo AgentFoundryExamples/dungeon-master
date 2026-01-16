@@ -431,9 +431,10 @@ async def test_quest_put_409_conflict_handling(orchestrator, llm_client, journey
         is_valid=True
     )
     
-    # Mock 409 conflict response
+    # Mock 409 conflict response with status_code attribute
     journey_log_client.put_quest.side_effect = JourneyLogClientError(
-        "Journey-log returned 409: Active quest already exists"
+        "Journey-log returned 409: Active quest already exists",
+        status_code=409
     )
     
     # Execute - should not raise exception
@@ -476,9 +477,10 @@ async def test_quest_put_other_error_handling(orchestrator, llm_client, journey_
         is_valid=True
     )
     
-    # Mock generic error response
+    # Mock generic error response with status_code
     journey_log_client.put_quest.side_effect = JourneyLogClientError(
-        "Journey-log returned 500: Internal Server Error"
+        "Journey-log returned 500: Internal Server Error",
+        status_code=500
     )
     
     # Execute - should not raise exception

@@ -135,18 +135,48 @@ class OutcomeParser:
             summary = quest_intent.quest_summary
             details = quest_intent.quest_details
             
-            # Apply fallbacks for missing fields
+            # Apply fallbacks for missing/invalid fields with type checking
+            # Convert to string if possible, otherwise use fallback
             if not title or not isinstance(title, str) or len(title.strip()) == 0:
-                title = "A New Opportunity"
-                logger.info("Quest offer missing title - using fallback")
+                # Try to convert to string if it's not None
+                if title is not None and not isinstance(title, str):
+                    try:
+                        title = str(title)
+                        if len(title.strip()) == 0:
+                            title = "A New Opportunity"
+                            logger.info("Quest offer title was non-string empty, using fallback")
+                        else:
+                            logger.info("Quest offer title was non-string, converted to string", original_type=type(quest_intent.quest_title).__name__)
+                    except Exception:
+                        title = "A New Opportunity"
+                        logger.warning("Quest offer title type conversion failed, using fallback", original_type=type(quest_intent.quest_title).__name__)
+                else:
+                    title = "A New Opportunity"
+                    logger.info("Quest offer missing title - using fallback")
             
             if not summary or not isinstance(summary, str) or len(summary.strip()) == 0:
-                summary = "An opportunity for adventure presents itself."
-                logger.info("Quest offer missing summary - using fallback")
+                # Try to convert to string if it's not None
+                if summary is not None and not isinstance(summary, str):
+                    try:
+                        summary = str(summary)
+                        if len(summary.strip()) == 0:
+                            summary = "An opportunity for adventure presents itself."
+                            logger.info("Quest offer summary was non-string empty, using fallback")
+                        else:
+                            logger.info("Quest offer summary was non-string, converted to string", original_type=type(quest_intent.quest_summary).__name__)
+                    except Exception:
+                        summary = "An opportunity for adventure presents itself."
+                        logger.warning("Quest offer summary type conversion failed, using fallback", original_type=type(quest_intent.quest_summary).__name__)
+                else:
+                    summary = "An opportunity for adventure presents itself."
+                    logger.info("Quest offer missing summary - using fallback")
             
             if details is None:
                 details = {}
                 logger.debug("Quest offer missing details - using empty dict")
+            elif not isinstance(details, dict):
+                logger.warning("Quest offer details was non-dict, using empty dict", original_type=type(quest_intent.quest_details).__name__)
+                details = {}
             
             return QuestIntent(
                 action="offer",
