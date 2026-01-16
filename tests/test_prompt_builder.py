@@ -431,3 +431,230 @@ def test_policy_hints_format_all_ineligible(prompt_builder):
     assert "POI Creation: NOT ALLOWED" in user_prompt
     # Should include reasons for ineligibility
     assert "Reason:" in user_prompt
+
+
+def test_prompt_includes_memory_sparks_when_present(prompt_builder):
+    """Test that memory sparks (POIs) are included in prompt when provided."""
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "town:square", "display_name": "Town Square"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        memory_sparks=[
+            {
+                "id": "poi-1",
+                "name": "The Old Mill",
+                "description": "An abandoned mill at the edge of the forest",
+                "timestamp_discovered": "2025-01-15T10:00:00Z",
+                "tags": ["mill", "forest", "abandoned"]
+            },
+            {
+                "id": "poi-2",
+                "name": "Rusty Tavern",
+                "description": "A weathered tavern in the town square",
+                "timestamp_discovered": "2025-01-15T09:00:00Z",
+                "tags": ["tavern", "town"]
+            }
+        ]
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I explore the area"
+    )
+    
+    # Memory sparks should be in the user prompt
+    assert "MEMORY SPARKS" in user_prompt
+    assert "Previously Discovered Locations" in user_prompt
+    assert "The Old Mill" in user_prompt
+    assert "Rusty Tavern" in user_prompt
+    assert "abandoned mill" in user_prompt
+    assert "weathered tavern" in user_prompt
+    assert "Tags:" in user_prompt
+
+
+def test_prompt_excludes_memory_sparks_when_absent(prompt_builder):
+    """Test that memory sparks are excluded when not provided."""
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "town:square", "display_name": "Town Square"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        memory_sparks=[]  # Empty list
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I explore"
+    )
+    
+    # Memory sparks should NOT be in the user prompt
+    assert "MEMORY SPARKS" not in user_prompt
+    assert "Previously Discovered Locations" not in user_prompt
+
+
+def test_memory_sparks_deterministic_ordering(prompt_builder):
+    """Test that memory sparks are formatted with deterministic ordering."""
+    # Create memory sparks with different timestamps
+    memory_sparks = [
+        {
+            "id": "poi-3",
+            "name": "C Location",
+            "description": "Third location",
+            "timestamp_discovered": "2025-01-15T08:00:00Z"
+        },
+        {
+            "id": "poi-1",
+            "name": "A Location",
+            "description": "First location",
+            "timestamp_discovered": "2025-01-15T10:00:00Z"
+        },
+        {
+            "id": "poi-2",
+            "name": "B Location",
+            "description": "Second location",
+            "timestamp_discovered": "2025-01-15T09:00:00Z"
+        }
+    ]
+    
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "test:location", "display_name": "Test Location"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        memory_sparks=memory_sparks
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I look around"
+    )
+    
+    # Should be ordered by timestamp descending (newest first)
+    # So order should be: A Location, B Location, C Location
+    a_pos = user_prompt.index("A Location")
+    b_pos = user_prompt.index("B Location")
+    c_pos = user_prompt.index("C Location")
+    
+    assert a_pos < b_pos < c_pos, "Memory sparks should be ordered by timestamp descending"
+
+
+def test_memory_sparks_truncates_long_descriptions(prompt_builder):
+    """Test that long POI descriptions are truncated."""
+    memory_sparks = [
+        {
+            "id": "poi-1",
+            "name": "Long Description Location",
+            "description": "A" * 250,  # 250 character description (over 200 limit)
+            "timestamp_discovered": "2025-01-15T10:00:00Z"
+        }
+    ]
+    
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "test:location", "display_name": "Test Location"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        memory_sparks=memory_sparks
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I explore"
+    )
+    
+    # Description should be truncated with ...
+    assert "..." in user_prompt
+    # Should not contain all 250 A's
+    assert "A" * 250 not in user_prompt
+    # Should contain up to 200 A's plus ...
+    assert "A" * 200 in user_prompt
+
+
+def test_memory_sparks_handles_missing_fields(prompt_builder):
+    """Test that memory sparks handle missing optional fields gracefully."""
+    memory_sparks = [
+        {
+            "id": "poi-1",
+            "name": "Minimal POI",
+            # No description, no tags, no timestamp
+        },
+        {
+            "id": "poi-2",
+            # No name either
+        }
+    ]
+    
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "test:location", "display_name": "Test Location"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        memory_sparks=memory_sparks
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I explore"
+    )
+    
+    # Should not crash and should include what's available
+    assert "MEMORY SPARKS" in user_prompt
+    # Verify both the named POI and the fallback for the unnamed one are present
+    assert "Minimal POI" in user_prompt
+    assert "Unknown Location" in user_prompt
+
+
+def test_memory_sparks_sorts_missing_timestamps_last(prompt_builder):
+    """Test that POIs without timestamps sort last, not first."""
+    memory_sparks = [
+        {
+            "id": "poi-1",
+            "name": "No Timestamp POI",
+            # No timestamp - should sort last
+        },
+        {
+            "id": "poi-2",
+            "name": "Recent POI",
+            "timestamp_discovered": "2025-01-15T10:00:00Z"
+        },
+        {
+            "id": "poi-3",
+            "name": "Older POI",
+            "timestamp_discovered": "2025-01-15T08:00:00Z"
+        }
+    ]
+    
+    context = JourneyLogContext(
+        character_id="550e8400-e29b-41d4-a716-446655440000",
+        status="Healthy",
+        location={"id": "test:location", "display_name": "Test Location"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        memory_sparks=memory_sparks
+    )
+    
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=context,
+        user_action="I explore"
+    )
+    
+    # POIs with timestamps should appear first (newest to oldest)
+    # POI without timestamp should appear last
+    recent_pos = user_prompt.index("Recent POI")
+    older_pos = user_prompt.index("Older POI")
+    no_timestamp_pos = user_prompt.index("No Timestamp POI")
+    
+    assert recent_pos < older_pos, "Recent POI should appear before Older POI"
+    assert older_pos < no_timestamp_pos, "POI without timestamp should appear last"

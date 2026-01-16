@@ -160,6 +160,11 @@ Output ONLY the JSON object, no other text."""
             combat_str = self._format_combat(context.combat_state)
             sections.append(f"COMBAT STATE:\n{combat_str}")
 
+        # Memory Sparks (POIs) - only show if present
+        if context.memory_sparks:
+            memory_sparks_str = self._format_memory_sparks(context.memory_sparks)
+            sections.append(f"MEMORY SPARKS (Previously Discovered Locations):\n{memory_sparks_str}")
+
         # Policy Hints (if available)
         if context.policy_hints:
             policy_str = self._format_policy_hints(context.policy_hints)
@@ -244,6 +249,51 @@ Output ONLY the JSON object, no other text."""
                 weapon_str = f" (armed with {weapon})" if weapon else ""
                 lines.append(f"    - {name}: {status}{weapon_str}")
 
+        return "\n".join(lines)
+
+    def _format_memory_sparks(self, memory_sparks: list) -> str:
+        """Format memory sparks (random POIs) for the LLM.
+        
+        Memory sparks are previously discovered locations that help the LLM
+        recall and reference places in the character's journey. They are
+        fetched randomly from the character's POI collection.
+        
+        Args:
+            memory_sparks: List of POI dictionaries from journey-log
+            
+        Returns:
+            Formatted memory sparks string with deterministic ordering
+        """
+        lines = []
+        lines.append(f"  {len(memory_sparks)} previously discovered location(s):")
+        
+        # Sort by timestamp_discovered descending (newest first) for deterministic order
+        # POIs without timestamps sort last (using empty string as minimum timestamp)
+        # then by name for stable ordering
+        sorted_sparks = sorted(
+            memory_sparks,
+            key=lambda poi: (
+                poi.get("timestamp_discovered") or "",  # Empty string sorts last in reverse
+                poi.get("name", "")
+            ),
+            reverse=True
+        )
+        
+        for i, poi in enumerate(sorted_sparks, 1):
+            name = poi.get("name", "Unknown Location")
+            description = poi.get("description", "")
+            tags = poi.get("tags", [])
+            
+            lines.append(f"\n  {i}. {name}")
+            if description:
+                # Truncate long descriptions to keep prompt manageable
+                if len(description) > 200:
+                    description = description[:200] + "..."
+                lines.append(f"     {description}")
+            if tags:
+                tags_str = ", ".join(tags[:5])  # Limit to 5 tags
+                lines.append(f"     Tags: {tags_str}")
+        
         return "\n".join(lines)
 
     def _format_policy_hints(self, policy_hints: PolicyHints) -> str:

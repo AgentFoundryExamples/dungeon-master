@@ -70,3 +70,174 @@ response = client.models.generate_content(
 - **Environment Variables:** Load API keys via `pydantic-settings` (e.g., `OPENAI_API_KEY`).
 - **Streaming:** Implement `stream=True` handlers for all user-facing interactions.
 - **Async:** Prefer `async`/`await` methods (e.g., `client.responses.create_async`) for FastAPI endpoints.
+
+## Dungeon Master Implementation Specifics
+
+### Deterministic Write Order
+
+The DungeonMaster service enforces a strict, deterministic order when writing subsystem changes to the journey-log service. This ensures predictable behavior and simplifies debugging.
+
+**Write Order:**
+1. **Quest** (PUT for offer/update, DELETE for abandon/complete) - Only if quest action derived
+2. **Combat** (PUT for start/continue/end) - Only if combat action derived
+3. **POI** (POST for create) - Only if POI action derived
+4. **Narrative** (POST always attempted) - Always writes player action and AI response
+
+**Rationale:**
+- Quest writes first because they affect character state and may influence later decisions
+- Combat writes second because they may reference quest context
+- POI writes third because they may be mentioned in narrative
+- Narrative writes last to ensure all context is finalized before persisting the story
+
+**Determinism Benefits:**
+- Predictable logs and debugging
+- Consistent state ordering across all turns
+- Easier to reason about race conditions
+- Integration tests can assert exact write sequence
+
+### Failure Handling Strategy
+
+The service implements a "continue narrative" strategy for subsystem write failures:
+
+**Core Principles:**
+1. **Narrative Always Returns**: Even if subsystem writes fail, the narrative response is returned to the player
+2. **No Retry on Destructive Ops**: DELETE operations (e.g., quest deletion) are never automatically retried
+3. **Summary Tracking**: All write attempts and their outcomes are captured in `TurnSubsystemSummary`
+4. **HTTP 200 with Failures**: Returns 200 OK even if some writes fail (check `subsystem_summary` for details)
+
+**Failure Scenarios:**
+
+| Scenario | Behavior | HTTP Status | Summary Fields |
+|----------|----------|-------------|----------------|
+| Quest write fails | Continue, log error, return narrative | 200 | `quest_change.success=false`, `quest_change.error="..."` |
+| Combat write fails | Continue, log error, return narrative | 200 | `combat_change.success=false`, `combat_change.error="..."` |
+| POI write fails | Continue, log error, return narrative | 200 | `poi_created.success=false`, `poi_created.error="..."` |
+| Narrative write fails | Log error, return narrative anyway | 200 | `narrative_persisted=false`, `narrative_error="..."` |
+| LLM generation fails | No writes attempted, return error | 502 | N/A (no subsystem_summary) |
+| Context fetch fails | No writes attempted, return error | 502/504 | N/A (no subsystem_summary) |
+
+**Why No Retry on DELETE?**
+- Destructive operations should be idempotent and non-retriable
+- Retrying a failed DELETE could succeed on a stale request, causing unexpected state
+- The client should explicitly request the deletion again if needed
+
+**Monitoring Failures:**
+- Check `subsystem_summary` in responses for per-write success/failure status
+- Enable DEBUG logging to see detailed error messages
+- Use structured logs for alert thresholds (e.g., narrative_persistence_failure_rate > 5%)
+
+### Prompt Construction and Policy Integration
+
+**Policy Hints in Prompts:**
+
+The PolicyEngine evaluates quest and POI trigger eligibility **before** LLM generation and injects hints into the prompt. This ensures the LLM respects deterministic policy decisions.
+
+**Policy Hint Format:**
+```
+POLICY HINTS:
+  Quest Trigger: ALLOWED / NOT ALLOWED
+    Reason: (if not allowed)
+  POI Creation: ALLOWED / NOT ALLOWED
+    Reason: (if not allowed)
+
+  Note: Only suggest quest offers or POI creation if marked as ALLOWED above.
+```
+
+**Key Points:**
+- Policy hints are added to the user prompt, not system instructions
+- The LLM is instructed to respect these hints when suggesting intents
+- Even if the LLM suggests a blocked action, the orchestrator will skip the write
+- Policy hints are never exposed in API responses (internal only)
+
+**Memory Sparks (POI Injection):**
+
+When `POI_MEMORY_SPARK_ENABLED=true`, the service fetches random POIs at the start of each turn and injects them into the prompt to help the LLM recall previously discovered locations.
+
+**Memory Spark Format:**
+```
+MEMORY SPARKS (Previously Discovered Locations):
+  3 previously discovered location(s):
+
+  1. The Old Mill
+     An abandoned mill at the edge of the forest
+     Tags: mill, forest, abandoned
+
+  2. Rusty Tavern
+     A weathered tavern in the town square
+     Tags: tavern, town
+```
+
+**Memory Spark Behavior:**
+- Sorted by timestamp descending (newest first) for determinism
+- Descriptions truncated to 200 characters to manage token usage
+- Tags limited to 5 per POI
+- Section hidden completely if no POIs available
+- Non-fatal errors during fetch (empty list returned on failure)
+
+**Token Budget:**
+- System instructions + schema: ~2,250 tokens
+- User prompt sections: ~2,000-4,000 tokens (varies by history, memory sparks, combat)
+- Total typical prompt: 4,000-6,000 tokens
+
+**Configuring Token Usage:**
+- `JOURNEY_LOG_RECENT_N`: Control history turns (default 20, range 1-100)
+- `POI_MEMORY_SPARK_COUNT`: Control POI count (default 3, range 1-20)
+- Automatic truncation for long descriptions and responses
+
+### Structured Output Schema
+
+The LLM must output valid JSON matching the `DungeonMasterOutcome` schema:
+
+```json
+{
+  "narrative": "string (required, min 1 char)",
+  "intents": {
+    "quest_intent": {
+      "action": "none | offer | complete | abandon",
+      "quest_title": "string (optional)",
+      "quest_summary": "string (optional)",
+      "quest_details": {} // optional dict
+    },
+    "combat_intent": {
+      "action": "none | start | continue | end",
+      "enemies": [], // optional EnemyDescriptor[]
+      "combat_notes": "string (optional)"
+    },
+    "poi_intent": {
+      "action": "none | create | reference",
+      "name": "string (optional)",
+      "description": "string (optional)",
+      "reference_tags": [] // optional string[]
+    },
+    "meta": {
+      "player_mood": "string (optional)",
+      "pacing_hint": "slow | normal | fast (optional)",
+      "user_is_wandering": "boolean (optional)",
+      "user_asked_for_guidance": "boolean (optional)"
+    }
+  }
+}
+```
+
+**Schema Evolution:**
+- Update `get_outcome_json_schema()` in `app/models.py` when schema changes
+- Schema is automatically included in prompts
+- Test with new models to ensure compatibility
+- Monitor token counts as schema grows
+
+**Validation Strategy:**
+- Parse JSON response from LLM
+- Validate against Pydantic model (DungeonMasterOutcome)
+- If validation fails, fallback to narrative-only mode (extract narrative, skip intents)
+- Log validation errors with schema version for debugging
+
+### Best Practices for This Service
+
+1. **Always call LLM with policy hints** - Ensures LLM respects deterministic decisions
+2. **Validate all LLM outputs** - Never trust raw JSON from LLM without Pydantic validation
+3. **Log all subsystem writes** - Use structured logging with success/failure status
+4. **Return narrative even on failures** - Player experience takes priority over perfect state
+5. **Never retry DELETE operations** - Destructive ops should be idempotent and non-retriable
+6. **Monitor token usage** - Watch for prompt growth as features are added
+7. **Test with deterministic seeds** - Use RNG_SEED for reproducible policy testing
+8. **Include memory sparks carefully** - They improve coherence but increase token usage
