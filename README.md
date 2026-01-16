@@ -253,12 +253,44 @@ The LLM may still generate quest-related narrative, but the quest won't be persi
 Process a player turn and generate AI-powered narrative response.
 
 **Orchestration Flow:**
-1. Validates the turn request
-2. Fetches character context from journey-log service (recent_n=20, include_pois=false)
-3. Builds a structured prompt with system instructions and context
-4. Calls OpenAI Responses API (gpt-5.1) for narrative generation
-5. Persists the user_action and generated narrative to journey-log
-6. Returns the narrative and intents to the client
+
+The `/turn` endpoint uses a `TurnOrchestrator` to enforce deterministic sequencing:
+
+1. **Fetch Context**: Retrieves character context from journey-log service (recent_n=20, include_pois=false)
+2. **Policy Decisions**: Evaluates quest and POI trigger eligibility and rolls
+3. **LLM Generation**: Calls OpenAI Responses API (gpt-5.1) for narrative generation with policy hints
+4. **Parse Intents**: Validates LLM response against DungeonMasterOutcome schema
+5. **Derive Actions**: Maps intents to subsystem actions with policy gating and context validation
+6. **Execute Writes** (deterministic order):
+   - Quest writes (PUT/DELETE) - if action derived
+   - Combat writes (PUT) - if action derived
+   - POI writes (POST) - if action derived
+   - Narrative write (POST) - always attempted
+7. **Build Summary**: Creates TurnSubsystemSummary with success/failure status for each action
+8. **Return Response**: Narrative, intents, and subsystem_summary
+
+```mermaid
+graph TD
+    A[Client Request] -->|1. Fetch Context| B[Journey-Log GET]
+    B --> C[Policy Engine]
+    C -->|2. Policy Decisions| D[LLM Client]
+    D -->|3. Generate Narrative| E[Outcome Parser]
+    E -->|4. Parse Intents| F[Action Derivation]
+    F -->|5. Policy Gating| G[Subsystem Writes]
+    G -->|6a. Quest PUT/DELETE| H[Journey-Log]
+    G -->|6b. Combat PUT| H
+    G -->|6c. POI POST| H
+    G -->|6d. Narrative POST| H
+    H --> I[Build Summary]
+    I -->|7. Response| J[Client]
+```
+
+**Failure Strategy:**
+
+- **Continue on Error**: Subsystem write failures are logged but don't block narrative response
+- **No Retry on DELETE**: Destructive operations (quest DELETE) are never automatically retried
+- **Summary Tracking**: All failures are captured in `subsystem_summary` for debugging
+- **200 with Failures**: Returns HTTP 200 even if some subsystem writes fail (check summary for details)
 
 **Request:**
 ```json
@@ -285,6 +317,25 @@ Process a player turn and generate AI-powered narrative response.
       "player_mood": "excited",
       "pacing_hint": "normal"
     }
+  },
+  "subsystem_summary": {
+    "quest_change": {
+      "action": "none",
+      "success": null,
+      "error": null
+    },
+    "combat_change": {
+      "action": "none",
+      "success": null,
+      "error": null
+    },
+    "poi_created": {
+      "action": "created",
+      "success": true,
+      "error": null
+    },
+    "narrative_persisted": true,
+    "narrative_error": null
   }
 }
 ```
@@ -296,12 +347,19 @@ Process a player turn and generate AI-powered narrative response.
   - Null when LLM response fails validation
   - Contains quest, combat, POI, and meta intents
   - **Important**: Only `narrative` is persisted to journey-log; intents are descriptive and informational
+- `subsystem_summary` (object, optional): Summary of subsystem changes made during this turn
+  - `quest_change`: Quest action result (offered/completed/abandoned/none)
+  - `combat_change`: Combat action result (started/continued/ended/none)
+  - `poi_created`: POI action result (created/referenced/none)
+  - `narrative_persisted`: Whether narrative was successfully saved
+  - `narrative_error`: Error message if narrative persistence failed
+  - Each action includes `success` (true/false/null) and `error` (string/null) fields
 
 **Status Codes:**
-- `200`: Success - narrative generated and persisted
+- `200`: Success - narrative generated (check subsystem_summary for write failures)
 - `400`: Invalid request (malformed UUID, validation error)
 - `404`: Character not found in journey-log
-- `502`: Journey-log or LLM service error
+- `502`: Journey-log or LLM service error (during context fetch or LLM generation)
 - `504`: Timeout fetching context or generating narrative
 
 ### GET /health
@@ -783,6 +841,9 @@ graph LR
 - **app/services/journey_log_client.py**: Client for journey-log integration
   - Fetches character context (GET /characters/{id}/context)
   - Persists narrative turns (POST /characters/{id}/narrative)
+  - Manages quest state (PUT/DELETE /characters/{id}/quest)
+  - Manages combat state (PUT /characters/{id}/combat)
+  - Creates POIs (POST /characters/{id}/pois)
   - Handles errors, timeouts, and retries
 - **app/services/llm_client.py**: Client for OpenAI Responses API
   - Uses gpt-5.1 model with JSON schema enforcement
@@ -794,6 +855,13 @@ graph LR
   - Optional seeded RNG for deterministic debugging
   - Structured decision models for logging and orchestration
   - Extension hooks for future subsystems
+- **app/services/turn_orchestrator.py**: TurnOrchestrator for deterministic turn processing
+  - Enforces policy → LLM → parse → derive → execute sequence
+  - Gates subsystem actions based on policy decisions and context state
+  - Executes writes in deterministic order (quest → combat → POI → narrative)
+  - Logs all operations for analytics
+  - Handles failures gracefully (continue narrative, no retry for DELETE)
+  - Supports dry-run mode for simulations
 
 #### Prompting
 - **app/prompting/prompt_builder.py**: Constructs LLM prompts
@@ -810,6 +878,15 @@ graph LR
 
 **TurnResponse**: AI-generated narrative
 - `narrative` (str): Generated story response
+- `intents` (Optional[IntentsBlock]): Structured intents from LLM
+- `subsystem_summary` (Optional[TurnSubsystemSummary]): Summary of subsystem changes
+
+**TurnSubsystemSummary**: Summary of subsystem changes
+- `quest_change` (SubsystemActionType): Quest action result
+- `combat_change` (SubsystemActionType): Combat action result
+- `poi_created` (SubsystemActionType): POI action result
+- `narrative_persisted` (bool): Whether narrative was saved
+- `narrative_error` (Optional[str]): Error message if persistence failed
 
 **JourneyLogContext**: Character state from journey-log
 - `character_id` (str): UUID of the character
@@ -840,9 +917,29 @@ graph LR
 - Narrative persistence back to journey-log
 - Comprehensive error handling and timeouts
 
+✅ **Deterministic Turn Orchestration**:
+- TurnOrchestrator enforces policy → LLM → parse → derive → execute sequence
+- Subsystem actions gated by policy decisions AND context state validation
+- Deterministic write order: quest → combat → POI → narrative
+- Structured error logging for all operations
+- Graceful failure handling (continue narrative, no retry for DELETE)
+- Dry-run mode for simulations and testing
+
+✅ **Subsystem Write Operations**:
+- Quest management (PUT/DELETE) with policy gating
+- Combat state updates (PUT) with context validation
+- POI creation (POST) with policy gating
+- Narrative persistence (POST) always attempted
+- TurnSubsystemSummary tracks success/failure for each operation
+- Analytics logging for write order verification
+
 ✅ **Journey-Log Integration**:
 - GET /characters/{id}/context with configurable recent_n
 - POST /characters/{id}/narrative for turn persistence
+- PUT /characters/{id}/quest for quest offers
+- DELETE /characters/{id}/quest for quest completion/abandonment
+- PUT /characters/{id}/combat for combat state updates
+- POST /characters/{id}/pois for POI creation
 - Proper error classification (404, timeouts, etc.)
 - Trace ID forwarding for observability
 
@@ -856,18 +953,20 @@ graph LR
 - System instructions for narrative engine role
 - Context serialization (status, location, quest, combat)
 - Recent history integration (configurable window)
+- Policy hints injection for LLM guidance
 - Extensible structure for future enhancements
 
 ✅ **Comprehensive Testing**:
-- 46 unit and integration tests
+- 46+ unit and integration tests
 - Mocked dependencies for isolated testing
 - Coverage for error cases and edge cases
 - All tests passing
+- Tests for orchestration sequencing and failure handling
 
 ✅ **Observability & Monitoring**:
 - Structured logging with correlation IDs (request_id, character_id)
 - Request tracking via X-Trace-Id and X-Request-Id headers
-- Phase-based logging (context fetch, LLM call, narrative save)
+- Phase-based logging (context fetch, policy evaluation, LLM call, subsystem writes)
 - Automatic secret redaction (API keys, tokens)
 - JSON logging format option for log aggregation
 - Structured error responses with machine-readable error types
