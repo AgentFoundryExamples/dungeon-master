@@ -32,15 +32,36 @@ def test_env():
 def client(test_env):
     """Fixture providing FastAPI test client with valid configuration."""
     with patch.dict(os.environ, test_env, clear=True):
+        # Clear the settings cache before importing to ensure fresh config
+        from app.config import get_settings
+        get_settings.cache_clear()
+        
         # Import after setting environment to ensure settings load correctly
         from app.main import app
-        return TestClient(app)
+        from httpx import AsyncClient
+        
+        # Create a test HTTP client for dependency override
+        test_http_client = AsyncClient()
+        
+        # Override the get_http_client dependency for testing
+        from app.api.routes import get_http_client
+        app.dependency_overrides[get_http_client] = lambda: test_http_client
+        
+        client = TestClient(app)
+        
+        yield client
+        
+        # Cleanup
+        app.dependency_overrides.clear()
 
 
 def test_config_validation_missing_required():
     """Test that configuration fails fast when required variables are missing."""
-    from app.config import Settings
+    from app.config import Settings, get_settings
     from pydantic import ValidationError
+    
+    # Clear cache to ensure fresh config
+    get_settings.cache_clear()
     
     # Try to create settings without required fields
     with patch.dict(os.environ, {}, clear=True):

@@ -10,6 +10,7 @@ All handlers are stubbed for now and will be implemented in a future issue.
 from fastapi import APIRouter, Depends, HTTPException, status
 from httpx import AsyncClient
 import logging
+import re
 
 from app.models import TurnRequest, TurnResponse, HealthResponse
 from app.config import get_settings, Settings
@@ -19,17 +20,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def sanitize_for_log(text: str, max_length: int = 100) -> str:
+    """Sanitize text for safe logging.
+    
+    Removes newlines, carriage returns, and other control characters
+    that could be used for log injection attacks. Also truncates to
+    prevent log flooding.
+    
+    Args:
+        text: Text to sanitize
+        max_length: Maximum length to truncate to
+        
+    Returns:
+        Sanitized text safe for logging
+    """
+    # Remove control characters (newlines, carriage returns, etc.)
+    sanitized = re.sub(r'[\r\n\t\x00-\x1f\x7f-\x9f]', '', text)
+    # Truncate to max length
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length] + "..."
+    return sanitized
+
+
 async def get_http_client() -> AsyncClient:
     """Dependency that provides an HTTP client for external requests.
     
-    This is a placeholder for proper dependency injection that will be
-    implemented with application lifespan management in main.py.
+    This is a placeholder that must be overridden by the application.
+    The application lifespan in main.py provides the actual implementation.
     
-    Yields:
-        AsyncClient instance for making HTTP requests
+    Raises:
+        NotImplementedError: If not overridden by the application
     """
-    async with AsyncClient() as client:
-        yield client
+    raise NotImplementedError(
+        "get_http_client dependency must be overridden. "
+        "This should be configured in app.main module."
+    )
 
 
 @router.post(
@@ -80,8 +105,12 @@ async def process_turn(
     Raises:
         HTTPException: If request validation fails or processing error occurs
     """
+    # Sanitize inputs for logging to prevent log injection
+    safe_character_id = sanitize_for_log(request.character_id, 36)
+    safe_action = sanitize_for_log(request.user_action, 50)
+    
     logger.info(
-        f"Processing turn for character {request.character_id}: {request.user_action[:50]}..."
+        f"Processing turn for character {safe_character_id}: {safe_action}..."
     )
     
     # STUB: Return placeholder response

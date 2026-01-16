@@ -5,6 +5,7 @@ All settings are validated at startup to fail fast if configuration is invalid.
 """
 
 import os
+from functools import lru_cache
 from typing import Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -104,15 +105,12 @@ class Settings(BaseSettings):
     )
 
 
-# Global settings instance
-_settings: Optional[Settings] = None
-
-
+@lru_cache
 def get_settings() -> Settings:
-    """Get the global settings instance.
+    """Get the settings instance with LRU caching.
     
-    Creates the settings instance on first call and caches it.
-    Fails fast if required environment variables are missing or invalid.
+    Uses functools.lru_cache for thread-safe singleton pattern.
+    The cache can be cleared for testing using get_settings.cache_clear().
     
     Returns:
         Settings instance with validated configuration
@@ -120,14 +118,11 @@ def get_settings() -> Settings:
     Raises:
         ValueError: If required configuration is missing or invalid
     """
-    global _settings
-    if _settings is None:
-        try:
-            _settings = Settings()
-        except Exception as e:
-            raise ValueError(
-                f"Configuration error: {e}. "
-                "Ensure all required environment variables are set. "
-                "See .env.example for required configuration."
-            ) from e
-    return _settings
+    try:
+        return Settings()
+    except Exception as e:
+        raise ValueError(
+            f"Configuration error: {e}. "
+            "Ensure all required environment variables are set. "
+            "See .env.example for required configuration."
+        ) from e

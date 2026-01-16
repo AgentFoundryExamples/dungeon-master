@@ -24,10 +24,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# Global HTTP client for dependency injection
-http_client: AsyncClient = None
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager.
@@ -39,15 +35,13 @@ async def lifespan(app: FastAPI):
     Args:
         app: FastAPI application instance
     """
-    global http_client
-    
     # Startup
     logger.info("Starting Dungeon Master service...")
     
     # Validate configuration at startup
     try:
         settings = get_settings()
-        logger.info(f"Configuration loaded successfully")
+        logger.info("Configuration loaded successfully")
         logger.info(f"Journey-log base URL: {settings.journey_log_base_url}")
         logger.info(f"OpenAI model: {settings.openai_model}")
         logger.info(f"Health check journey-log: {settings.health_check_journey_log}")
@@ -55,18 +49,16 @@ async def lifespan(app: FastAPI):
         logger.error(f"Configuration validation failed: {e}")
         raise
     
-    # Initialize HTTP client
-    http_client = AsyncClient(
-        timeout=settings.journey_log_timeout
-    )
+    # Initialize HTTP client and store in app state
+    app.state.http_client = AsyncClient()
     logger.info("HTTP client initialized")
     
     yield
     
     # Shutdown
     logger.info("Shutting down Dungeon Master service...")
-    if http_client:
-        await http_client.aclose()
+    if hasattr(app.state, 'http_client'):
+        await app.state.http_client.aclose()
         logger.info("HTTP client closed")
 
 
@@ -85,9 +77,12 @@ app = FastAPI(
 )
 
 # Configure CORS for web client access
+# NOTE: Unrestricted CORS is acceptable for this service as it's designed
+# to be accessed by web clients. In production, configure allow_origins
+# to match your specific domain(s) or use environment variables.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Configure for production
+    allow_origins=["*"],  # Consider restricting in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -99,19 +94,30 @@ app.include_router(router, tags=["game"])
 logger.info("FastAPI application configured")
 
 
-# Dependency override for HTTP client
-def get_http_client() -> AsyncClient:
-    """Dependency that provides the global HTTP client.
+# Dependency override for HTTP client using FastAPI's dependency system
+def get_http_client_override() -> AsyncClient:
+    """Dependency override that provides the HTTP client from app state.
+    
+    This function is used to override the placeholder dependency in routes.
+    It accesses the HTTP client stored in app.state during lifespan startup.
     
     Returns:
-        Global AsyncClient instance
+        AsyncClient instance from app state
+        
+    Raises:
+        RuntimeError: If HTTP client is not initialized in app state
     """
-    return http_client
+    if not hasattr(app.state, 'http_client'):
+        raise RuntimeError(
+            "HTTP client not initialized. "
+            "Ensure the application lifespan has started."
+        )
+    return app.state.http_client
 
 
-# Override the placeholder dependency in routes
-from app.api import routes
-routes.get_http_client = get_http_client
+# Use FastAPI's dependency_overrides instead of monkey-patching
+from app.api.routes import get_http_client
+app.dependency_overrides[get_http_client] = get_http_client_override
 
 
 if __name__ == "__main__":
