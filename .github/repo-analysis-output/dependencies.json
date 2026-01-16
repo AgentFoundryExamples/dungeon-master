@@ -284,6 +284,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "json",
           "os",
           "unittest.mock.AsyncMock",
           "unittest.mock.MagicMock",
@@ -424,6 +425,10 @@
     {
       "source": "app/api/routes.py",
       "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "app/api/routes.py",
+      "target": "app/services/outcome_parser.py"
     },
     {
       "source": "app/api/routes.py",
@@ -592,6 +597,10 @@
     {
       "source": "tests/test_api.py",
       "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_api.py",
+      "target": "app/services/outcome_parser.py"
     },
     {
       "source": "tests/test_journey_log_client.py",

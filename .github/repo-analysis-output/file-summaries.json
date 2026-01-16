@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 18407,
-        "loc": 425,
+        "size_bytes": 22594,
+        "loc": 513,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 5222,
-        "loc": 121,
+        "size_bytes": 5420,
+        "loc": 125,
         "todo_count": 0
       }
     },
@@ -123,8 +123,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 17420,
-        "loc": 403,
+        "size_bytes": 18407,
+        "loc": 428,
         "todo_count": 0
       }
     },
@@ -277,8 +277,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 8667,
-        "loc": 180,
+        "size_bytes": 19922,
+        "loc": 413,
         "todo_count": 0
       }
     },

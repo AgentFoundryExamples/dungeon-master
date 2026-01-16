@@ -29,8 +29,8 @@ Total files: 27
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 17.98 KB  
-**LOC:** 425  
+**Size:** 22.06 KB  
+**LOC:** 513  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -38,8 +38,8 @@ Total files: 27
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 5.10 KB  
-**LOC:** 121  
+**Size:** 5.29 KB  
+**LOC:** 125  
 **TODOs/FIXMEs:** 0  
 
 ## app/logging.py
@@ -83,8 +83,8 @@ Total files: 27
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 17.01 KB  
-**LOC:** 403  
+**Size:** 17.98 KB  
+**LOC:** 428  
 **TODOs/FIXMEs:** 0  
 
 ## app/prompting/__init__.py
@@ -182,8 +182,8 @@ Total files: 27
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 8.46 KB  
-**LOC:** 180  
+**Size:** 19.46 KB  
+**LOC:** 413  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_journey_log_client.py
