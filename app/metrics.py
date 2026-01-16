@@ -16,7 +16,7 @@
 This module provides simple in-memory metrics collection:
 - Request counters (total, success, error by status code)
 - Latency tracking (min, max, avg, count by operation)
-- Thread-safe atomic operations without locks
+- Thread-safe atomic operations using locks
 """
 
 import time
