@@ -27,6 +27,19 @@ import re
 
 from app.models import TurnRequest, TurnResponse, HealthResponse
 from app.config import get_settings, Settings
+from app.services.journey_log_client import (
+    JourneyLogClient,
+    JourneyLogNotFoundError,
+    JourneyLogTimeoutError,
+    JourneyLogClientError
+)
+from app.services.llm_client import (
+    LLMClient,
+    LLMTimeoutError,
+    LLMResponseError,
+    LLMClientError
+)
+from app.prompting.prompt_builder import PromptBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +116,13 @@ async def process_turn(
 ) -> TurnResponse:
     """Process a player turn and generate narrative response.
     
-    STUB: This endpoint is currently stubbed and returns a placeholder response.
-    Full orchestration logic (journey-log context fetch + LLM generation) will be
-    implemented in a future issue.
+    Full orchestration flow:
+    1. Validate request
+    2. Fetch context from journey-log
+    3. Build prompt using PromptBuilder
+    4. Call LLM for narrative generation
+    5. Persist user_action + narrative to journey-log
+    6. Return TurnResponse
     
     Args:
         request: Turn request with character_id and user_action
@@ -123,17 +140,129 @@ async def process_turn(
     safe_action = sanitize_for_log(request.user_action, 50)
     
     logger.info(
-        f"Processing turn for character {safe_character_id}: {safe_action}..."
+        f"Processing turn for character {safe_character_id}: {safe_action}... "
+        f"(trace_id={request.trace_id})"
     )
     
-    # STUB: Return placeholder response
-    # TODO: Implement journey-log context fetch and LLM orchestration
-    return TurnResponse(
-        narrative=(
-            f"[STUB] Received action: {request.user_action[:100]}. "
-            "Full orchestration will be implemented in next issue."
+    try:
+        # Step 1: Initialize clients
+        journey_log_client = JourneyLogClient(
+            base_url=settings.journey_log_base_url,
+            http_client=http_client,
+            timeout=settings.journey_log_timeout,
+            recent_n_default=settings.journey_log_recent_n
         )
-    )
+        
+        llm_client = LLMClient(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            timeout=settings.openai_timeout,
+            stub_mode=settings.openai_stub_mode
+        )
+        
+        prompt_builder = PromptBuilder()
+        
+        # Step 2: Fetch context from journey-log
+        logger.debug(f"Fetching context for character {safe_character_id}")
+        try:
+            context = await journey_log_client.get_context(
+                character_id=request.character_id,
+                trace_id=request.trace_id
+            )
+        except JourneyLogNotFoundError as e:
+            logger.error(f"Character not found: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Character {request.character_id} not found in journey-log"
+            ) from e
+        except JourneyLogTimeoutError as e:
+            logger.error(f"Journey-log timeout: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Journey-log service timed out. Please try again."
+            ) from e
+        except JourneyLogClientError as e:
+            logger.error(f"Journey-log error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to fetch context from journey-log: {str(e)}"
+            ) from e
+        
+        # Step 3: Build prompt
+        logger.debug("Building prompt from context and user action")
+        system_instructions, user_prompt = prompt_builder.build_prompt(
+            context=context,
+            user_action=request.user_action
+        )
+        
+        # Step 4: Call LLM for narrative generation
+        logger.debug("Generating narrative with LLM")
+        try:
+            narrative = await llm_client.generate_narrative(
+                system_instructions=system_instructions,
+                user_prompt=user_prompt,
+                trace_id=request.trace_id
+            )
+        except LLMTimeoutError as e:
+            logger.error(f"LLM timeout: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="LLM service timed out. Please try again."
+            ) from e
+        except LLMResponseError as e:
+            logger.error(f"LLM response error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"LLM returned invalid response: {str(e)}"
+            ) from e
+        except LLMClientError as e:
+            logger.error(f"LLM client error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to generate narrative: {str(e)}"
+            ) from e
+        
+        # Step 5: Persist to journey-log
+        logger.debug("Persisting narrative to journey-log")
+        try:
+            await journey_log_client.persist_narrative(
+                character_id=request.character_id,
+                user_action=request.user_action,
+                narrative=narrative,
+                trace_id=request.trace_id
+            )
+        except JourneyLogNotFoundError as e:
+            # Character was found earlier, so this shouldn't happen
+            # But log it and continue since we have a valid narrative
+            logger.warning(
+                f"Character disappeared during persistence: {e}. "
+                "Returning narrative anyway."
+            )
+        except JourneyLogClientError as e:
+            # Log the persistence failure but don't fail the request
+            # since we have a valid narrative to return
+            logger.error(
+                f"Failed to persist narrative: {e}. "
+                "Returning narrative to user anyway."
+            )
+        
+        # Step 6: Return response
+        logger.info(
+            f"Successfully processed turn for {safe_character_id}: "
+            f"generated {len(narrative)} character narrative"
+        )
+        return TurnResponse(narrative=narrative)
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Catch-all for unexpected errors
+        logger.exception(f"Unexpected error processing turn: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while processing your turn"
+        ) from e
 
 
 @router.get(

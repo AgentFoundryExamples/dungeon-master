@@ -50,7 +50,7 @@ class Settings(BaseSettings):
         description="OpenAI API key for LLM requests"
     )
     openai_model: str = Field(
-        default="gpt-4",
+        default="gpt-5.1",
         description="OpenAI model to use for narrative generation"
     )
     openai_timeout: int = Field(
@@ -58,6 +58,16 @@ class Settings(BaseSettings):
         ge=1,
         le=600,
         description="HTTP timeout for OpenAI requests in seconds"
+    )
+    openai_stub_mode: bool = Field(
+        default=False,
+        description="Enable stub mode for offline development (no actual API calls)"
+    )
+    journey_log_recent_n: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Default number of recent narrative turns to fetch from journey-log"
     )
     
     # Health Check Configuration
