@@ -20,8 +20,7 @@ from app.services.llm_client import (
     LLMClient,
     LLMConfigurationError,
     LLMTimeoutError,
-    LLMResponseError,
-    LLMClientError
+    LLMResponseError
 )
 
 
@@ -36,7 +35,7 @@ def test_llm_client_init():
     
     assert client.model == "gpt-5.1"
     assert client.timeout == 60
-    assert client.stub_mode == False
+    assert not client.stub_mode
     assert client.client is not None
 
 
@@ -54,7 +53,7 @@ def test_llm_client_stub_mode():
         stub_mode=True
     )
     
-    assert client.stub_mode == True
+    assert client.stub_mode
     assert client.client is None
 
 

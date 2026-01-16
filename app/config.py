@@ -17,9 +17,7 @@ This module loads and validates configuration from environment variables.
 All settings are validated at startup to fail fast if configuration is invalid.
 """
 
-import os
 from functools import lru_cache
-from typing import Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -84,6 +82,16 @@ class Settings(BaseSettings):
     log_level: str = Field(
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+    )
+    log_json_format: bool = Field(
+        default=False,
+        description="Enable JSON structured logging output"
+    )
+
+    # Metrics Configuration
+    enable_metrics: bool = Field(
+        default=False,
+        description="Enable metrics collection and /metrics endpoint"
     )
 
     @field_validator('journey_log_base_url')

@@ -28,12 +28,11 @@ import logging
 
 from app.api.routes import router
 from app.config import get_settings
+from app.middleware import RequestCorrelationMiddleware
+from app.logging import configure_logging
+from app.metrics import init_metrics_collector, disable_metrics_collector
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Will be configured in lifespan
 logger = logging.getLogger(__name__)
 
 
@@ -54,10 +53,27 @@ async def lifespan(app: FastAPI):
     # Validate configuration at startup
     try:
         settings = get_settings()
+        
+        # Configure logging with settings
+        configure_logging(
+            level=settings.log_level,
+            json_format=settings.log_json_format,
+            service_name=settings.service_name
+        )
+        
         logger.info("Configuration loaded successfully")
         logger.info(f"Journey-log base URL: {settings.journey_log_base_url}")
         logger.info(f"OpenAI model: {settings.openai_model}")
         logger.info(f"Health check journey-log: {settings.health_check_journey_log}")
+        logger.info(f"Metrics enabled: {settings.enable_metrics}")
+        
+        # Initialize metrics collector if enabled
+        if settings.enable_metrics:
+            init_metrics_collector()
+            logger.info("Metrics collector initialized")
+        else:
+            disable_metrics_collector()
+            logger.info("Metrics collection disabled")
     except Exception as e:
         logger.error(f"Configuration validation failed: {e}")
         raise
@@ -121,6 +137,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add request correlation middleware
+app.add_middleware(RequestCorrelationMiddleware)
+
 # Register routes
 app.include_router(router, tags=["game"])
 
@@ -157,7 +176,6 @@ def get_journey_log_client_override():
     Raises:
         RuntimeError: If journey_log_client is not initialized in app state
     """
-    from app.services.journey_log_client import JourneyLogClient
     if not hasattr(app.state, 'journey_log_client'):
         raise RuntimeError(
             "Journey-log client not initialized. "
@@ -175,7 +193,6 @@ def get_llm_client_override():
     Raises:
         RuntimeError: If llm_client is not initialized in app state
     """
-    from app.services.llm_client import LLMClient
     if not hasattr(app.state, 'llm_client'):
         raise RuntimeError(
             "LLM client not initialized. "
@@ -185,7 +202,7 @@ def get_llm_client_override():
 
 
 # Use FastAPI's dependency_overrides instead of monkey-patching
-from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
+from app.api.routes import get_http_client, get_journey_log_client, get_llm_client  # noqa: E402
 app.dependency_overrides[get_http_client] = get_http_client_override
 app.dependency_overrides[get_journey_log_client] = get_journey_log_client_override
 app.dependency_overrides[get_llm_client] = get_llm_client_override

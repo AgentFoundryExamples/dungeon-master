@@ -137,3 +137,39 @@ class HealthResponse(BaseModel):
         None,
         description="Whether journey-log service is accessible (if health check enabled)"
     )
+
+
+class ErrorDetail(BaseModel):
+    """Structured error response model.
+    
+    Attributes:
+        type: Machine-readable error type
+        message: Human-readable error message
+        request_id: Request correlation ID (if available)
+    """
+    type: str = Field(
+        ...,
+        description="Machine-readable error type",
+        examples=["character_not_found", "journey_log_timeout", "llm_error"]
+    )
+    message: str = Field(
+        ...,
+        description="Human-readable error message",
+        examples=["Character not found in journey-log service"]
+    )
+    request_id: Optional[str] = Field(
+        None,
+        description="Request correlation ID for tracking"
+    )
+
+
+class ErrorResponse(BaseModel):
+    """Error response wrapper.
+    
+    Attributes:
+        error: Error details
+    """
+    error: ErrorDetail = Field(
+        ...,
+        description="Error details"
+    )

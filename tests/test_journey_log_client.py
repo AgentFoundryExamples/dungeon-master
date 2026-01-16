@@ -15,13 +15,11 @@
 
 import pytest
 from httpx import AsyncClient, Response
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from app.services.journey_log_client import (
     JourneyLogClient,
-    JourneyLogNotFoundError,
-    JourneyLogTimeoutError,
-    JourneyLogClientError
+    JourneyLogNotFoundError
 )
 
 
@@ -93,7 +91,7 @@ async def test_get_context_success(journey_log_client, mock_http_client):
     call_args = mock_http_client.get.call_args
     assert "550e8400-e29b-41d4-a716-446655440000/context" in call_args[0][0]
     assert call_args[1]["params"]["recent_n"] == 20
-    assert call_args[1]["params"]["include_pois"] == False
+    assert not call_args[1]["params"]["include_pois"]
 
 
 @pytest.mark.asyncio
