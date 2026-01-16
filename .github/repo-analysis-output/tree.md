@@ -18,6 +18,7 @@
 ├── example_openai_usage.py
 ├── gcp_deployment_reference.md
 ├── infrastructure_versions.txt
+├── journey-log.openapi.json
 ├── LICENSE
 ├── LLMs.md
 ├── python_dev_versions.txt
