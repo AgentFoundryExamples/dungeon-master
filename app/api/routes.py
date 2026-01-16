@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from httpx import AsyncClient
 import re
 
-from app.models import TurnRequest, TurnResponse, HealthResponse
+from app.models import TurnRequest, TurnResponse, HealthResponse, DebugParseRequest
 from app.config import get_settings, Settings
 from app.services.journey_log_client import (
     JourneyLogClient,
@@ -38,6 +38,7 @@ from app.services.llm_client import (
     LLMResponseError,
     LLMClientError
 )
+from app.services.outcome_parser import OutcomeParser
 from app.prompting.prompt_builder import PromptBuilder
 from app.logging import (
     StructuredLogger,
@@ -276,7 +277,9 @@ async def process_turn(
 
         # Step 5: Return response with narrative and intents
         # Extract intents from parsed outcome if validation succeeded
-        intents = parsed_outcome.outcome.intents if parsed_outcome.is_valid and parsed_outcome.outcome else None
+        intents = None
+        if parsed_outcome.is_valid and parsed_outcome.outcome and parsed_outcome.outcome.intents:
+            intents = parsed_outcome.outcome.intents
         
         logger.info(
             "Successfully processed turn",
@@ -563,7 +566,7 @@ async def get_metrics(settings: Settings = Depends(get_settings)):
     }
 )
 async def debug_parse_llm(
-    request: dict,
+    request: DebugParseRequest,
     settings: Settings = Depends(get_settings)
 ):
     """Debug endpoint to test LLM response parsing.
@@ -576,14 +579,14 @@ async def debug_parse_llm(
     This endpoint should NOT be enabled in production environments.
     
     Args:
-        request: Dictionary with "llm_response" key containing raw JSON string
+        request: Pydantic model with "llm_response" and optional "trace_id"
         settings: Application settings (injected)
         
     Returns:
         Dictionary with parsing results and validation details
         
     Raises:
-        HTTPException: If debug endpoints are disabled or request is malformed
+        HTTPException: If debug endpoints are disabled
     """
     if not settings.enable_debug_endpoints:
         raise HTTPException(
@@ -591,27 +594,9 @@ async def debug_parse_llm(
             detail="Debug endpoints are disabled. Set ENABLE_DEBUG_ENDPOINTS=true to enable."
         )
     
-    # Validate request has llm_response field
-    if "llm_response" not in request:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Request must include 'llm_response' field with JSON string to parse"
-        )
-    
-    llm_response = request["llm_response"]
-    
-    if not isinstance(llm_response, str):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="'llm_response' must be a string containing JSON"
-        )
-    
     # Parse the response using the outcome parser
-    from app.services.outcome_parser import OutcomeParser
     parser = OutcomeParser()
-    
-    trace_id = request.get("trace_id", "debug-request")
-    parsed = parser.parse(llm_response, trace_id=trace_id)
+    parsed = parser.parse(request.llm_response, trace_id=request.trace_id)
     
     # Build summary of intents if outcome is valid
     intents_summary = None

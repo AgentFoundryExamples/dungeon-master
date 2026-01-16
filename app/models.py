@@ -191,6 +191,24 @@ class ErrorResponse(BaseModel):
     )
 
 
+class DebugParseRequest(BaseModel):
+    """Request model for debug parse endpoint.
+    
+    Attributes:
+        llm_response: Raw JSON string from LLM to parse
+        trace_id: Optional trace ID for request correlation
+    """
+    llm_response: str = Field(
+        ...,
+        description="Raw JSON string from LLM to validate",
+        min_length=1
+    )
+    trace_id: Optional[str] = Field(
+        default="debug-request",
+        description="Optional trace ID for request tracking"
+    )
+
+
 # ============================================================================
 # DungeonMaster Outcome Models - Structured LLM Output Schema
 # ============================================================================
