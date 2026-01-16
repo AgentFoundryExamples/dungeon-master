@@ -103,17 +103,19 @@ def test_config_policy_engine_probability_edge_cases():
     assert settings.poi_trigger_prob == 1.0
 
 
-def test_config_policy_engine_cooldown_validation():
-    """Test that cooldown values are validated."""
+def test_config_policy_engine_cooldown_accepts_negative():
+    """Test that negative cooldown values are accepted (they skip waiting periods)."""
     from app.config import Settings
     
-    # Test negative cooldown (should be rejected)
-    with pytest.raises(ValidationError, match="greater than or equal to 0"):
-        Settings(
-            journey_log_base_url="http://localhost:8000",
-            openai_api_key="sk-test",
-            quest_cooldown_turns=-5
-        )
+    settings = Settings(
+        journey_log_base_url="http://localhost:8000",
+        openai_api_key="sk-test",
+        quest_cooldown_turns=-5,
+        poi_cooldown_turns=-3
+    )
+    
+    assert settings.quest_cooldown_turns == -5
+    assert settings.poi_cooldown_turns == -3
 
 
 def test_config_policy_engine_zero_cooldown():

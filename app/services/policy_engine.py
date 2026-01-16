@@ -28,6 +28,7 @@ Key features:
 """
 
 import random
+import hashlib
 from typing import Optional, Dict, Any
 
 from app.models import QuestTriggerDecision, POITriggerDecision
@@ -106,8 +107,11 @@ class PolicyEngine:
         # If character_id is provided and we have a seed, use character-specific RNG
         if character_id is not None and self.rng_seed is not None:
             if character_id not in self._character_rngs:
-                # Create character-specific RNG with combined seed
-                char_seed = hash((self.rng_seed, character_id)) & 0x7FFFFFFF
+                # Create character-specific RNG with deterministic combined seed
+                # Use hashlib for deterministic hashing across Python restarts
+                seed_str = f"{self.rng_seed}:{character_id}"
+                hash_obj = hashlib.md5(seed_str.encode('utf-8'))
+                char_seed = int(hash_obj.hexdigest()[:8], 16)
                 self._character_rngs[character_id] = random.Random(char_seed)
             return self._character_rngs[character_id]
         

@@ -110,8 +110,7 @@ class Settings(BaseSettings):
     )
     quest_cooldown_turns: int = Field(
         default=5,
-        ge=0,
-        description="Number of turns between quest triggers (0 or greater)"
+        description="Number of turns between quest triggers (0 or greater, negative values skip waiting periods)"
     )
     poi_trigger_prob: float = Field(
         default=0.2,
@@ -121,8 +120,7 @@ class Settings(BaseSettings):
     )
     poi_cooldown_turns: int = Field(
         default=3,
-        ge=0,
-        description="Number of turns between POI triggers (0 or greater)"
+        description="Number of turns between POI triggers (0 or greater, negative values skip waiting periods)"
     )
     rng_seed: Optional[int] = Field(
         default=None,

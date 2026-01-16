@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests for PolicyEngine service."""
 
-import pytest
 from app.services.policy_engine import PolicyEngine
 from app.models import QuestTriggerDecision, POITriggerDecision
 
