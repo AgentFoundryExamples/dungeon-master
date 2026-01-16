@@ -114,6 +114,8 @@ class JourneyLogClient:
         additional_fields = player_state.get("additional_fields", {})
         
         # Extract quest state - quest field is authoritative
+        # Note: journey-log may provide has_active_quest flag, but we derive it
+        # from quest presence for consistency (None = no quest, dict = has quest)
         quest = data.get("quest")
         has_active_quest = quest is not None
         

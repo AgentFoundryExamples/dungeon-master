@@ -94,9 +94,10 @@ async def test_policy_state_extraction_defaults(journey_log_client, mock_http_cl
     
     This test verifies that when the journey-log response lacks additional_fields
     or policy-relevant metadata, the extraction logic provides safe default values:
-    - Timestamps default to None
-    - Turn counters default to 0
-    - Boolean flags default to False or None
+    - Timestamps default to None (no history)
+    - Turn counters default to 0 (no previous triggers)
+    - State flags (has_active_quest, combat_active) default to False (not present)
+    - Meta flags (user_is_wandering, requested_guidance) default to None (not set)
     - No crashes or exceptions occur
     """
     mock_response_data = {
