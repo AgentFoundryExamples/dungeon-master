@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 18
+Total files: 22
 
 ## app/__init__.py
 **Language:** Python  
@@ -29,8 +29,8 @@ Total files: 18
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 12.16 KB  
-**LOC:** 279  
+**Size:** 17.48 KB  
+**LOC:** 418  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -38,8 +38,17 @@ Total files: 18
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 4.86 KB  
-**LOC:** 115  
+**Size:** 5.10 KB  
+**LOC:** 121  
+**TODOs/FIXMEs:** 0  
+
+## app/logging.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for logging  
+**Size:** 9.36 KB  
+**LOC:** 213  
 **TODOs/FIXMEs:** 0  
 
 ## app/main.py
@@ -47,8 +56,26 @@ Total files: 18
 **Role:** entry-point  
 **Role Justification:** common entry point name 'main'  
 **Summary:** Python main entry point (role: entry-point)  
-**Size:** 6.65 KB  
-**LOC:** 140  
+**Size:** 7.29 KB  
+**LOC:** 150  
+**TODOs/FIXMEs:** 0  
+
+## app/metrics.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for metrics  
+**Size:** 6.46 KB  
+**LOC:** 154  
+**TODOs/FIXMEs:** 0  
+
+## app/middleware.py
+**Language:** Python  
+**Role:** middleware  
+**Role Justification:** filename contains 'middleware'  
+**Summary:** Python middleware component (role: middleware)  
+**Size:** 4.99 KB  
+**LOC:** 87  
 **TODOs/FIXMEs:** 0  
 
 ## app/models.py
@@ -56,8 +83,8 @@ Total files: 18
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 4.50 KB  
-**LOC:** 109  
+**Size:** 5.38 KB  
+**LOC:** 139  
 **TODOs/FIXMEs:** 0  
 
 ## app/prompting/__init__.py
@@ -74,8 +101,8 @@ Total files: 18
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for prompt builder  
-**Size:** 7.58 KB  
-**LOC:** 157  
+**Size:** 7.57 KB  
+**LOC:** 156  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/__init__.py
@@ -92,8 +119,8 @@ Total files: 18
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for journey log client  
-**Size:** 9.59 KB  
-**LOC:** 209  
+**Size:** 11.24 KB  
+**LOC:** 259  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/llm_client.py
@@ -101,8 +128,8 @@ Total files: 18
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for llm client  
-**Size:** 8.24 KB  
-**LOC:** 164  
+**Size:** 9.13 KB  
+**LOC:** 190  
 **TODOs/FIXMEs:** 0  
 
 ## example_openai_usage.py
@@ -137,8 +164,8 @@ Total files: 18
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 5.83 KB  
-**LOC:** 121  
+**Size:** 5.77 KB  
+**LOC:** 119  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_llm_client.py
@@ -146,8 +173,17 @@ Total files: 18
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 7.08 KB  
-**LOC:** 160  
+**Size:** 7.05 KB  
+**LOC:** 159  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_metrics.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 6.49 KB  
+**LOC:** 135  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_prompt_builder.py
@@ -164,6 +200,6 @@ Total files: 18
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 9.91 KB  
-**LOC:** 206  
+**Size:** 10.42 KB  
+**LOC:** 212  
 **TODOs/FIXMEs:** 0  

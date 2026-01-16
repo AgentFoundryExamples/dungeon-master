@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 18,
+  "total_files": 22,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 12455,
-        "loc": 279,
+        "size_bytes": 17901,
+        "loc": 418,
         "todo_count": 0
       }
     },
@@ -53,8 +53,22 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 4974,
-        "loc": 115,
+        "size_bytes": 5222,
+        "loc": 121,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/logging.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for logging",
+      "summary_text": "Python module for logging",
+      "metrics": {
+        "size_bytes": 9586,
+        "loc": 213,
         "todo_count": 0
       }
     },
@@ -67,8 +81,36 @@
       "summary": "Python main entry point (role: entry-point)",
       "summary_text": "Python main entry point (role: entry-point)",
       "metrics": {
-        "size_bytes": 6813,
-        "loc": 140,
+        "size_bytes": 7468,
+        "loc": 150,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/metrics.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for metrics",
+      "summary_text": "Python module for metrics",
+      "metrics": {
+        "size_bytes": 6610,
+        "loc": 154,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/middleware.py",
+      "language": "Python",
+      "role": "middleware",
+      "role_justification": "filename contains 'middleware'",
+      "summary": "Python middleware component (role: middleware)",
+      "summary_text": "Python middleware component (role: middleware)",
+      "metrics": {
+        "size_bytes": 5106,
+        "loc": 87,
         "todo_count": 0
       }
     },
@@ -81,8 +123,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 4603,
-        "loc": 109,
+        "size_bytes": 5508,
+        "loc": 139,
         "todo_count": 0
       }
     },
@@ -109,8 +151,8 @@
       "summary": "Python module for prompt builder",
       "summary_text": "Python module for prompt builder",
       "metrics": {
-        "size_bytes": 7762,
-        "loc": 157,
+        "size_bytes": 7750,
+        "loc": 156,
         "todo_count": 0
       }
     },
@@ -137,8 +179,8 @@
       "summary": "Python module for journey log client",
       "summary_text": "Python module for journey log client",
       "metrics": {
-        "size_bytes": 9817,
-        "loc": 209,
+        "size_bytes": 11510,
+        "loc": 259,
         "todo_count": 0
       }
     },
@@ -151,8 +193,8 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 8442,
-        "loc": 164,
+        "size_bytes": 9346,
+        "loc": 190,
         "todo_count": 0
       }
     },
@@ -207,8 +249,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 5971,
-        "loc": 121,
+        "size_bytes": 5904,
+        "loc": 119,
         "todo_count": 0
       }
     },
@@ -221,8 +263,22 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 7253,
-        "loc": 160,
+        "size_bytes": 7220,
+        "loc": 159,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_metrics.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 6648,
+        "loc": 135,
         "todo_count": 0
       }
     },
@@ -249,8 +305,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 10151,
-        "loc": 206,
+        "size_bytes": 10665,
+        "loc": 212,
         "todo_count": 0
       }
     }

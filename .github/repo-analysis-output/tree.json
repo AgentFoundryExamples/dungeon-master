@@ -130,7 +130,19 @@
         },
         {
           "type": "file",
+          "name": "logging.py"
+        },
+        {
+          "type": "file",
           "name": "main.py"
+        },
+        {
+          "type": "file",
+          "name": "metrics.py"
+        },
+        {
+          "type": "file",
+          "name": "middleware.py"
         },
         {
           "type": "file",
@@ -157,6 +169,10 @@
         {
           "type": "file",
           "name": "test_llm_client.py"
+        },
+        {
+          "type": "file",
+          "name": "test_metrics.py"
         },
         {
           "type": "file",

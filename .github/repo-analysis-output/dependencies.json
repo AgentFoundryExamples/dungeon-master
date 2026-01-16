@@ -24,7 +24,6 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "logging",
           "re"
         ],
         "third-party": [
@@ -42,9 +41,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "functools.lru_cache",
-          "os",
-          "typing.Optional"
+          "functools.lru_cache"
         ],
         "third-party": [
           "pydantic.Field",
@@ -52,6 +49,24 @@
           "pydantic_settings.BaseSettings",
           "pydantic_settings.SettingsConfigDict"
         ]
+      }
+    },
+    {
+      "id": "app/logging.py",
+      "path": "app/logging.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "contextvars.ContextVar",
+          "json",
+          "logging",
+          "re",
+          "time",
+          "typing.Any",
+          "typing.Dict",
+          "typing.Optional"
+        ],
+        "third-party": []
       }
     },
     {
@@ -68,6 +83,40 @@
           "fastapi.middleware.cors.CORSMiddleware",
           "httpx.AsyncClient",
           "uvicorn"
+        ]
+      }
+    },
+    {
+      "id": "app/metrics.py",
+      "path": "app/metrics.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "collections.defaultdict",
+          "dataclasses.dataclass",
+          "threading.Lock",
+          "time",
+          "typing.Dict",
+          "typing.Optional"
+        ],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/middleware.py",
+      "path": "app/middleware.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "logging",
+          "time",
+          "typing.Callable",
+          "uuid"
+        ],
+        "third-party": [
+          "fastapi.Request",
+          "fastapi.Response",
+          "starlette.middleware.base.BaseHTTPMiddleware"
         ]
       }
     },
@@ -103,7 +152,6 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "json",
           "typing.Tuple"
         ],
         "third-party": []
@@ -124,7 +172,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "logging",
+          "time",
           "typing.Optional"
         ],
         "third-party": [
@@ -141,7 +189,7 @@
       "external_dependencies": {
         "stdlib": [
           "json",
-          "logging",
+          "time",
           "typing.Optional"
         ],
         "third-party": [
@@ -201,8 +249,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "unittest.mock.AsyncMock",
-          "unittest.mock.patch"
+          "unittest.mock.AsyncMock"
         ],
         "third-party": [
           "httpx.AsyncClient",
@@ -226,6 +273,21 @@
         "third-party": [
           "openai",
           "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_metrics.py",
+      "path": "tests/test_metrics.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "os",
+          "time",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "fastapi.testclient.TestClient"
         ]
       }
     },
@@ -285,12 +347,32 @@
       "target": "app/prompting/prompt_builder.py"
     },
     {
+      "source": "app/api/routes.py",
+      "target": "app/logging.py"
+    },
+    {
+      "source": "app/api/routes.py",
+      "target": "app/metrics.py"
+    },
+    {
       "source": "app/main.py",
       "target": "app/api/routes.py"
     },
     {
       "source": "app/main.py",
       "target": "app/config.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/middleware.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/logging.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/metrics.py"
     },
     {
       "source": "app/main.py",
@@ -301,12 +383,28 @@
       "target": "app/services/journey_log_client.py"
     },
     {
+      "source": "app/middleware.py",
+      "target": "app/logging.py"
+    },
+    {
+      "source": "app/middleware.py",
+      "target": "app/metrics.py"
+    },
+    {
       "source": "app/prompting/prompt_builder.py",
       "target": "app/models.py"
     },
     {
       "source": "app/services/journey_log_client.py",
       "target": "app/models.py"
+    },
+    {
+      "source": "app/services/journey_log_client.py",
+      "target": "app/logging.py"
+    },
+    {
+      "source": "app/services/llm_client.py",
+      "target": "app/logging.py"
     },
     {
       "source": "example_openai_usage.py",
@@ -353,6 +451,18 @@
       "target": "app/services/llm_client.py"
     },
     {
+      "source": "tests/test_metrics.py",
+      "target": "app/metrics.py"
+    },
+    {
+      "source": "tests/test_metrics.py",
+      "target": "app/config.py"
+    },
+    {
+      "source": "tests/test_metrics.py",
+      "target": "app/main.py"
+    },
+    {
       "source": "tests/test_prompt_builder.py",
       "target": "app/prompting/prompt_builder.py"
     },
@@ -383,19 +493,27 @@
   ],
   "external_dependencies_summary": {
     "stdlib": [
+      "collections.defaultdict",
       "contextlib.asynccontextmanager",
+      "contextvars.ContextVar",
+      "dataclasses.dataclass",
       "functools.lru_cache",
       "json",
       "logging",
       "os",
       "re",
+      "threading.Lock",
       "time",
+      "typing.Any",
+      "typing.Callable",
+      "typing.Dict",
       "typing.List",
       "typing.Optional",
       "typing.Tuple",
       "unittest.mock.AsyncMock",
       "unittest.mock.MagicMock",
       "unittest.mock.patch",
+      "uuid",
       "uuid.UUID"
     ],
     "third-party": [
@@ -403,6 +521,8 @@
       "fastapi.Depends",
       "fastapi.FastAPI",
       "fastapi.HTTPException",
+      "fastapi.Request",
+      "fastapi.Response",
       "fastapi.middleware.cors.CORSMiddleware",
       "fastapi.status",
       "fastapi.testclient.TestClient",
@@ -421,9 +541,10 @@
       "pydantic_settings.BaseSettings",
       "pydantic_settings.SettingsConfigDict",
       "pytest",
+      "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 14,
-    "third-party_count": 23
+    "stdlib_count": 22,
+    "third-party_count": 26
   }
 }

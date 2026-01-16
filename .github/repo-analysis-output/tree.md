@@ -28,13 +28,17 @@
     └── llm_client.py
   ├── __init__.py
   ├── config.py
+  ├── logging.py
   ├── main.py
+  ├── metrics.py
+  ├── middleware.py
   └── models.py
 ├── tests
   ├── __init__.py
   ├── test_api.py
   ├── test_journey_log_client.py
   ├── test_llm_client.py
+  ├── test_metrics.py
   ├── test_prompt_builder.py
   └── test_turn_integration.py
 ├── .env.example
