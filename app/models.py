@@ -421,7 +421,8 @@ def get_outcome_json_schema() -> dict:
     suitable for embedding in LLM prompts to enforce structured output.
     
     This schema can be used with OpenAI's Responses API text.format parameter,
-    or with other LLMs that support JSON Schema validation.
+    or with other LLMs that support JSON Schema validation. The schema is
+    configured with strict validation to prevent additional properties.
     
     Returns:
         Dictionary containing the JSON Schema for DungeonMasterOutcome
@@ -435,50 +436,62 @@ def get_outcome_json_schema() -> dict:
         ...     text={"format": {"type": "json_schema", "schema": schema, "strict": True}}
         ... )
     """
-    return DungeonMasterOutcome.model_json_schema()
+    schema = DungeonMasterOutcome.model_json_schema()
+    
+    # Configure schema for stricter LLM adherence
+    # Set additionalProperties to false recursively for all object types
+    def set_strict_mode(obj):
+        if isinstance(obj, dict):
+            if obj.get("type") == "object" and "properties" in obj:
+                obj["additionalProperties"] = False
+            for value in obj.values():
+                set_strict_mode(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                set_strict_mode(item)
+    
+    set_strict_mode(schema)
+    return schema
 
 
 def get_outcome_schema_example() -> str:
     """Get a JSON string example of DungeonMasterOutcome.
     
     Returns a formatted JSON example of the outcome schema suitable for
-    including in prompts as a reference.
+    including in prompts as a reference. This example is generated from
+    actual model instances to ensure it matches the schema validation.
     
     Returns:
         JSON string with formatted example
     """
-    import json
-    
-    example = {
-        "narrative": "You push open the heavy oak door and step into the dimly lit tavern. "
-                    "The smell of ale and smoke fills the air. Behind the bar, a grizzled "
-                    "innkeeper looks up at you with worried eyes.",
-        "intents": {
-            "quest_intent": {
-                "action": "offer",
-                "quest_title": "Find the Missing Daughter",
-                "quest_summary": "The innkeeper's daughter hasn't returned from the forest",
-                "quest_details": {
+    example_model = DungeonMasterOutcome(
+        narrative="You push open the heavy oak door and step into the dimly lit tavern. "
+                  "The smell of ale and smoke fills the air. Behind the bar, a grizzled "
+                  "innkeeper looks up at you with worried eyes.",
+        intents=IntentsBlock(
+            quest_intent=QuestIntent(
+                action="offer",
+                quest_title="Find the Missing Daughter",
+                quest_summary="The innkeeper's daughter hasn't returned from the forest",
+                quest_details={
                     "difficulty": "medium",
                     "suggested_level": 3
                 }
-            },
-            "combat_intent": {
-                "action": "none"
-            },
-            "poi_intent": {
-                "action": "create",
-                "name": "The Rusty Tankard Inn",
-                "description": "A weathered tavern at the edge of town",
-                "reference_tags": ["inn", "town", "quest_hub"]
-            },
-            "meta": {
-                "player_mood": "curious",
-                "pacing_hint": "normal",
-                "user_is_wandering": False,
-                "user_asked_for_guidance": False
-            }
-        }
-    }
+            ),
+            combat_intent=CombatIntent(action="none"),
+            poi_intent=POIIntent(
+                action="create",
+                name="The Rusty Tankard Inn",
+                description="A weathered tavern at the edge of town",
+                reference_tags=["inn", "town", "quest_hub"]
+            ),
+            meta=MetaIntent(
+                player_mood="curious",
+                pacing_hint="normal",
+                user_is_wandering=False,
+                user_asked_for_guidance=False
+            )
+        )
+    )
     
-    return json.dumps(example, indent=2)
+    return example_model.model_dump_json(indent=2)
