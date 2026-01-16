@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 24,
+  "total_files": 27,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 17901,
-        "loc": 418,
+        "size_bytes": 18407,
+        "loc": 425,
         "todo_count": 0
       }
     },
@@ -95,8 +95,8 @@
       "summary": "Python module for metrics",
       "summary_text": "Python module for metrics",
       "metrics": {
-        "size_bytes": 6610,
-        "loc": 154,
+        "size_bytes": 7439,
+        "loc": 169,
         "todo_count": 0
       }
     },
@@ -193,8 +193,22 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 13511,
-        "loc": 247,
+        "size_bytes": 12423,
+        "loc": 246,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/services/outcome_parser.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for outcome parser",
+      "summary_text": "Python module for outcome parser",
+      "metrics": {
+        "size_bytes": 11113,
+        "loc": 212,
         "todo_count": 0
       }
     },
@@ -242,6 +256,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "tests/test_acceptance_criteria.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 13394,
+        "loc": 253,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "tests/test_api.py",
       "language": "Python",
       "role": "test",
@@ -277,8 +305,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 12411,
-        "loc": 273,
+        "size_bytes": 13415,
+        "loc": 295,
         "todo_count": 0
       }
     },
@@ -307,6 +335,20 @@
       "metrics": {
         "size_bytes": 19895,
         "loc": 426,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_outcome_parser.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 13006,
+        "loc": 268,
         "todo_count": 0
       }
     },

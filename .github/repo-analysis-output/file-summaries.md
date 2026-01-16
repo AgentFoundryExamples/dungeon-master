@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 24
+Total files: 27
 
 ## app/__init__.py
 **Language:** Python  
@@ -29,8 +29,8 @@ Total files: 24
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 17.48 KB  
-**LOC:** 418  
+**Size:** 17.98 KB  
+**LOC:** 425  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -65,8 +65,8 @@ Total files: 24
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for metrics  
-**Size:** 6.46 KB  
-**LOC:** 154  
+**Size:** 7.26 KB  
+**LOC:** 169  
 **TODOs/FIXMEs:** 0  
 
 ## app/middleware.py
@@ -128,8 +128,17 @@ Total files: 24
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for llm client  
-**Size:** 13.19 KB  
-**LOC:** 247  
+**Size:** 12.13 KB  
+**LOC:** 246  
+**TODOs/FIXMEs:** 0  
+
+## app/services/outcome_parser.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for outcome parser  
+**Size:** 10.85 KB  
+**LOC:** 212  
 **TODOs/FIXMEs:** 0  
 
 ## example_openai_usage.py
@@ -159,6 +168,15 @@ Total files: 24
 **LOC:** 123  
 **TODOs/FIXMEs:** 0  
 
+## tests/test_acceptance_criteria.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 13.08 KB  
+**LOC:** 253  
+**TODOs/FIXMEs:** 0  
+
 ## tests/test_api.py
 **Language:** Python  
 **Role:** test  
@@ -182,8 +200,8 @@ Total files: 24
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 12.12 KB  
-**LOC:** 273  
+**Size:** 13.10 KB  
+**LOC:** 295  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_metrics.py
@@ -202,6 +220,15 @@ Total files: 24
 **Summary:** Python test file (role: test)  
 **Size:** 19.43 KB  
 **LOC:** 426  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_outcome_parser.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 12.70 KB  
+**LOC:** 268  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_prompt_builder.py

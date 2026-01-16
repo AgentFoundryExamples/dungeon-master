@@ -202,6 +202,24 @@
       }
     },
     {
+      "id": "app/services/outcome_parser.py",
+      "path": "app/services/outcome_parser.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "dataclasses.dataclass",
+          "json",
+          "re",
+          "typing.List",
+          "typing.Optional",
+          "typing.Tuple"
+        ],
+        "third-party": [
+          "pydantic.ValidationError"
+        ]
+      }
+    },
+    {
       "id": "example_openai_usage.py",
       "path": "example_openai_usage.py",
       "type": "file",
@@ -238,6 +256,23 @@
         ],
         "third-party": [
           "fastapi.testclient.TestClient",
+          "httpx.AsyncClient",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_acceptance_criteria.py",
+      "path": "tests/test_acceptance_criteria.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "logging",
+          "unittest.mock.AsyncMock",
+          "unittest.mock.MagicMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
           "httpx.AsyncClient",
           "pytest"
         ]
@@ -320,6 +355,22 @@
           "json"
         ],
         "third-party": [
+          "pydantic.ValidationError",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_outcome_parser.py",
+      "path": "tests/test_outcome_parser.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json"
+        ],
+        "third-party": [
+          "pydantic.BaseModel",
+          "pydantic.Field",
           "pydantic.ValidationError",
           "pytest"
         ]
@@ -443,6 +494,22 @@
       "target": "app/models.py"
     },
     {
+      "source": "app/services/llm_client.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "app/services/llm_client.py",
+      "target": "app/metrics.py"
+    },
+    {
+      "source": "app/services/outcome_parser.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "app/services/outcome_parser.py",
+      "target": "app/logging.py"
+    },
+    {
       "source": "example_openai_usage.py",
       "target": "app/services/llm_client.py"
     },
@@ -473,6 +540,34 @@
     {
       "source": "tests/conftest.py",
       "target": "app/api/routes.py"
+    },
+    {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/metrics.py"
+    },
+    {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/api/routes.py"
+    },
+    {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/config.py"
     },
     {
       "source": "tests/test_api.py",
@@ -508,6 +603,10 @@
     },
     {
       "source": "tests/test_llm_client.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "tests/test_llm_client.py",
       "target": "app/models.py"
     },
     {
@@ -524,6 +623,14 @@
     },
     {
       "source": "tests/test_outcome_models.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_outcome_parser.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "tests/test_outcome_parser.py",
       "target": "app/models.py"
     },
     {

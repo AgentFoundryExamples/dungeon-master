@@ -117,6 +117,10 @@
             {
               "type": "file",
               "name": "llm_client.py"
+            },
+            {
+              "type": "file",
+              "name": "outcome_parser.py"
             }
           ]
         },
@@ -164,6 +168,10 @@
         },
         {
           "type": "file",
+          "name": "test_acceptance_criteria.py"
+        },
+        {
+          "type": "file",
           "name": "test_api.py"
         },
         {
@@ -181,6 +189,10 @@
         {
           "type": "file",
           "name": "test_outcome_models.py"
+        },
+        {
+          "type": "file",
+          "name": "test_outcome_parser.py"
         },
         {
           "type": "file",
