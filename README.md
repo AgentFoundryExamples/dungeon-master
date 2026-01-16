@@ -348,15 +348,82 @@ mypy app/
 
 ### Testing
 
-Run tests with pytest:
+The project includes comprehensive unit and integration tests for all components. Tests use mocked dependencies to avoid hitting live services.
+
+#### Running Tests
+
+Run all tests:
 ```bash
 pytest
+```
+
+Run with verbose output:
+```bash
+pytest -v
+```
+
+Run specific test file:
+```bash
+pytest tests/test_turn_integration.py -v
+```
+
+Run specific test:
+```bash
+pytest tests/test_turn_integration.py::test_turn_endpoint_full_flow_stub_mode -v
 ```
 
 Run with coverage:
 ```bash
 pytest --cov=app tests/
 ```
+
+#### Integration Tests for /turn Endpoint
+
+The `/turn` endpoint integration tests validate the complete orchestration flow:
+
+**Success Path Tests:**
+- `test_turn_endpoint_full_flow_stub_mode`: Verifies the full flow returns mocked LLM narrative
+  - GET `/characters/{id}/context` called once with `recent_n=20`, `include_pois=false`
+  - POST `/characters/{id}/narrative` called once with `user_action` and generated `narrative`
+  - Returns the expected narrative response
+
+**Failure Path Tests:**
+- `test_turn_endpoint_character_not_found`: Character not found (404) returns structured error
+- `test_turn_endpoint_journey_log_timeout`: Journey-log timeout (504) returns structured error
+- `test_turn_endpoint_journey_log_error_no_llm_call`: Journey-log error stops before LLM call
+- `test_turn_endpoint_llm_failure_skips_narrative_write`: LLM failure skips narrative persistence
+- `test_turn_endpoint_persist_failure_returns_error`: Narrative persistence failure returns 502
+
+**Edge Cases:**
+- `test_turn_endpoint_with_trace_id`: Trace ID propagation to downstream services
+- `test_turn_endpoint_optional_context_fields`: Optional fields (quest/combat) handle None/absent
+- `test_turn_endpoint_metrics_logging_no_errors`: Metrics/logging hooks don't throw errors
+
+#### Test Fixtures
+
+The `tests/conftest.py` module provides shared fixtures:
+
+- **`test_env`**: Test environment variables (OPENAI_STUB_MODE=true, etc.)
+- **`client`**: FastAPI TestClient with mocked dependencies
+- **`mock_journey_log_context`**: Sample journey-log context response
+
+**Custom Mocking:**
+
+To mock specific journey-log responses:
+```python
+from unittest.mock import AsyncMock, patch
+from httpx import Response
+
+def test_custom(client):
+    mock_response = MagicMock(spec=Response)
+    mock_response.json.return_value = {...}
+    
+    with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = mock_response
+        response = client.post("/turn", json={...})
+```
+
+**Note:** All tests use stub mode for LLM to avoid real OpenAI API calls. Journey-log interactions are mocked at the HTTP client level.
 
 ## Deployment
 
