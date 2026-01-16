@@ -90,13 +90,15 @@ def create_error_response(
     Returns:
         HTTPException with structured error detail
     """
+    # Get request_id from context; use None if not available
+    # This ensures the error response structure is consistent
     request_id = get_request_id()
     
     error_detail = {
         "error": {
             "type": error_type,
             "message": message,
-            "request_id": request_id
+            "request_id": request_id if request_id else None
         }
     }
     

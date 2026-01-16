@@ -78,7 +78,9 @@ class RequestCorrelationMiddleware(BaseHTTPMiddleware):
         
         try:
             # Process request with metrics timing if enabled
-            with MetricsTimer("turn" if request.url.path == "/turn" else "request"):
+            # Track turn endpoint requests separately for more detailed metrics
+            operation_name = "turn" if "/turn" in request.url.path else "request"
+            with MetricsTimer(operation_name):
                 response = await call_next(request)
             
             # Calculate duration
