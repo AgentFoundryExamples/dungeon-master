@@ -14,71 +14,8 @@
 """Integration tests for the /turn endpoint orchestration."""
 
 import pytest
-from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch
 import os
-
-
-@pytest.fixture
-def test_env():
-    """Fixture providing test environment variables."""
-    return {
-        "JOURNEY_LOG_BASE_URL": "http://localhost:8000",
-        "OPENAI_API_KEY": "sk-test-key-12345",
-        "OPENAI_MODEL": "gpt-5.1",
-        "OPENAI_STUB_MODE": "true",  # Use stub mode for tests
-        "JOURNEY_LOG_TIMEOUT": "30",
-        "OPENAI_TIMEOUT": "60",
-        "JOURNEY_LOG_RECENT_N": "20",
-        "HEALTH_CHECK_JOURNEY_LOG": "false",
-        "SERVICE_NAME": "dungeon-master-test",
-        "LOG_LEVEL": "INFO"
-    }
-
-
-@pytest.fixture
-def client(test_env):
-    """Fixture providing FastAPI test client with mocked dependencies."""
-    with patch.dict(os.environ, test_env, clear=True):
-        # Clear the settings cache
-        from app.config import get_settings
-        get_settings.cache_clear()
-        
-        from app.main import app
-        from httpx import AsyncClient
-        from app.services.journey_log_client import JourneyLogClient
-        from app.services.llm_client import LLMClient
-        
-        # Create test HTTP client
-        test_http_client = AsyncClient()
-        
-        # Create test service clients
-        settings = get_settings()
-        test_journey_log_client = JourneyLogClient(
-            base_url=settings.journey_log_base_url,
-            http_client=test_http_client,
-            timeout=settings.journey_log_timeout,
-            recent_n_default=settings.journey_log_recent_n
-        )
-        test_llm_client = LLMClient(
-            api_key=settings.openai_api_key,
-            model=settings.openai_model,
-            timeout=settings.openai_timeout,
-            stub_mode=True  # Always use stub mode in tests
-        )
-        
-        # Override all dependencies
-        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
-        app.dependency_overrides[get_http_client] = lambda: test_http_client
-        app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
-        app.dependency_overrides[get_llm_client] = lambda: test_llm_client
-        
-        client = TestClient(app)
-        
-        yield client
-        
-        # Cleanup
-        app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
@@ -142,14 +79,18 @@ async def test_turn_endpoint_full_flow_stub_mode(client):
         # Verify GET context was called once with correct parameters
         mock_get.assert_called_once()
         get_call_args = mock_get.call_args
-        assert f"/characters/{character_id}/context" in get_call_args[0][0]
+        get_url = get_call_args[0][0]
+        # Verify exact URL path construction
+        assert get_url == f"http://localhost:8000/characters/{character_id}/context"
         assert get_call_args[1]["params"]["recent_n"] == 20
         assert get_call_args[1]["params"]["include_pois"] is False
         
         # Verify POST narrative was called once with user_action and narrative
         mock_post.assert_called_once()
         post_call_args = mock_post.call_args
-        assert f"/characters/{character_id}/narrative" in post_call_args[0][0]
+        post_url = post_call_args[0][0]
+        # Verify exact URL path construction
+        assert post_url == f"http://localhost:8000/characters/{character_id}/narrative"
         post_data = post_call_args[1]["json"]
         assert post_data["user_action"] == user_action
         assert "ai_response" in post_data
@@ -367,6 +308,9 @@ async def test_turn_endpoint_llm_failure_skips_narrative_write(client):
             assert "llm" in data["detail"]["error"]["message"].lower()
             assert data["detail"]["error"]["request_id"] is not None
             
+            # Verify GET context was called (should succeed before LLM failure)
+            mock_get.assert_called_once()
+            
             # Verify POST /narrative was NOT called (narrative write skipped)
             mock_post.assert_not_called()
 
@@ -502,7 +446,8 @@ async def test_turn_endpoint_metrics_logging_no_errors(client):
     mock_persist_response.raise_for_status = MagicMock()
     
     with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get, \
-         patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+         patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post, \
+         patch.dict(os.environ, {"ENABLE_METRICS": "true"}):
         
         mock_get.return_value = mock_context_response
         mock_post.return_value = mock_persist_response

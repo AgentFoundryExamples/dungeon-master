@@ -32,6 +32,7 @@ Usage:
             assert response.status_code == 200
 """
 
+import asyncio
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch
@@ -135,6 +136,7 @@ def client(test_env):
         yield client
         
         # Cleanup
+        asyncio.run(test_http_client.aclose())
         app.dependency_overrides.clear()
 
 
