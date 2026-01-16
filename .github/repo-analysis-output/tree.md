@@ -1,4 +1,4 @@
-# agent-foundry-ai-template
+# dungeon-master
 
 ├── .github
   ├── af-config
