@@ -827,6 +827,16 @@ class JourneyLogClient:
                 if "tags" in poi_data:
                     payload["tags"] = poi_data["tags"]
             
+            # Validate that required fields are present
+            if not payload.get("name") or not payload.get("description"):
+                error_msg = "POI POST requires both name and description fields"
+                logger.error(
+                    "Invalid POI payload - missing required fields",
+                    has_name=bool(payload.get("name")),
+                    has_description=bool(payload.get("description"))
+                )
+                raise JourneyLogClientError(error_msg)
+            
             response = await self.http_client.post(
                 url,
                 json=payload,
@@ -906,6 +916,9 @@ class JourneyLogClient:
         Returns:
             List of POI dictionaries (may be empty)
         """
+        # Clamp n to the valid range [1, 20] as per config validation
+        n = max(1, min(n, 20))
+        
         url = f"{self.base_url}/characters/{character_id}/pois/random"
         params = {"n": n}
         

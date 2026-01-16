@@ -133,7 +133,9 @@ class OutcomeParser:
         # If action is "reference", minimal normalization (just name)
         if action == "reference":
             name = poi_intent.name
-            if not name or not isinstance(name, str) or len(name.strip()) == 0:
+            name_is_invalid = not name or not isinstance(name, str) or len(name.strip()) == 0
+            
+            if name_is_invalid:
                 # Reference actions need a name - if missing, use fallback
                 fallback_name = location_name if location_name else "Unknown Location"
                 logger.info("POI reference missing name - using fallback", fallback_name=fallback_name)
@@ -143,16 +145,20 @@ class OutcomeParser:
                     description=poi_intent.description,
                     reference_tags=poi_intent.reference_tags
                 )
+            
             # Trim name if too long
             if len(name) > 200:
                 logger.info("POI reference name too long - trimming", original_length=len(name))
-                name = name[:200]
-            return POIIntent(
-                action="reference",
-                name=name,
-                description=poi_intent.description,
-                reference_tags=poi_intent.reference_tags
-            )
+                trimmed_name = name[:200]
+                return POIIntent(
+                    action="reference",
+                    name=trimmed_name,
+                    description=poi_intent.description,
+                    reference_tags=poi_intent.reference_tags
+                )
+            
+            # If name is valid and not too long, return original intent
+            return poi_intent
         
         # Normalize "create" action fields
         if action == "create":

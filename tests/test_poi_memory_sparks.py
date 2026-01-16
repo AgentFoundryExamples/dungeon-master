@@ -270,3 +270,55 @@ async def test_get_random_pois_custom_n(journey_log_client, mock_http_client):
     # Verify custom n used
     call_args = mock_http_client.get.call_args
     assert call_args[1]["params"]["n"] == 10
+
+
+@pytest.mark.asyncio
+async def test_get_random_pois_clamps_n_to_max(journey_log_client, mock_http_client):
+    """Test random POI retrieval clamps n to maximum of 20."""
+    # Mock successful response
+    mock_response = MagicMock(spec=Response)
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "pois": [],
+        "count": 0,
+        "requested_n": 20,
+        "total_available": 0
+    }
+    mock_response.raise_for_status = MagicMock()
+    mock_http_client.get.return_value = mock_response
+    
+    # Call method with n > 20
+    result = await journey_log_client.get_random_pois(
+        character_id="test-char-123",
+        n=100
+    )
+    
+    # Verify n clamped to 20
+    call_args = mock_http_client.get.call_args
+    assert call_args[1]["params"]["n"] == 20
+
+
+@pytest.mark.asyncio
+async def test_get_random_pois_clamps_n_to_min(journey_log_client, mock_http_client):
+    """Test random POI retrieval clamps n to minimum of 1."""
+    # Mock successful response
+    mock_response = MagicMock(spec=Response)
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "pois": [],
+        "count": 0,
+        "requested_n": 1,
+        "total_available": 0
+    }
+    mock_response.raise_for_status = MagicMock()
+    mock_http_client.get.return_value = mock_response
+    
+    # Call method with n < 1
+    result = await journey_log_client.get_random_pois(
+        character_id="test-char-123",
+        n=-5
+    )
+    
+    # Verify n clamped to 1
+    call_args = mock_http_client.get.call_args
+    assert call_args[1]["params"]["n"] == 1
