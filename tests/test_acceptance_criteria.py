@@ -352,6 +352,18 @@ async def test_parser_integration_with_routes_flow():
         rng_seed=42
     )
     
+    # Create turn orchestrator
+    from app.prompting.prompt_builder import PromptBuilder
+    from app.services.turn_orchestrator import TurnOrchestrator
+    
+    prompt_builder = PromptBuilder()
+    turn_orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine,
+        llm_client=llm_client,
+        journey_log_client=journey_client,
+        prompt_builder=prompt_builder
+    )
+    
     with patch.object(llm_client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_llm_response
         
@@ -371,8 +383,7 @@ async def test_parser_integration_with_routes_flow():
         response = await process_turn(
             request=request,
             journey_log_client=journey_client,
-            llm_client=llm_client,
-            policy_engine=policy_engine,
+            turn_orchestrator=turn_orchestrator,
             settings=settings
         )
         
