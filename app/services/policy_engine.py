@@ -36,6 +36,9 @@ from app.logging import StructuredLogger
 
 logger = StructuredLogger(__name__)
 
+# Constants for RNG seeding
+_SEED_HASH_DIGEST_LENGTH = 8  # Number of hex characters to use from hash for seed generation
+
 
 class PolicyEngine:
     """Deterministic policy engine for quest and POI trigger evaluation.
@@ -108,10 +111,10 @@ class PolicyEngine:
         if character_id is not None and self.rng_seed is not None:
             if character_id not in self._character_rngs:
                 # Create character-specific RNG with deterministic combined seed
-                # Use hashlib for deterministic hashing across Python restarts
+                # Use SHA-256 for secure deterministic hashing across Python restarts
                 seed_str = f"{self.rng_seed}:{character_id}"
-                hash_obj = hashlib.md5(seed_str.encode('utf-8'))
-                char_seed = int(hash_obj.hexdigest()[:8], 16)
+                hash_obj = hashlib.sha256(seed_str.encode('utf-8'))
+                char_seed = int(hash_obj.hexdigest()[:_SEED_HASH_DIGEST_LENGTH], 16)
                 self._character_rngs[character_id] = random.Random(char_seed)
             return self._character_rngs[character_id]
         
