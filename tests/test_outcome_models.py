@@ -15,7 +15,7 @@
 
 Tests the structured LLM output schema including:
 - DungeonMasterOutcome
-- IntentsBlock  
+- IntentsBlock
 - QuestIntent, CombatIntent, POIIntent, MetaIntent
 - EnemyDescriptor
 - Schema generation helpers
