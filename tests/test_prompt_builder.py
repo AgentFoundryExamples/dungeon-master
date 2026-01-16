@@ -584,11 +584,11 @@ def test_memory_sparks_handles_missing_fields(prompt_builder):
     memory_sparks = [
         {
             "id": "poi-1",
-            "name": "Minimal POI"
+            "name": "Minimal POI",
             # No description, no tags, no timestamp
         },
         {
-            "id": "poi-2"
+            "id": "poi-2",
             # No name either
         }
     ]
