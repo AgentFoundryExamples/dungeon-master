@@ -247,10 +247,12 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "copy.deepcopy",
           "dataclasses.dataclass",
           "datetime.datetime",
           "datetime.timezone",
-          "typing.Optional"
+          "typing.Optional",
+          "uuid"
         ],
         "third-party": []
       }
@@ -331,6 +333,23 @@
           "httpx.AsyncClient",
           "httpx.Response",
           "pydantic.ValidationError",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_combat_integration.py",
+      "path": "tests/test_combat_integration.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone",
+          "unittest.mock.AsyncMock",
+          "unittest.mock.MagicMock",
+          "uuid"
+        ],
+        "third-party": [
           "pytest"
         ]
       }
@@ -841,6 +860,34 @@
       "target": "app/services/outcome_parser.py"
     },
     {
+      "source": "tests/test_combat_integration.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_combat_integration.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
+      "source": "tests/test_combat_integration.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "tests/test_combat_integration.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_combat_integration.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_combat_integration.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "tests/test_combat_integration.py",
+      "target": "app/prompting/prompt_builder.py"
+    },
+    {
       "source": "tests/test_config.py",
       "target": "app/config.py"
     },
@@ -1003,6 +1050,7 @@
       "collections.defaultdict",
       "contextlib.asynccontextmanager",
       "contextvars.ContextVar",
+      "copy.deepcopy",
       "dataclasses.dataclass",
       "datetime.datetime",
       "datetime.timezone",
@@ -1057,7 +1105,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 29,
+    "stdlib_count": 30,
     "third-party_count": 26
   }
 }

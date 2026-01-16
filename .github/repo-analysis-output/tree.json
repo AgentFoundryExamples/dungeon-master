@@ -184,6 +184,10 @@
         },
         {
           "type": "file",
+          "name": "test_combat_integration.py"
+        },
+        {
+          "type": "file",
           "name": "test_config.py"
         },
         {

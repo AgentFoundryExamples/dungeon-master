@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 37
+Total files: 38
 
 ## app/__init__.py
 **Language:** Python  
@@ -119,8 +119,8 @@ Total files: 37
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for journey log client  
-**Size:** 32.41 KB  
-**LOC:** 728  
+**Size:** 32.70 KB  
+**LOC:** 734  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/llm_client.py
@@ -155,8 +155,8 @@ Total files: 37
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for turn orchestrator  
-**Size:** 29.77 KB  
-**LOC:** 594  
+**Size:** 36.93 KB  
+**LOC:** 700  
 **TODOs/FIXMEs:** 0  
 
 ## example_openai_usage.py
@@ -202,6 +202,15 @@ Total files: 37
 **Summary:** Python test file (role: test)  
 **Size:** 21.98 KB  
 **LOC:** 466  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_combat_integration.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 16.85 KB  
+**LOC:** 407  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_config.py
