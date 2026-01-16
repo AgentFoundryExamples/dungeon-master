@@ -1,0 +1,3048 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Journey Log API",
+    "description": "A service for managing journey logs and character state for AI-driven narrative games.\n\n**Director Integration:** Use the `/characters/{id}/context` endpoint to retrieve aggregated character context for LLM-driven narrative generation. This endpoint provides player state, quests, combat, narrative history, and world POIs in a single payload.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/characters": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "List all characters for a user",
+        "description": "Retrieve all character saves for a user_id to drive save-slot UIs.\n\n**Required Headers:**\n- `X-User-Id`: User identifier (for ownership and access control)\n\n**Optional Query Parameters:**\n- `limit`: Maximum number of characters to return (default: unlimited)\n- `offset`: Number of characters to skip for pagination (default: 0)\n\n**Response:**\n- Returns an array of character metadata objects\n- Each object contains: character_id, name, race, class, status, created_at, updated_at\n- Results are sorted by updated_at descending (most recently updated first)\n- Empty list returned if user has no characters\n\n**Error Responses:**\n- `400`: Missing or empty X-User-Id header\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "list_characters_characters_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCharactersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Create a new character",
+        "description": "Initialize a new character with defaults and persist to Firestore.\n\n**Required Headers:**\n- `X-User-Id`: User identifier (for ownership and access control)\n\n**Default Values Applied:**\n- `status`: Healthy\n- `equipment`: Empty list (no weapons)\n- `inventory`: Empty list (no items)\n- `location`: origin:nexus/The Nexus (unless overridden)\n- `world_state`: null\n- `active_quest`: null\n- `combat_state`: null\n- `schema_version`: 1.0.0\n- `created_at`, `updated_at`: Current server timestamp\n\n**Uniqueness Constraint:**\nThe combination of (user_id, name, race, class) must be unique. Attempting to create a duplicate will return 409 Conflict.\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `409`: Duplicate character (user_id, name, race, class) already exists\n- `422`: Validation error (missing required fields or invalid values)\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "create_character_characters_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCharacterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCharacterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/{character_id}": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get a character by ID",
+        "description": "Retrieve a complete character document by its character_id.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Response:**\n- Returns the complete CharacterDocument with all fields\n- Includes player state, quests, combat state, and metadata\n- Timestamps are returned as ISO 8601 strings\n\n**Error Responses:**\n- `400`: X-User-Id header provided but empty/whitespace-only\n- `404`: Character not found\n- `403`: X-User-Id header provided but does not match character owner\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "get_character_characters__character_id__get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "User identifier for access control",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCharacterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/{character_id}/narrative": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Append a narrative turn to a character",
+        "description": "Append a validated narrative turn with concurrency safety.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Request Body:**\n- `user_action`: Player's action (1-8000 characters)\n- `ai_response`: AI/GM response (1-32000 characters)\n- `timestamp`: Optional ISO 8601 timestamp (defaults to server UTC now)\n\n**Validation:**\n- user_action: max 8000 characters\n- ai_response: max 32000 characters\n- Combined length: max 40000 characters\n- Timestamp format: ISO 8601 (if provided)\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Add document to characters/{character_id}/narrative_turns subcollection\n2. Update parent character.updated_at timestamp\n\n**Response:**\n- Returns the stored NarrativeTurn (with server-generated timestamp if not provided)\n- Includes total_turns count for confirmation\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `413`: Request entity too large (combined payload \u003E 40000 characters)\n- `422`: Validation error (invalid field values, oversized fields, invalid timestamp format)\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "append_narrative_turn_characters__character_id__narrative_post",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendNarrativeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppendNarrativeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get narrative turns for a character",
+        "description": "Retrieve the last N narrative turns for a character ordered oldest-to-newest.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `n`: Number of turns to retrieve (default: 10, min: 1, max: 100)\n- `since`: ISO 8601 timestamp to filter turns strictly after this time (exclusive, timestamp \u003E since)\n\n**Response:**\n- Returns list of NarrativeTurn objects ordered oldest-to-newest\n- Includes metadata with requested_n, returned_count, and total_available\n- Empty list returned if character has no narrative turns\n\n**Ordering:**\n- Results are always returned in chronological order (oldest first)\n- This ensures LLM context is built in the correct sequence\n\n**Error Responses:**\n- `400`: Invalid query parameters (n out of range, invalid since timestamp) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "get_narrative_turns_characters__character_id__narrative_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "n",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "N"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "User identifier for access control",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetNarrativeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/{character_id}/pois": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Add a POI to a character",
+        "description": "Create a new Point of Interest in a character's pois subcollection.\n\n**Authoritative Storage:** POIs are stored in `characters/{character_id}/pois/{poi_id}` subcollection.\n\n**Copy-on-Write Migration:** On first POI write, embedded POIs (if any) are automatically migrated to the subcollection.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Request Body:**\n- `name`: POI name (1-200 characters)\n- `description`: POI description (1-2000 characters)\n- `timestamp`: Optional ISO 8601 timestamp (defaults to server UTC now)\n- `tags`: Optional list of tags (max 20 tags, each max 50 characters)\n\n**Validation:**\n- name: required, 1-200 characters\n- description: required, 1-2000 characters\n- tags: max 20 entries, each max 50 characters\n- Duplicate POI names are allowed (each has unique id)\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Verify character exists and user owns it\n2. Migrate embedded POIs to subcollection (if migration enabled and needed)\n3. Create POI in subcollection with generated id and timestamp\n4. Update character.updated_at timestamp\n\n**Response:**\n- Returns the stored PointOfInterest (with server-generated id and created_at)\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header, POI capacity exceeded (200 max)\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `422`: Validation error (invalid field values, oversized fields)\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "create_poi_characters__character_id__pois_post",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePOIRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePOIResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get POIs for a character with cursor-based pagination",
+        "description": "Retrieve POIs from the character's pois subcollection with cursor-based pagination.\n\n**Authoritative Storage:** Reads from `characters/{character_id}/pois/{poi_id}` subcollection.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `limit`: Maximum number of POIs to return per page (default: 10, max: 100)\n- `cursor`: Pagination cursor (opaque string from previous response, None for first page)\n\n**Cursor-Based Pagination:**\n- Results are sorted by timestamp_discovered descending (newest first)\n- Use `limit` to control page size\n- Use `cursor` from previous response's `cursor` field to get next page\n- When no more results, response includes cursor=null\n- Cursors are opaque strings; do not attempt to parse or construct them\n- Malformed cursors return 400 with guidance to restart pagination\n\n**Response:**\n- Returns list of POIs with pagination metadata\n- Empty list returned if character has no POIs\n- cursor field: opaque string for next page or null if exhausted\n\n**Error Responses:**\n- `400`: Invalid query parameters (limit out of range, malformed cursor) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "get_pois_characters__character_id__pois_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "User identifier for access control",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPOIsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/{character_id}/pois/random": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get random POIs for a character",
+        "description": "Retrieve N randomly sampled POIs from a character's pois subcollection.\n\n**Authoritative Storage:** Reads from `characters/{character_id}/pois/{poi_id}` subcollection.\n**Backward Compatibility:** Falls back to embedded world_pois array if subcollection is empty (configurable via POI_EMBEDDED_READ_FALLBACK).\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `n`: Number of POIs to sample (default: 3, min: 1, max: 20)\n\n**Sampling Behavior:**\n- POIs are sampled uniformly at random without replacement\n- If fewer than N POIs exist, returns all available POIs\n- If no POIs exist, returns empty list (not an error)\n- Same request may return different POIs on each call (non-deterministic)\n\n**Response:**\n- Returns list of randomly sampled POIs\n- Includes metadata: count, requested_n, total_available\n\n**Error Responses:**\n- `400`: Invalid query parameters (n \u003C= 0 or n \u003E 20) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "get_random_pois_characters__character_id__pois_random_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "n",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 3,
+              "title": "N"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "User identifier for access control",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRandomPOIsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/{character_id}/pois/summary": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get POI count and preview for a character",
+        "description": "Retrieve a lightweight POI summary with total count and capped preview.\n\n**Authoritative Storage:** Reads from `characters/{character_id}/pois/{poi_id}` subcollection.\n\n**Use Case:** This endpoint provides aggregate POI information for UI previews\nwithout scanning large collections or loading all POIs into memory.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `preview_limit`: Maximum number of POIs to include in preview (default: 5, max: 20)\n\n**Response:**\n- `total_count`: Total number of POIs using efficient count aggregation\n- `preview`: Up to preview_limit POIs sorted by newest first\n- `preview_count`: Number of POIs in the preview\n\n**Performance:**\n- Uses Firestore count() aggregation (single read cost)\n- Preview query limited to prevent large dataset scans\n- Total latency typically \u003C50ms even for large POI collections\n\n**Error Responses:**\n- `400`: Invalid query parameters (preview_limit out of range) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "get_poi_summary_characters__character_id__pois_summary_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "preview_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 5,
+              "title": "Preview Limit"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "User identifier for access control",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPOISummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/{character_id}/pois/{poi_id}": {
+      "put": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Update an existing POI",
+        "description": "Update fields of an existing POI in the character's pois subcollection.\n\n**Authoritative Storage:** Updates POI in `characters/{character_id}/pois/{poi_id}` subcollection.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n- `poi_id`: UUID-formatted POI identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Request Body:**\n- At least one field must be provided for update\n- `name`: Optional POI name (1-200 characters)\n- `description`: Optional POI description (1-2000 characters)\n- `visited`: Optional visited flag (boolean)\n- `tags`: Optional list of tags (max 20 tags, each max 50 characters)\n\n**Partial Updates:**\n- Only provided fields are updated\n- Null/missing fields are not changed\n- To clear tags, provide an empty list []\n\n**Response:**\n- Returns the updated POI with all fields (including unchanged ones)\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header, no fields provided\n- `403`: X-User-Id does not match character owner\n- `404`: Character or POI not found\n- `422`: Validation error (invalid field values)\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "update_poi_characters__character_id__pois__poi_id__put",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "poi_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Poi Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePOIRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePOIResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Delete a POI",
+        "description": "Delete a POI from the character's pois subcollection.\n\n**Authoritative Storage:** Deletes POI from `characters/{character_id}/pois/{poi_id}` subcollection.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n- `poi_id`: UUID-formatted POI identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Behavior:**\n- Permanently deletes the POI from subcollection\n- Idempotent: succeeds even if POI doesn't exist (returns 204)\n- Updates character.updated_at timestamp\n\n**Response:**\n- Returns 204 No Content on success (even if POI didn't exist)\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id or poi_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "delete_poi_characters__character_id__pois__poi_id__delete",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "poi_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Poi Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/{character_id}/quest": {
+      "put": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Set active quest for a character",
+        "description": "Set or update the active quest for a character.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Request Body:**\n- Quest object with name, description, requirements, rewards, completion_state, updated_at\n\n**Validation:**\n- name: required string\n- description: required string\n- requirements: list of strings (default: [])\n- rewards: QuestRewards object with items, currency, experience\n- completion_state: 'not_started', 'in_progress', or 'completed'\n- updated_at: ISO 8601 timestamp\n\n**Single Quest Constraint:**\nOnly one active quest is allowed per character. If an active quest already exists,\nthis endpoint returns 409 Conflict with guidance to DELETE the existing quest first.\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Verify character exists and user owns it\n2. Check that no active quest exists\n3. Set active_quest field\n4. Update character.updated_at timestamp\n\n**Response:**\n- Returns the stored Quest object\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `409`: Active quest already exists (DELETE required before replacing)\n- `422`: Validation error (invalid field values, invalid completion_state)\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "set_quest_characters__character_id__quest_put",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Quest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetQuestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get active quest for a character",
+        "description": "Retrieve the active quest for a character.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Response:**\n- Returns the Quest object if an active quest exists\n- Returns {\"quest\": null} if no active quest exists\n\n**Error Responses:**\n- `400`: X-User-Id header provided but empty/whitespace-only\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "get_quest_characters__character_id__quest_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "User identifier for access control",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetQuestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Delete active quest for a character",
+        "description": "Clear the active quest for a character and archive it.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Behavior:**\n- Removes active_quest field from character\n- Appends quest to archived_quests with cleared_at timestamp\n- Enforces 50-entry limit on archived_quests (oldest entries removed first)\n- Idempotent: succeeds even if no active quest exists (returns 204)\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Verify character exists and user owns it\n2. Remove active quest (if exists)\n3. Archive quest to archived_quests with cleared_at timestamp\n4. Trim archived_quests to maintain ≤50 entries (oldest first)\n5. Update character.updated_at timestamp\n\n**Response:**\n- Returns 204 No Content on success\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "delete_quest_characters__character_id__quest_delete",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/{character_id}/combat": {
+      "put": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Update combat state for a character",
+        "description": "Set or clear the combat state for a character with full state replacement.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Request Body:**\n- `combat_state`: Full CombatState object or null to clear combat\n\n**CombatState Validation:**\n- Maximum 5 enemies per combat (422 error if exceeded)\n- All enemy statuses must be valid enum values (Healthy, Wounded, Dead)\n- All required fields must be present (combat_id, started_at, enemies)\n- Empty enemies list is allowed and sets active=false\n\n**Server-Side is_active Computation:**\n- active=true when any enemy has status != Dead\n- active=false when all enemies are Dead or enemies list is empty\n- active=false when combat_state is null\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Verify character exists and user owns it\n2. Update combat_state field (or clear to null)\n3. Update character.updated_at timestamp\n4. Log when combat transitions from active to inactive\n\n**Response:**\n- Returns {\"active\": bool, \"state\": CombatState | null}\n- HTTP 200 for successful updates (both set and clear operations)\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `422`: Validation error (\u003E5 enemies, invalid status, missing required fields)\n- `500`: Internal server error (e.g., Firestore transient errors)\n\n**Edge Cases:**\n- Submitting \u003E5 enemies returns 422 with detailed error\n- Submitting null clears combat and returns {\"active\": false, \"state\": null}\n- All enemies Dead returns {\"active\": false, \"state\": \u003Ccombat_state\u003E}\n- Race conditions: last writer wins without corrupting other fields\n- Unknown status strings cause explicit validation errors",
+        "operationId": "update_combat_characters__character_id__combat_put",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCombatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateCombatResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get combat state for a character",
+        "description": "Retrieve the current combat state for a character with a predictable JSON envelope.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Response:**\n- Always returns HTTP 200 with JSON object: {\"active\": bool, \"state\": CombatState | null}\n- `active=true, state=\u003CCombatState\u003E` when any enemy has status != Dead\n- `active=false, state=null` when combat_state is absent, empty, or all enemies are Dead\n- Never returns 204 No Content - always provides the active/state envelope\n\n**Combat Inactivity Detection:**\nCombat is considered inactive when:\n- combat_state field is None/missing in the character document\n- enemies list is empty\n- all enemies have status == Dead\n\n**Response Consistency:**\n- Uses the same CombatState serialization as PUT responses\n- Respects the ≤5 enemies constraint (defensive filtering on read)\n- All fields (is_active, traits, weapons) stay consistent with PUT responses\n\n**Error Responses:**\n- `400`: X-User-Id header provided but empty/whitespace-only\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found (NOT returned for 'no combat active' case)\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)\n\n**Edge Cases:**\n- Stored documents with \u003E5 enemies (legacy data) trigger defensive filtering\n- Race conditions where combat cleared between read start/finish return inactive\n- Malformed stored data is handled gracefully with fallback to inactive\n- Characters with no combat history return {\"active\": false, \"state\": null}",
+        "operationId": "get_combat_characters__character_id__combat_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "User identifier for access control",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCombatResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/characters/{character_id}/context": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Get aggregated character context for Director/LLM integration",
+        "description": "Retrieve a comprehensive context payload for AI-driven narrative generation.\n\nThis endpoint aggregates:\n- Player state (identity, status, level, equipment, location)\n- Active quest with derived has_active_quest flag (optional via include_quest)\n- Combat state with derived active flag (optional via include_combat)\n- Recent narrative turns (configurable window, ordered oldest-to-newest, optional via include_narrative)\n- Optional world POIs sample (can be suppressed via include_pois flag)\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier for access control\n  - If provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n  - If provided, must match the character's owner_user_id\n\n**Optional Query Parameters:**\n- `recent_n` (integer): Number of recent narrative turns to include (default: 20, min: 1, max: configured limit)\n- `include_pois` (boolean): Whether to include POI sample in world state (default: false)\n- `include_narrative` (boolean): Whether to include narrative turns (default: true)\n- `include_combat` (boolean): Whether to include combat state (default: true)\n- `include_quest` (boolean): Whether to include quest data (default: true)\n\n**Component Toggles:**\nThe include_* flags allow selective payload sizing for performance optimization:\n- When include_narrative=false: narrative.recent_turns returns empty list, Firestore query skipped\n- When include_combat=false: combat returns {active: false, state: null}\n- When include_quest=false: quest returns null, has_active_quest=false\n- Component flags (narrative, combat, quest) default to true; include_pois defaults to false\n- Response structure remains stable regardless of flag values\n\n**Timing Metrics:**\nSuccess logs include timing measurements (in milliseconds):\n- character_doc_fetch_ms: Time to fetch character document\n- narrative_query_ms: Time to query narrative turns (0 if skipped)\n- poi_query_ms: Time to query POIs (0 if skipped)\nAll timing fields are included in structured logs with character_id for correlation.\n\n**Response Structure:**\n```json\n{\n  \"character_id\": \"uuid\",\n  \"player_state\": { ... },\n  \"quest\": { ... } or null,\n  \"combat\": {\n    \"active\": true/false,\n    \"state\": { ... } or null\n  },\n  \"narrative\": {\n    \"recent_turns\": [ ... ],\n    \"requested_n\": 20,\n    \"returned_n\": 15,\n    \"max_n\": 100\n  },\n  \"world\": {\n    \"pois_sample\": [ ... ],\n    \"include_pois\": true\n  },\n  \"has_active_quest\": true/false\n}\n```\n\n**Derived Fields:**\n- `has_active_quest`: Computed as `quest is not None`\n- `combat.active`: Computed as `any enemy status != Dead`\n- `narrative.returned_n`: Actual number of turns returned (may be less than requested_n)\n- `narrative.max_n`: Server-configured maximum (informs clients of limits)\n\n**Performance Notes:**\n- Character document: Single Firestore read (embedded state)\n- Narrative turns: Subcollection query (indexed by timestamp) - skipped if include_narrative=false\n- POI sample: Subcollection query - skipped if include_pois=false\n- Total latency typically \u003C100ms for moderate datasets\n- Use component toggles to reduce payload size and query time\n\n**Error Responses:**\n- `400 Bad Request`: Invalid query parameters (recent_n out of range) or empty X-User-Id\n- `403 Forbidden`: X-User-Id provided but does not match character owner\n- `404 Not Found`: Character not found\n- `422 Unprocessable Entity`: Invalid UUID format for character_id\n- `500 Internal Server Error`: Firestore transient errors\n\n**Edge Cases:**\n- Empty narrative history: Returns empty recent_turns array with returned_n=0\n- No active quest: Returns quest=null, has_active_quest=false\n- Inactive combat: Returns combat.active=false, combat.state=null\n- include_pois=false: Returns world.pois_sample=[], world.include_pois=false\n- include_narrative=false: Skips Firestore query, returns empty turns, recent_n still validated\n- Multiple include_* flags false: Response remains structurally valid without missing keys\n- recent_n exceeds available turns: Returns all available turns without error",
+        "operationId": "get_character_context_characters__character_id__context_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "recent_n",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Number of recent narrative turns to include (default: 20, max: 100)",
+              "default": 20,
+              "title": "Recent N"
+            },
+            "description": "Number of recent narrative turns to include (default: 20, max: 100)"
+          },
+          {
+            "name": "include_pois",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Whether to include POI sample in world state (default: false)",
+              "default": false,
+              "title": "Include Pois"
+            },
+            "description": "Whether to include POI sample in world state (default: false)"
+          },
+          {
+            "name": "include_narrative",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Whether to include narrative turns in response (default: true)",
+              "default": true,
+              "title": "Include Narrative"
+            },
+            "description": "Whether to include narrative turns in response (default: true)"
+          },
+          {
+            "name": "include_combat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Whether to include combat state in response (default: true)",
+              "default": true,
+              "title": "Include Combat"
+            },
+            "description": "Whether to include combat state in response (default: true)"
+          },
+          {
+            "name": "include_quest",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Whether to include quest data in response (default: true)",
+              "default": true,
+              "title": "Include Quest"
+            },
+            "description": "Whether to include quest data in response (default: true)"
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "User identifier for access control",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for access control"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterContextResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/firestore-test": {
+      "post": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Test Firestore connectivity",
+        "description": "**OPERATIONAL ENDPOINT** - Verifies Firestore read/write access.\n\n**SECURITY WARNING**: This endpoint should be protected with authentication in production. Use Cloud Run IAM or other auth mechanisms.\n\nThis endpoint performs the following operations:\n1. Writes a test document to the configured test collection\n2. Reads the document back to verify read access\n3. Returns the document data\n\nTest documents are NOT automatically cleaned up. Use the DELETE endpoint to remove old test documents.\n\n**Required IAM Roles:**\n- `roles/datastore.user` (or equivalent Firestore permissions)\n- `roles/run.invoker` (to access the endpoint on Cloud Run)",
+        "operationId": "test_firestore_post_firestore_test_post",
+        "responses": {
+          "200": {
+            "description": "Firestore connectivity test successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirestoreTestResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Firestore connectivity test failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Clean up test documents",
+        "description": "**OPERATIONAL ENDPOINT** - Removes test documents from Firestore.\n\n**SECURITY WARNING**: This endpoint should be protected with authentication in production. Use Cloud Run IAM or other auth mechanisms.\n\nThis endpoint deletes all documents from the test collection to prevent accumulation of test data. Use this periodically to maintain a clean database.\n\n**Required IAM Roles:**\n- `roles/datastore.user` (or equivalent Firestore permissions)\n- `roles/run.invoker` (to access the endpoint on Cloud Run)",
+        "operationId": "cleanup_test_documents_firestore_test_delete",
+        "responses": {
+          "200": {
+            "description": "Test documents cleaned up successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Cleanup operation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Health check endpoint.\n\nReturns the service status and basic identifiers.\nAlways returns 200 OK when the service is running.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/info": {
+      "get": {
+        "summary": "Info",
+        "description": "Service information endpoint.\n\nReturns build and version metadata from environment variables.",
+        "operationId": "info_info_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Info Info Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AppendNarrativeRequest": {
+        "properties": {
+          "user_action": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "User Action",
+            "description": "Player's action or input (max 8000 characters)"
+          },
+          "ai_response": {
+            "type": "string",
+            "maxLength": 32000,
+            "minLength": 1,
+            "title": "Ai Response",
+            "description": "Game master's/AI's response (max 32000 characters)"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp",
+            "description": "Optional ISO 8601 timestamp. Defaults to server UTC now if omitted."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "user_action",
+          "ai_response"
+        ],
+        "title": "AppendNarrativeRequest",
+        "description": "Request model for appending a narrative turn to a character.\n\nRequired fields:\n- user_action: Player's action or input (1-8000 characters)\n- ai_response: Game master's/AI's response (1-32000 characters)\n\nOptional fields:\n- timestamp: When the turn occurred (ISO 8601 string). Defaults to server UTC now if omitted.\n\nValidation:\n- user_action: max 8000 characters\n- ai_response: max 32000 characters\n- Combined length: max 40000 characters"
+      },
+      "AppendNarrativeResponse": {
+        "properties": {
+          "turn": {
+            "$ref": "#/components/schemas/NarrativeTurn",
+            "description": "The stored narrative turn"
+          },
+          "total_turns": {
+            "type": "integer",
+            "title": "Total Turns",
+            "description": "Total number of narrative turns for this character"
+          }
+        },
+        "type": "object",
+        "required": [
+          "turn",
+          "total_turns"
+        ],
+        "title": "AppendNarrativeResponse",
+        "description": "Response model for narrative turn append."
+      },
+      "CharacterContextResponse": {
+        "properties": {
+          "character_id": {
+            "type": "string",
+            "title": "Character Id",
+            "description": "UUID character identifier"
+          },
+          "player_state": {
+            "$ref": "#/components/schemas/PlayerState",
+            "description": "Current player character state"
+          },
+          "quest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active quest or null if no active quest"
+          },
+          "has_active_quest": {
+            "type": "boolean",
+            "title": "Has Active Quest",
+            "description": "Derived flag: true if quest is not null, false otherwise"
+          },
+          "combat": {
+            "$ref": "#/components/schemas/CombatEnvelope",
+            "description": "Combat state with derived active flag"
+          },
+          "narrative": {
+            "$ref": "#/components/schemas/NarrativeContext",
+            "description": "Recent narrative turns with metadata"
+          },
+          "world": {
+            "$ref": "#/components/schemas/WorldContextState",
+            "description": "World state including optional POI sample"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ContextCapsMetadata",
+            "description": "Metadata describing read limits and configured caps"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "character_id",
+          "player_state",
+          "has_active_quest",
+          "combat",
+          "narrative",
+          "world",
+          "metadata"
+        ],
+        "title": "CharacterContextResponse",
+        "description": "Aggregated character context for Director/LLM integration.\n\nThis model provides a single JSON payload capturing all relevant character state:\n- Identity and player state (status, level, equipment, location)\n- Active quest with derived has_active_quest flag\n- Combat state with derived active flag\n- Recent narrative turns with metadata\n- Optional world POIs sample\n- Metadata describing caps and read limits\n\nThis is the primary integration surface for Directors to retrieve character context\nfor AI-driven narrative generation.\n\nEXACT SHAPE REQUIREMENT: This model must match the exact structure specified\nin the issue requirements for the context aggregation endpoint."
+      },
+      "CharacterDocument": {
+        "properties": {
+          "character_id": {
+            "type": "string",
+            "title": "Character Id",
+            "description": "UUIDv4 character identifier (matches Firestore document ID)"
+          },
+          "owner_user_id": {
+            "type": "string",
+            "title": "Owner User Id",
+            "description": "User ID of the character owner (for access control, from X-User-Id header)"
+          },
+          "adventure_prompt": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Adventure Prompt",
+            "description": "Initial adventure prompt or backstory (non-empty, whitespace normalized)"
+          },
+          "player_state": {
+            "$ref": "#/components/schemas/PlayerState",
+            "description": "Current player character state"
+          },
+          "world_pois_reference": {
+            "type": "string",
+            "title": "World Pois Reference",
+            "description": "Reference to world POI collection or configuration"
+          },
+          "narrative_turns_reference": {
+            "type": "string",
+            "title": "Narrative Turns Reference",
+            "description": "Reference to narrative turns subcollection or storage location"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version",
+            "description": "Schema version for this document (semantic versioning format, e.g., '1.0.0')"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Created At",
+            "description": "When the character was created (Firestore Timestamp or ISO 8601)"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Updated At",
+            "description": "Last update timestamp (Firestore Timestamp or ISO 8601)"
+          },
+          "world_state": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "World State",
+            "description": "Optional world state metadata or game-specific data"
+          },
+          "world_pois": {
+            "items": {
+              "$ref": "#/components/schemas/PointOfInterest"
+            },
+            "type": "array",
+            "title": "World Pois",
+            "description": "DEPRECATED: Read-only compatibility field for legacy embedded POIs. The authoritative POI storage is the subcollection at characters/{character_id}/pois/{poi_id}. This field is maintained for backward compatibility during migration. New POI writes go to the subcollection only. Max 200 entries."
+          },
+          "active_quest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current active quest (None if no active quest)"
+          },
+          "archived_quests": {
+            "items": {
+              "$ref": "#/components/schemas/QuestArchiveEntry"
+            },
+            "type": "array",
+            "title": "Archived Quests",
+            "description": "Archived/completed quests (max 50 entries, oldest removed when exceeded)"
+          },
+          "combat_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CombatState-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current combat state (None if not in combat)"
+          },
+          "additional_metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Additional Metadata",
+            "description": "Extensible metadata including character name, timestamps, owner info, etc."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "character_id",
+          "owner_user_id",
+          "adventure_prompt",
+          "player_state",
+          "world_pois_reference",
+          "narrative_turns_reference",
+          "schema_version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CharacterDocument",
+        "description": "Character document schema as defined in docs/SCHEMA.md"
+      },
+      "CharacterIdentity": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Character name (1-64 characters)"
+          },
+          "race": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Race",
+            "description": "Character race (1-64 characters, e.g., Human, Elf, Dwarf)"
+          },
+          "class": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Class",
+            "description": "Character class (1-64 characters, e.g., Warrior, Mage, Ranger)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "race",
+          "class"
+        ],
+        "title": "CharacterIdentity",
+        "description": "Character identity information (name, race, class).\n\nReferenced in: docs/SCHEMA.md - Character Document Fields"
+      },
+      "CharacterMetadata": {
+        "properties": {
+          "character_id": {
+            "type": "string",
+            "title": "Character Id",
+            "description": "UUID character identifier"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Character name"
+          },
+          "race": {
+            "type": "string",
+            "title": "Race",
+            "description": "Character race"
+          },
+          "class": {
+            "type": "string",
+            "title": "Class",
+            "description": "Character class"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status",
+            "description": "Character health status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "When the character was created"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "Last update timestamp"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "character_id",
+          "name",
+          "race",
+          "class",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CharacterMetadata",
+        "description": "Lightweight character metadata for list responses.\n\nContains essential character information without full state details."
+      },
+      "CleanupResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Cleanup status (success or error)"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Human-readable message"
+          },
+          "deleted_count": {
+            "type": "integer",
+            "title": "Deleted Count",
+            "description": "Number of documents deleted"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "ISO 8601 timestamp of the operation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "deleted_count",
+          "timestamp"
+        ],
+        "title": "CleanupResponse",
+        "description": "Response model for cleanup operation."
+      },
+      "CombatEnvelope": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "description": "Whether combat is currently active (true if any enemy status != Dead)"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CombatState-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Full combat state details, or null if combat is inactive"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "active"
+        ],
+        "title": "CombatEnvelope",
+        "description": "Combat envelope for context aggregation with derived active flag.\n\nThis model exposes the active boolean explicitly for Director consumption,\ncomputed server-side based on enemy statuses."
+      },
+      "CombatState-Input": {
+        "properties": {
+          "combat_id": {
+            "type": "string",
+            "title": "Combat Id",
+            "description": "Unique combat identifier"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Started At",
+            "description": "When combat started"
+          },
+          "turn": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "Turn",
+            "description": "Current combat turn",
+            "default": 1
+          },
+          "enemies": {
+            "items": {
+              "$ref": "#/components/schemas/EnemyState"
+            },
+            "type": "array",
+            "title": "Enemies",
+            "description": "List of enemies in combat (max 5)"
+          },
+          "player_conditions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Conditions",
+            "description": "Player status effects and conditions during combat"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "combat_id",
+          "started_at",
+          "enemies"
+        ],
+        "title": "CombatState",
+        "description": "Current combat state with up to 5 enemies.\n\nRepresents an active combat encounter, including enemies and combat status.\nWhen not in combat, the combat_state field in CharacterDocument should be None.\n\nCombat is considered inactive when all enemies are Dead or the enemy list is empty.\nMaximum 5 enemies per combat to prevent document bloat.\n\nReferenced in: docs/SCHEMA.md - Character Document Fields (combat_state)"
+      },
+      "CombatState-Output": {
+        "properties": {
+          "combat_id": {
+            "type": "string",
+            "title": "Combat Id",
+            "description": "Unique combat identifier"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Started At",
+            "description": "When combat started"
+          },
+          "turn": {
+            "type": "integer",
+            "minimum": 1,
+            "title": "Turn",
+            "description": "Current combat turn",
+            "default": 1
+          },
+          "enemies": {
+            "items": {
+              "$ref": "#/components/schemas/EnemyState"
+            },
+            "type": "array",
+            "title": "Enemies",
+            "description": "List of enemies in combat (max 5)"
+          },
+          "player_conditions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Conditions",
+            "description": "Player status effects and conditions during combat"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "combat_id",
+          "started_at",
+          "enemies"
+        ],
+        "title": "CombatState",
+        "description": "Current combat state with up to 5 enemies.\n\nRepresents an active combat encounter, including enemies and combat status.\nWhen not in combat, the combat_state field in CharacterDocument should be None.\n\nCombat is considered inactive when all enemies are Dead or the enemy list is empty.\nMaximum 5 enemies per combat to prevent document bloat.\n\nReferenced in: docs/SCHEMA.md - Character Document Fields (combat_state)"
+      },
+      "ContextCapsMetadata": {
+        "properties": {
+          "firestore_reads": {
+            "type": "string",
+            "title": "Firestore Reads",
+            "description": "Expected Firestore read pattern for this request",
+            "default": "1 character doc + 1 narrative query + optional 1 POI query"
+          },
+          "narrative_max_n": {
+            "type": "integer",
+            "title": "Narrative Max N",
+            "description": "Maximum narrative turns that can be requested (server config)"
+          },
+          "narrative_requested_n": {
+            "type": "integer",
+            "title": "Narrative Requested N",
+            "description": "Number of narrative turns requested in this call"
+          },
+          "pois_cap": {
+            "type": "integer",
+            "title": "Pois Cap",
+            "description": "Maximum POIs that can be sampled (server config)"
+          },
+          "pois_requested": {
+            "type": "boolean",
+            "title": "Pois Requested",
+            "description": "Whether POIs were requested via include_pois parameter"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "narrative_max_n",
+          "narrative_requested_n",
+          "pois_cap",
+          "pois_requested"
+        ],
+        "title": "ContextCapsMetadata",
+        "description": "Metadata describing read limits and caps for context aggregation.\n\nExposes server configuration to help Directors understand:\n- Firestore read pattern (1 character doc + 1 narrative query + optional 1 POI query)\n- Configured limits for narrative and POI caps\n- Current request parameters"
+      },
+      "CreateCharacterRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Character name (1-64 characters)"
+          },
+          "race": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Race",
+            "description": "Character race (1-64 characters)"
+          },
+          "class": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Class",
+            "description": "Character class (1-64 characters)"
+          },
+          "adventure_prompt": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Adventure Prompt",
+            "description": "Initial adventure prompt or backstory"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id",
+            "description": "Optional location ID override (default: origin:nexus)"
+          },
+          "location_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Display Name",
+            "description": "Display name for location override"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "race",
+          "class",
+          "adventure_prompt"
+        ],
+        "title": "CreateCharacterRequest",
+        "description": "Request model for creating a new character.\n\nRequired fields:\n- name: Character name (1-64 characters)\n- race: Character race (1-64 characters)\n- class: Character class (1-64 characters)\n- adventure_prompt: Initial adventure prompt or backstory (non-empty)\n\nOptional fields:\n- location_id: Override default starting location (default: origin:nexus)\n- location_display_name: Display name for location override"
+      },
+      "CreateCharacterResponse": {
+        "properties": {
+          "character": {
+            "$ref": "#/components/schemas/CharacterDocument",
+            "description": "The created character document"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character"
+        ],
+        "title": "CreateCharacterResponse",
+        "description": "Response model for character creation."
+      },
+      "CreatePOIRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "POI name (1-200 characters)"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description",
+            "description": "POI description (1-2000 characters)"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp",
+            "description": "Optional ISO 8601 timestamp when POI was discovered. Defaults to server UTC now if omitted."
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "Optional list of tags for categorizing the POI (max 20 tags)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "CreatePOIRequest",
+        "description": "Request model for creating a new POI for a character.\n\nRequired fields:\n- name: POI name (1-200 characters)\n- description: POI description (1-2000 characters)\n\nOptional fields:\n- timestamp: When the POI was discovered (ISO 8601 string, defaults to server UTC now)\n- tags: List of tags for categorizing the POI (max 20 tags, each max 50 chars)"
+      },
+      "CreatePOIResponse": {
+        "properties": {
+          "poi": {
+            "$ref": "#/components/schemas/PointOfInterest",
+            "description": "The created POI with server-assigned created_at"
+          }
+        },
+        "type": "object",
+        "required": [
+          "poi"
+        ],
+        "title": "CreatePOIResponse",
+        "description": "Response model for POI creation."
+      },
+      "EnemyState": {
+        "properties": {
+          "enemy_id": {
+            "type": "string",
+            "title": "Enemy Id",
+            "description": "Unique enemy identifier"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Enemy name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status",
+            "description": "Enemy status (Healthy, Wounded, Dead)"
+          },
+          "weapon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weapon",
+            "description": "Weapon wielded by the enemy"
+          },
+          "traits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Traits",
+            "description": "Enemy traits or characteristics"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata",
+            "description": "Additional enemy metadata"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enemy_id",
+          "name",
+          "status"
+        ],
+        "title": "EnemyState",
+        "description": "An enemy in combat with status, weapon, and traits.\n\nRepresents an enemy's state during combat without numeric health tracking.\nStatus enum (Healthy/Wounded/Dead) replaces granular health points.\n\nReferenced in: docs/SCHEMA.md - Combat State"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "description": "Error type"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Error message"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "ISO 8601 timestamp of the error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error",
+          "message",
+          "timestamp"
+        ],
+        "title": "ErrorResponse",
+        "description": "Error response model."
+      },
+      "FirestoreTestResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Test status (success or error)"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Human-readable message"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id",
+            "description": "ID of the test document"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data",
+            "description": "Document data read back from Firestore"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "ISO 8601 timestamp of the test"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "document_id",
+          "data",
+          "timestamp"
+        ],
+        "title": "FirestoreTestResponse",
+        "description": "Response model for Firestore connectivity test."
+      },
+      "GetCharacterResponse": {
+        "properties": {
+          "character": {
+            "$ref": "#/components/schemas/CharacterDocument",
+            "description": "The character document"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character"
+        ],
+        "title": "GetCharacterResponse",
+        "description": "Response model for character retrieval."
+      },
+      "GetCombatResponse": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "description": "Whether combat is currently active (any enemy not Dead)"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CombatState-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current combat state, or null if no combat is active"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "active",
+          "state"
+        ],
+        "title": "GetCombatResponse",
+        "description": "Response model for combat state retrieval.\n\nReturns the active/inactive status and the current combat state.\nThis is the standard envelope for LLM-driven Directors to poll combat state."
+      },
+      "GetNarrativeResponse": {
+        "properties": {
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/NarrativeTurn"
+            },
+            "type": "array",
+            "title": "Turns",
+            "description": "List of narrative turns ordered oldest-to-newest"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/NarrativeMetadata",
+            "description": "Metadata about the query results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "turns",
+          "metadata"
+        ],
+        "title": "GetNarrativeResponse",
+        "description": "Response model for GET narrative endpoint."
+      },
+      "GetPOISummaryResponse": {
+        "properties": {
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count",
+            "description": "Total number of POIs for this character"
+          },
+          "preview": {
+            "items": {
+              "$ref": "#/components/schemas/PointOfInterest"
+            },
+            "type": "array",
+            "title": "Preview",
+            "description": "Preview of POIs (capped sample, newest first)"
+          },
+          "preview_count": {
+            "type": "integer",
+            "title": "Preview Count",
+            "description": "Number of POIs in preview"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_count",
+          "preview",
+          "preview_count"
+        ],
+        "title": "GetPOISummaryResponse",
+        "description": "Response model for lightweight POI summary."
+      },
+      "GetPOIsResponse": {
+        "properties": {
+          "pois": {
+            "items": {
+              "$ref": "#/components/schemas/PointOfInterest"
+            },
+            "type": "array",
+            "title": "Pois",
+            "description": "List of POIs sorted by created_at desc"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of POIs returned in this response"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cursor",
+            "description": "Cursor for next page (None if no more results)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pois",
+          "count"
+        ],
+        "title": "GetPOIsResponse",
+        "description": "Response model for getting POIs with pagination."
+      },
+      "GetQuestResponse": {
+        "properties": {
+          "quest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The active quest or null if none exists"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quest"
+        ],
+        "title": "GetQuestResponse",
+        "description": "Response model for getting active quest."
+      },
+      "GetRandomPOIsResponse": {
+        "properties": {
+          "pois": {
+            "items": {
+              "$ref": "#/components/schemas/PointOfInterest"
+            },
+            "type": "array",
+            "title": "Pois",
+            "description": "Randomly sampled POIs"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of POIs returned"
+          },
+          "requested_n": {
+            "type": "integer",
+            "title": "Requested N",
+            "description": "Number of POIs requested"
+          },
+          "total_available": {
+            "type": "integer",
+            "title": "Total Available",
+            "description": "Total number of POIs available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pois",
+          "count",
+          "requested_n",
+          "total_available"
+        ],
+        "title": "GetRandomPOIsResponse",
+        "description": "Response model for random POI sampling."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InventoryItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Item name"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "description": "Number of items",
+            "default": 1
+          },
+          "effect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effect",
+            "description": "Item effect as string or structured dict"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "InventoryItem",
+        "description": "Generic inventory item with flexible effect field.\n\nThe effect field supports both simple string descriptions and complex\nstructured effect definitions.\n\nReferenced in: docs/SCHEMA.md - Player State Inventory"
+      },
+      "ListCharactersResponse": {
+        "properties": {
+          "characters": {
+            "items": {
+              "$ref": "#/components/schemas/CharacterMetadata"
+            },
+            "type": "array",
+            "title": "Characters",
+            "description": "List of character metadata objects"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of characters returned in this response (after pagination)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "characters",
+          "count"
+        ],
+        "title": "ListCharactersResponse",
+        "description": "Response model for character list retrieval."
+      },
+      "Location": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id",
+            "description": "Location identifier (e.g., 'origin:nexus', 'town:rivendell')"
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Display Name",
+            "description": "Human-readable location name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "title": "Location",
+        "description": "Location information with ID and display name.\n\nRepresents a character's current location in the game world.\nThe ID is used for internal references and logic, while display_name\nis shown to the player.\n\nReferenced in: docs/SCHEMA.md - Character Document Fields"
+      },
+      "NarrativeContext": {
+        "properties": {
+          "recent_turns": {
+            "items": {
+              "$ref": "#/components/schemas/NarrativeTurn"
+            },
+            "type": "array",
+            "title": "Recent Turns",
+            "description": "List of recent narrative turns ordered oldest-to-newest (chronological)"
+          },
+          "requested_n": {
+            "type": "integer",
+            "title": "Requested N",
+            "description": "Number of turns requested via recent_n parameter"
+          },
+          "returned_n": {
+            "type": "integer",
+            "title": "Returned N",
+            "description": "Number of turns actually returned (may be less than requested if not enough exist)"
+          },
+          "max_n": {
+            "type": "integer",
+            "title": "Max N",
+            "description": "Maximum number of turns that can be requested (server config limit)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "requested_n",
+          "returned_n",
+          "max_n"
+        ],
+        "title": "NarrativeContext",
+        "description": "Narrative context for context aggregation.\n\nProvides recent narrative turns with metadata about the requested,\nreturned, and maximum narrative window to help Directors understand\ncontext boundaries."
+      },
+      "NarrativeMetadata": {
+        "properties": {
+          "requested_n": {
+            "type": "integer",
+            "title": "Requested N",
+            "description": "Number of turns requested (n parameter)"
+          },
+          "returned_count": {
+            "type": "integer",
+            "title": "Returned Count",
+            "description": "Number of turns actually returned"
+          },
+          "total_available": {
+            "type": "integer",
+            "title": "Total Available",
+            "description": "Total number of turns available for this character"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "requested_n",
+          "returned_count",
+          "total_available"
+        ],
+        "title": "NarrativeMetadata",
+        "description": "Metadata for narrative retrieval response."
+      },
+      "NarrativeTurn": {
+        "properties": {
+          "turn_id": {
+            "type": "string",
+            "title": "Turn Id",
+            "description": "Unique turn identifier (UUIDv4)"
+          },
+          "turn_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Number",
+            "description": "Sequential turn counter"
+          },
+          "player_action": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Player Action",
+            "description": "Player's action or input (max 8000 characters)"
+          },
+          "gm_response": {
+            "type": "string",
+            "maxLength": 32000,
+            "minLength": 1,
+            "title": "Gm Response",
+            "description": "Game master's/AI's response (max 32000 characters)"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp",
+            "description": "When the turn occurred (datetime object or ISO 8601 string)"
+          },
+          "game_state_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Game State Snapshot",
+            "description": "Snapshot of relevant game state at this turn"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata",
+            "description": "Additional turn metadata (response time, LLM model, etc.)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "turn_id",
+          "player_action",
+          "gm_response",
+          "timestamp"
+        ],
+        "title": "NarrativeTurn",
+        "description": "A single narrative turn in the character's story.\n\nRepresents one interaction between the player and the game master (AI),\nincluding the player's action, AI's response, and timestamp.\n\nField size limits:\n- user_action: max 8000 characters\n- ai_response: max 32000 characters\n\nReferenced in: docs/SCHEMA.md - Narrative Turns Subcollection"
+      },
+      "PlayerState": {
+        "properties": {
+          "identity": {
+            "$ref": "#/components/schemas/CharacterIdentity",
+            "description": "Character identity information"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status",
+            "description": "Character health status (Healthy, Wounded, Dead)"
+          },
+          "equipment": {
+            "items": {
+              "$ref": "#/components/schemas/Weapon"
+            },
+            "type": "array",
+            "title": "Equipment",
+            "description": "Equipped weapons"
+          },
+          "inventory": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryItem"
+            },
+            "type": "array",
+            "title": "Inventory",
+            "description": "Inventory items"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Location"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "title": "Location",
+            "description": "Current location as Location object, string, or structured object (for backward compatibility)",
+            "examples": [
+              {
+                "display_name": "The Nexus",
+                "id": "origin:nexus"
+              },
+              "Rivendell",
+              {
+                "coordinates": {
+                  "x": 100,
+                  "y": 200
+                },
+                "region": "gondor",
+                "world": "middle-earth"
+              }
+            ]
+          },
+          "additional_fields": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Additional Fields",
+            "description": "Extensible fields for game-specific data"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "identity",
+          "status",
+          "location"
+        ],
+        "title": "PlayerState",
+        "description": "Current player character state using canonical status enum.\n\nThis model represents the core game state for a character, including:\n- Character identity (name, race, class)\n- Health status (canonical Status enum: Healthy, Wounded, Dead)\n- Equipment (weapons, armor, inventory)\n- Current location\n- Extensible additional fields for game-specific data\n\nNumeric health/stat fields (level, experience, stats, HP, XP) have been\nremoved in favor of the textual status enum. Legacy numeric fields are\nignored during deserialization.\n\nReferenced in: docs/SCHEMA.md - Character Document Fields (player_state)"
+      },
+      "PointOfInterest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique POI identifier"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "POI name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "POI description"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "When the POI was created/discovered"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "Tags for categorizing the POI"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description"
+        ],
+        "title": "PointOfInterest",
+        "description": "A point of interest (POI) - DEPRECATED for writes, read-only for compatibility.\n\nDEPRECATED: This model represents the legacy embedded POI format stored in\nthe world_pois array. It is maintained for backward compatibility during migration.\n\nThe AUTHORITATIVE POI storage is now the subcollection at:\ncharacters/{character_id}/pois/{poi_id}\n\nFor new POI writes, use PointOfInterestSubcollection and the subcollection helpers\nin app/firestore.py. This model is read-only and used for:\n- Reading legacy embedded POIs during migration\n- Surfacing embedded POIs on GET for backward compatibility\n- Migration utilities that copy embedded POIs to subcollection\n\nSee docs/SCHEMA.md for migration guidance and storage contracts.\n\nEXACT SHAPE REQUIREMENT: This model must match the exact structure\nspecified in the issue requirements for embedded POIs."
+      },
+      "Quest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Quest name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Quest description"
+          },
+          "requirements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Requirements",
+            "description": "List of quest requirement descriptions"
+          },
+          "rewards": {
+            "$ref": "#/components/schemas/QuestRewards",
+            "description": "Quest rewards"
+          },
+          "completion_state": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "in_progress",
+              "completed"
+            ],
+            "title": "Completion State",
+            "description": "Quest completion status: 'not_started', 'in_progress', or 'completed'"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "When the quest was last updated"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "rewards",
+          "completion_state",
+          "updated_at"
+        ],
+        "title": "Quest",
+        "description": "A quest with requirements and rewards.\n\nEXACT SHAPE REQUIREMENT: This model must match the exact structure\nspecified in the issue requirements for embedded quests.\n\nReferenced in: docs/SCHEMA.md - Character Document Fields (active_quest)"
+      },
+      "QuestArchiveEntry": {
+        "properties": {
+          "quest": {
+            "$ref": "#/components/schemas/Quest",
+            "description": "The archived quest"
+          },
+          "cleared_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Cleared At",
+            "description": "When the quest was completed/cleared"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "quest",
+          "cleared_at"
+        ],
+        "title": "QuestArchiveEntry",
+        "description": "An archived/completed quest entry.\n\nStores a completed quest along with when it was cleared.\nUsed in Character.archived_quests array (max 50 entries)."
+      },
+      "QuestRewards": {
+        "properties": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "List of item names awarded"
+          },
+          "currency": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Currency",
+            "description": "Currency rewards as name:amount pairs"
+          },
+          "experience": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experience",
+            "description": "Experience points awarded (non-negative)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "QuestRewards",
+        "description": "Rewards for completing a quest.\n\nEXACT SHAPE REQUIREMENT: This model must match the exact structure\nspecified in the issue requirements.\n\nValidates that all numeric values are non-negative."
+      },
+      "SetQuestResponse": {
+        "properties": {
+          "quest": {
+            "$ref": "#/components/schemas/Quest",
+            "description": "The stored active quest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quest"
+        ],
+        "title": "SetQuestResponse",
+        "description": "Response model for setting active quest."
+      },
+      "Status": {
+        "type": "string",
+        "enum": [
+          "Healthy",
+          "Wounded",
+          "Dead"
+        ],
+        "title": "Status",
+        "description": "Character health status enum.\n\nReferenced in: docs/SCHEMA.md - Character Document Fields"
+      },
+      "UpdateCombatRequest": {
+        "properties": {
+          "combat_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CombatState-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Full combat state to set, or null to clear combat"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "combat_state"
+        ],
+        "title": "UpdateCombatRequest",
+        "description": "Request model for updating combat state.\n\nThe combat_state field accepts a full CombatState object or null to clear combat.\nServer-side validation ensures ≤5 enemies and valid status enum values."
+      },
+      "UpdateCombatResponse": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "description": "Whether combat is currently active (any enemy not Dead)"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CombatState-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current combat state, or null if combat is cleared"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "active",
+          "state"
+        ],
+        "title": "UpdateCombatResponse",
+        "description": "Response model for combat state updates.\n\nReturns the active/inactive status and the resulting combat state."
+      },
+      "UpdatePOIRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "POI name (1-200 characters)"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "POI description (1-2000 characters)"
+          },
+          "visited": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visited",
+            "description": "Whether the POI has been visited"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "Tags for categorizing the POI (max 20 tags)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "UpdatePOIRequest",
+        "description": "Request model for updating an existing POI."
+      },
+      "UpdatePOIResponse": {
+        "properties": {
+          "poi": {
+            "$ref": "#/components/schemas/PointOfInterest",
+            "description": "The updated POI"
+          }
+        },
+        "type": "object",
+        "required": [
+          "poi"
+        ],
+        "title": "UpdatePOIResponse",
+        "description": "Response model for POI update."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "Weapon": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Weapon name"
+          },
+          "damage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Damage",
+            "description": "Weapon damage (e.g., '1d8' or 8)"
+          },
+          "special_effects": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Special Effects",
+            "description": "Special weapon effects as string or structured dict"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "damage"
+        ],
+        "title": "Weapon",
+        "description": "Weapon item with optional special effects.\n\nSpecial effects can be a simple string description or a structured dict\nwith effect details.\n\nReferenced in: docs/SCHEMA.md - Player State Equipment"
+      },
+      "WorldContextState": {
+        "properties": {
+          "pois_sample": {
+            "items": {
+              "$ref": "#/components/schemas/PointOfInterest"
+            },
+            "type": "array",
+            "title": "Pois Sample",
+            "description": "Random sample of discovered POIs (empty if include_pois=false)"
+          },
+          "pois_cap": {
+            "type": "integer",
+            "title": "Pois Cap",
+            "description": "Maximum number of POIs that can be sampled (server config limit)"
+          },
+          "include_pois": {
+            "type": "boolean",
+            "title": "Include Pois",
+            "description": "Whether POIs were included in this response (reflects request parameter)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pois_cap",
+          "include_pois"
+        ],
+        "title": "WorldContextState",
+        "description": "World state for context aggregation including optional POI sample.\n\nPOIs can be suppressed via include_pois flag to reduce payload size.\nThe pois_cap field exposes the server configuration for POI sampling limits."
+      }
+    }
+  }
+}
