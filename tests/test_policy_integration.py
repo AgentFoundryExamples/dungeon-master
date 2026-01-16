@@ -74,6 +74,18 @@ async def test_policy_engine_evaluated_before_llm():
         rng_seed=42
     )
     
+    # Create turn orchestrator
+    from app.prompting.prompt_builder import PromptBuilder
+    from app.services.turn_orchestrator import TurnOrchestrator
+    
+    prompt_builder = PromptBuilder()
+    turn_orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine,
+        llm_client=llm_client,
+        journey_log_client=journey_client,
+        prompt_builder=prompt_builder
+    )
+    
     # Create settings
     settings = Settings(
         service_name="test",
@@ -90,8 +102,7 @@ async def test_policy_engine_evaluated_before_llm():
     response = await process_turn(
         request=request,
         journey_log_client=journey_client,
-        llm_client=llm_client,
-        policy_engine=policy_engine,
+        turn_orchestrator=turn_orchestrator,
         settings=settings
     )
     
@@ -173,6 +184,18 @@ async def test_policy_guardrails_block_quest_intent():
         rng_seed=42
     )
     
+    # Create turn orchestrator
+    from app.prompting.prompt_builder import PromptBuilder
+    from app.services.turn_orchestrator import TurnOrchestrator
+    
+    prompt_builder = PromptBuilder()
+    turn_orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine,
+        llm_client=llm_client,
+        journey_log_client=journey_client,
+        prompt_builder=prompt_builder
+    )
+    
     # Create settings
     settings = Settings(
         service_name="test",
@@ -192,8 +215,7 @@ async def test_policy_guardrails_block_quest_intent():
         response = await process_turn(
             request=request,
             journey_log_client=journey_client,
-            llm_client=llm_client,
-            policy_engine=policy_engine,
+            turn_orchestrator=turn_orchestrator,
             settings=settings
         )
         
@@ -201,11 +223,20 @@ async def test_policy_guardrails_block_quest_intent():
         assert response.narrative
         assert "mysterious stranger" in response.narrative.lower()
         
-        # Verify quest intent was blocked by guardrail
+        # NEW BEHAVIOR (Intentional): Intents reflect what LLM suggested (not modified by policy)
+        # Rationale: Intents are informational and show what the LLM understood/suggested.
+        # The actual action taken is reflected in subsystem_summary for accuracy.
+        # This separation makes debugging easier: intents show LLM output,
+        # subsystem_summary shows what actually executed (after policy gating).
         assert response.intents is not None
         assert response.intents.quest_intent is not None
-        # The guardrail should have set action to "none"
-        assert response.intents.quest_intent.action == "none"
+        # The LLM still suggested "offer"
+        assert response.intents.quest_intent.action == "offer"
+        
+        # But the subsystem_summary shows no quest action was taken
+        assert response.subsystem_summary is not None
+        assert response.subsystem_summary.quest_change.action == "none"
+        # This confirms the policy guardrail blocked execution
 
 
 @pytest.mark.asyncio

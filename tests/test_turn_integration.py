@@ -204,7 +204,11 @@ async def test_turn_endpoint_with_trace_id(client):
 
 @pytest.mark.asyncio
 async def test_turn_endpoint_persist_failure_returns_error(client):
-    """Test that turn endpoint returns error when persistence fails."""
+    """Test that turn endpoint returns success with failure in summary when persistence fails.
+    
+    New behavior: Narrative persistence failure doesn't block the response.
+    Instead, returns 200 with narrative_persisted=False in subsystem_summary.
+    """
     from httpx import Response, HTTPStatusError, Request
     from unittest.mock import MagicMock
     
@@ -246,14 +250,20 @@ async def test_turn_endpoint_persist_failure_returns_error(client):
             }
         )
         
-        # Should return 502 error when persistence fails
-        assert response.status_code == 502
+        # New behavior: returns 200 with failure in summary
+        assert response.status_code == 200
         data = response.json()
-        # Check structured error response
-        assert "error" in data["detail"]
-        assert data["detail"]["error"]["type"] == "journey_log_error"
-        assert "journey-log" in data["detail"]["error"]["message"].lower()
-
+        
+        # Check that narrative is present
+        assert "narrative" in data
+        assert len(data["narrative"]) > 0
+        
+        # Check subsystem_summary shows persistence failure
+        assert "subsystem_summary" in data
+        summary = data["subsystem_summary"]
+        assert summary["narrative_persisted"] is False
+        assert summary["narrative_error"] is not None
+        assert "journey-log" in summary["narrative_error"].lower() or "500" in summary["narrative_error"]
 
 @pytest.mark.asyncio
 async def test_turn_endpoint_llm_failure_skips_narrative_write(client):
