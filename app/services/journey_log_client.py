@@ -24,8 +24,14 @@ logger = StructuredLogger(__name__)
 
 
 class JourneyLogClientError(Exception):
-    """Base exception for journey-log client errors."""
-    pass
+    """Base exception for journey-log client errors.
+    
+    Attributes:
+        status_code: HTTP status code if available, None otherwise
+    """
+    def __init__(self, message: str, status_code: Optional[int] = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class JourneyLogNotFoundError(JourneyLogClientError):
@@ -357,7 +363,8 @@ class JourneyLogClient:
                     error=redact_secrets(e.response.text)
                 )
                 raise JourneyLogClientError(
-                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}",
+                    status_code=e.response.status_code
                 ) from e
 
         except TimeoutException as e:
@@ -459,7 +466,8 @@ class JourneyLogClient:
                     error=redact_secrets(e.response.text)
                 )
                 raise JourneyLogClientError(
-                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}",
+                    status_code=e.response.status_code
                 ) from e
 
         except TimeoutException as e:
@@ -551,7 +559,8 @@ class JourneyLogClient:
                     error=redact_secrets(e.response.text)
                 )
                 raise JourneyLogClientError(
-                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}",
+                    status_code=e.response.status_code
                 ) from e
         
         except TimeoutException as e:
@@ -637,7 +646,8 @@ class JourneyLogClient:
                     error=redact_secrets(e.response.text)
                 )
                 raise JourneyLogClientError(
-                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}",
+                    status_code=e.response.status_code
                 ) from e
         
         except TimeoutException as e:
@@ -736,7 +746,8 @@ class JourneyLogClient:
                     error=redact_secrets(e.response.text)
                 )
                 raise JourneyLogClientError(
-                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}",
+                    status_code=e.response.status_code
                 ) from e
         
         except TimeoutException as e:
@@ -836,7 +847,8 @@ class JourneyLogClient:
                     error=redact_secrets(e.response.text)
                 )
                 raise JourneyLogClientError(
-                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}",
+                    status_code=e.response.status_code
                 ) from e
         
         except TimeoutException as e:
