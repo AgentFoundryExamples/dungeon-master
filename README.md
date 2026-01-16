@@ -88,6 +88,26 @@ All configuration is managed through environment variables. Copy `.env.example` 
 | `ENABLE_METRICS` | `false` | Enable metrics collection and /metrics endpoint |
 | `ENABLE_DEBUG_ENDPOINTS` | `false` | Enable debug endpoints (local development only) |
 
+### PolicyEngine Configuration
+
+The PolicyEngine provides deterministic quest and POI trigger evaluation with configurable parameters and reproducible randomness.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `QUEST_TRIGGER_PROB` | `0.3` | Quest trigger probability (0.0-1.0) |
+| `QUEST_COOLDOWN_TURNS` | `5` | Turns between quest triggers (0 or greater) |
+| `POI_TRIGGER_PROB` | `0.2` | POI trigger probability (0.0-1.0) |
+| `POI_COOLDOWN_TURNS` | `3` | Turns between POI triggers (0 or greater) |
+| `RNG_SEED` | `<unset>` | Optional RNG seed for deterministic debugging |
+
+**Notes:**
+- Probabilities outside [0,1] are rejected at config load and PolicyEngine initialization (fail-fast behavior)
+- Zero or negative cooldown values are valid and skip waiting periods
+- Seeded RNG respects character-specific seeds while allowing global fallback randomness
+- When `RNG_SEED` is unset (recommended for production), secure randomness is used
+- When `RNG_SEED` is set to an integer, enables reproducible behavior for testing/debugging
+- **Memory Management**: Seeded mode caches RNG instances per character. For long-running services with high character turnover, consider using unseeded mode or periodic service restarts
+
 ### Configuration Validation
 
 The service validates all configuration at startup and will fail fast with actionable error messages if:
@@ -638,6 +658,12 @@ graph LR
   - Uses gpt-5.1 model with JSON schema enforcement
   - Extracts narrative from structured responses
   - Supports stub mode for offline development
+- **app/services/policy_engine.py**: PolicyEngine for deterministic trigger evaluation
+  - Evaluates quest and POI triggers before LLM prompting
+  - Configurable probabilities and cooldown periods
+  - Optional seeded RNG for deterministic debugging
+  - Structured decision models for logging and orchestration
+  - Extension hooks for future subsystems
 
 #### Prompting
 - **app/prompting/prompt_builder.py**: Constructs LLM prompts
@@ -662,6 +688,16 @@ graph LR
 - `active_quest` (Optional[dict]): Active quest information
 - `combat_state` (Optional[dict]): Current combat state
 - `recent_history` (List[dict]): Recent narrative turns
+
+**QuestTriggerDecision**: PolicyEngine quest trigger decision
+- `eligible` (bool): Whether character is eligible for quest trigger
+- `probability` (float): Probability used for the roll (0.0-1.0)
+- `roll_passed` (bool): Whether the probabilistic roll succeeded
+
+**POITriggerDecision**: PolicyEngine POI trigger decision
+- `eligible` (bool): Whether character is eligible for POI trigger
+- `probability` (float): Probability used for the roll (0.0-1.0)
+- `roll_passed` (bool): Whether the probabilistic roll succeeded
 
 ## Features
 
@@ -708,6 +744,15 @@ graph LR
 - Optional in-memory metrics collection (/metrics endpoint)
 - Request counters, error tracking, and latency histograms
 - Health check endpoint with optional journey-log ping
+
+✅ **PolicyEngine Foundation**:
+- Deterministic quest and POI trigger evaluation
+- Configurable probabilities and cooldown periods
+- Optional seeded RNG for reproducible debugging
+- Structured decision models (QuestTriggerDecision, POITriggerDecision)
+- Debug metadata for logging and troubleshooting
+- Extension hooks for future subsystems
+- No coupling to LLM stack for clean separation of concerns
 
 ### Development Mode
 

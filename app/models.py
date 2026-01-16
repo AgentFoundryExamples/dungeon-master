@@ -524,5 +524,66 @@ def get_outcome_schema_example() -> str:
     return example_model.model_dump_json(indent=2)
 
 
+# ============================================================================
+# PolicyEngine Decision Models
+# ============================================================================
+# These models define the structured decisions returned by the PolicyEngine
+# for quest and POI trigger evaluation.
+
+
+class QuestTriggerDecision(BaseModel):
+    """Decision model for quest trigger evaluation.
+    
+    Represents the result of evaluating whether to trigger a quest for a
+    character, including eligibility, probability, and roll outcome.
+    
+    Attributes:
+        eligible: Whether the character is eligible for quest trigger
+        probability: The probability used for the roll (0.0-1.0)
+        roll_passed: Whether the probabilistic roll succeeded
+    """
+    eligible: bool = Field(
+        ...,
+        description="Whether the character is eligible for quest trigger"
+    )
+    probability: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="The probability used for the roll"
+    )
+    roll_passed: bool = Field(
+        ...,
+        description="Whether the probabilistic roll succeeded"
+    )
+
+
+class POITriggerDecision(BaseModel):
+    """Decision model for POI (Point of Interest) trigger evaluation.
+    
+    Represents the result of evaluating whether to trigger a POI for a
+    character, including eligibility, probability, and roll outcome.
+    
+    Attributes:
+        eligible: Whether the character is eligible for POI trigger
+        probability: The probability used for the roll (0.0-1.0)
+        roll_passed: Whether the probabilistic roll succeeded
+    """
+    eligible: bool = Field(
+        ...,
+        description="Whether the character is eligible for POI trigger"
+    )
+    probability: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="The probability used for the roll"
+    )
+    roll_passed: bool = Field(
+        ...,
+        description="Whether the probabilistic roll succeeded"
+    )
+
+
 # Resolve forward references for TurnResponse
 TurnResponse.model_rebuild()
