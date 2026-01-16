@@ -33,6 +33,7 @@ def test_env():
         "JOURNEY_LOG_BASE_URL": "http://localhost:8000",
         "OPENAI_API_KEY": "sk-test-key-12345",
         "OPENAI_MODEL": "gpt-4",
+        "OPENAI_STUB_MODE": "true",  # Enable stub mode for tests
         "JOURNEY_LOG_TIMEOUT": "30",
         "OPENAI_TIMEOUT": "60",
         "HEALTH_CHECK_JOURNEY_LOG": "false",
@@ -130,17 +131,44 @@ def test_health_endpoint(client):
 
 def test_turn_endpoint_validation(client):
     """Test that turn endpoint validates request."""
-    # Valid request with UUID
-    response = client.post(
-        "/turn",
-        json={
-            "character_id": "550e8400-e29b-41d4-a716-446655440000",
-            "user_action": "I search the room"
-        }
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "narrative" in data
+    from httpx import Response
+    from unittest.mock import MagicMock, patch, AsyncMock
+    
+    # Mock journey-log responses for valid test
+    mock_context_response = MagicMock(spec=Response)
+    mock_context_response.json.return_value = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "identity": {"name": "Test", "race": "Human", "class": "Warrior"},
+            "status": "Healthy",
+            "location": {"id": "test:loc", "display_name": "Test Location"}
+        },
+        "quest": None,
+        "combat": {"active": False, "state": None},
+        "narrative": {"recent_turns": []}
+    }
+    mock_context_response.raise_for_status = MagicMock()
+    
+    mock_persist_response = MagicMock(spec=Response)
+    mock_persist_response.raise_for_status = MagicMock()
+    
+    with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get, \
+         patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+        
+        mock_get.return_value = mock_context_response
+        mock_post.return_value = mock_persist_response
+        
+        # Valid request with UUID
+        response = client.post(
+            "/turn",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I search the room"
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "narrative" in data
     
     # Invalid request with bad UUID
     response = client.post(
