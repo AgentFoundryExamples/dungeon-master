@@ -816,10 +816,16 @@ class JourneyLogClient:
         
         start_time = time.time()
         try:
-            # Build request payload
-            payload = {"action": action_type}
+            # Build request payload - only send name and description per spec
+            payload = {}
             if poi_data:
-                payload.update(poi_data)
+                # Only include fields that journey-log expects
+                if "name" in poi_data:
+                    payload["name"] = poi_data["name"]
+                if "description" in poi_data:
+                    payload["description"] = poi_data["description"]
+                if "tags" in poi_data:
+                    payload["tags"] = poi_data["tags"]
             
             response = await self.http_client.post(
                 url,
@@ -880,3 +886,88 @@ class JourneyLogClient:
             raise JourneyLogClientError(
                 f"Failed to post POI: {e}"
             ) from e
+    
+    async def get_random_pois(
+        self,
+        character_id: str,
+        n: int = 3,
+        trace_id: Optional[str] = None
+    ) -> list[dict]:
+        """Fetch random POIs for memory spark injection.
+        
+        Makes a GET request to /characters/{character_id}/pois/random.
+        Returns empty list if no POIs exist or on error (non-fatal).
+        
+        Args:
+            character_id: UUID of the character
+            n: Number of random POIs to fetch (1-20)
+            trace_id: Optional trace ID for request correlation
+            
+        Returns:
+            List of POI dictionaries (may be empty)
+        """
+        url = f"{self.base_url}/characters/{character_id}/pois/random"
+        params = {"n": n}
+        
+        headers = {}
+        if trace_id:
+            headers["X-Trace-Id"] = trace_id
+        
+        logger.info(
+            "Fetching random POIs from journey-log",
+            n=n
+        )
+        
+        start_time = time.time()
+        try:
+            response = await self.http_client.get(
+                url,
+                params=params,
+                headers=headers,
+                timeout=self.timeout
+            )
+            duration_ms = (time.time() - start_time) * 1000
+            response.raise_for_status()
+            
+            data = response.json()
+            pois = data.get("pois", [])
+            
+            logger.info(
+                "Successfully fetched random POIs",
+                status_code=getattr(response, 'status_code', None),
+                duration_ms=f"{duration_ms:.2f}",
+                poi_count=len(pois)
+            )
+            
+            return pois
+        
+        except HTTPStatusError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            # Non-fatal error - log and return empty list
+            logger.warning(
+                "Failed to fetch random POIs - returning empty list",
+                status_code=e.response.status_code,
+                duration_ms=f"{duration_ms:.2f}",
+                error=redact_secrets(e.response.text)
+            )
+            return []
+        
+        except TimeoutException as e:
+            duration_ms = (time.time() - start_time) * 1000
+            # Non-fatal error - log and return empty list
+            logger.warning(
+                "Timeout fetching random POIs - returning empty list",
+                timeout_seconds=self.timeout,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            return []
+        
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            # Non-fatal error - log and return empty list
+            logger.warning(
+                "Unexpected error fetching random POIs - returning empty list",
+                error_type=type(e).__name__,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            return []

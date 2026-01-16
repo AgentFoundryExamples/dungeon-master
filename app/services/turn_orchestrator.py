@@ -97,7 +97,9 @@ class TurnOrchestrator:
         policy_engine: PolicyEngine,
         llm_client: LLMClient,
         journey_log_client: JourneyLogClient,
-        prompt_builder: PromptBuilder
+        prompt_builder: PromptBuilder,
+        poi_memory_spark_enabled: bool = False,
+        poi_memory_spark_count: int = 3
     ):
         """Initialize the turn orchestrator.
         
@@ -106,11 +108,15 @@ class TurnOrchestrator:
             llm_client: LLMClient for narrative generation
             journey_log_client: JourneyLogClient for subsystem writes
             prompt_builder: PromptBuilder for prompt construction
+            poi_memory_spark_enabled: Enable fetching random POIs as memory sparks
+            poi_memory_spark_count: Number of random POIs to fetch (1-20)
         """
         self.policy_engine = policy_engine
         self.llm_client = llm_client
         self.journey_log_client = journey_log_client
         self.prompt_builder = prompt_builder
+        self.poi_memory_spark_enabled = poi_memory_spark_enabled
+        self.poi_memory_spark_count = poi_memory_spark_count
         # Import and instantiate parser once to avoid repeated instantiation
         from app.services.outcome_parser import OutcomeParser
         self.outcome_parser = OutcomeParser()
@@ -147,6 +153,27 @@ class TurnOrchestrator:
         logger.info("Starting turn orchestration", character_id=character_id, dry_run=dry_run)
         
         summary = TurnSubsystemSummary()
+        
+        # Step 0: Fetch memory sparks (random POIs) if enabled
+        if self.poi_memory_spark_enabled and not dry_run:
+            logger.debug("Step 0: Fetching memory sparks (random POIs)")
+            memory_sparks = await self.journey_log_client.get_random_pois(
+                character_id=character_id,
+                n=self.poi_memory_spark_count,
+                trace_id=trace_id
+            )
+            context.memory_sparks = memory_sparks
+            logger.info(
+                "Memory sparks fetched",
+                count=len(memory_sparks),
+                enabled=self.poi_memory_spark_enabled
+            )
+        else:
+            logger.debug(
+                "Memory sparks skipped",
+                enabled=self.poi_memory_spark_enabled,
+                dry_run=dry_run
+            )
         
         # Step 1: Compute policy decisions
         logger.debug("Step 1: Computing policy decisions")
@@ -201,7 +228,7 @@ class TurnOrchestrator:
             intents_valid=intents is not None
         )
         
-        # Step 2b: Normalize quest intent with fallbacks
+        # Step 2b: Normalize quest and POI intents with fallbacks
         if intents:
             normalized_quest = self.outcome_parser.normalize_quest_intent(
                 quest_intent=intents.quest_intent,
@@ -215,6 +242,25 @@ class TurnOrchestrator:
                 )
                 # Update intents with normalized quest intent
                 intents.quest_intent = normalized_quest
+            
+            # Normalize POI intent with fallbacks (use location from context)
+            location_name = None
+            if context.location:
+                location_name = context.location.get("display_name") or context.location.get("id")
+            
+            normalized_poi = self.outcome_parser.normalize_poi_intent(
+                poi_intent=intents.poi_intent,
+                policy_triggered=poi_decision.roll_passed,
+                location_name=location_name
+            )
+            if normalized_poi != intents.poi_intent:
+                logger.info(
+                    "POI intent normalized",
+                    original_action=intents.poi_intent.action if intents.poi_intent else "none",
+                    normalized_action=normalized_poi.action if normalized_poi else "none"
+                )
+                # Update intents with normalized POI intent
+                intents.poi_intent = normalized_poi
         
         # Step 3: Derive subsystem actions
         logger.debug("Step 3: Deriving subsystem actions from policy and intents")

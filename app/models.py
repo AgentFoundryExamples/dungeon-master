@@ -317,6 +317,14 @@ class JourneyLogContext(BaseModel):
             "provides first-class support. Forward-compatible with unexpected keys."
         )
     )
+    memory_sparks: List[dict] = Field(
+        default_factory=list,
+        description=(
+            "Random POIs fetched as memory sparks for prompt injection. "
+            "Cached from GET /characters/{id}/pois/random when enabled by config. "
+            "Helps LLM recall and reference previously discovered locations."
+        )
+    )
 
 
 class HealthResponse(BaseModel):
