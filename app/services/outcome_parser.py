@@ -20,17 +20,14 @@ ensuring narrative text is always preserved for persistence.
 
 import json
 import re
-from typing import Optional, Tuple, List
+from typing import Optional, List
 from dataclasses import dataclass
 from pydantic import ValidationError
 
 from app.models import (
     DungeonMasterOutcome,
-    IntentsBlock,
     QuestIntent,
-    CombatIntent,
     POIIntent,
-    MetaIntent,
     OUTCOME_VERSION
 )
 from app.logging import StructuredLogger, redact_secrets
@@ -77,6 +74,137 @@ class OutcomeParser:
     def __init__(self):
         """Initialize outcome parser."""
         self.schema_version = OUTCOME_VERSION
+    
+    def normalize_poi_intent(
+        self,
+        poi_intent: Optional[POIIntent],
+        policy_triggered: bool = False,
+        location_name: Optional[str] = None
+    ) -> Optional[POIIntent]:
+        """Normalize POIIntent with deterministic fallbacks for missing fields.
+        
+        When the policy engine triggers a POI opportunity but the LLM intent
+        is missing or incomplete, this method provides deterministic fallback
+        values to ensure a valid POI can still be created.
+        
+        Fallback rules:
+        - If poi_intent is None and policy_triggered=True, create minimal "create" intent
+        - If name is missing and action="create", use location_name or generic fallback
+        - If description is missing and action="create", provide generic fallback
+        - Trim name to max 200 characters, description to max 2000 characters
+        
+        Note: The action field is validated by Pydantic as a Literal type, so
+        invalid values cannot reach this method.
+        
+        Args:
+            poi_intent: POIIntent from LLM (may be None or incomplete)
+            policy_triggered: Whether policy engine triggered POI opportunity
+            location_name: Optional location name from context for fallback
+            
+        Returns:
+            Normalized POIIntent with fallbacks applied, or None if not applicable
+        """
+        # If no intent and policy didn't trigger, nothing to normalize
+        if poi_intent is None and not policy_triggered:
+            return None
+        
+        # If no intent but policy triggered, create minimal create intent
+        if poi_intent is None and policy_triggered:
+            fallback_name = location_name if location_name else "A Notable Location"
+            logger.info(
+                "POI policy triggered but no LLM intent - using fallback",
+                action="create",
+                fallback_name=fallback_name
+            )
+            return POIIntent(
+                action="create",
+                name=fallback_name,
+                description="An interesting location worth remembering.",
+                reference_tags=[]
+            )
+        
+        # Get validated action (Pydantic ensures it's valid)
+        action = poi_intent.action
+        
+        # If action is "none", no normalization needed
+        if action == "none":
+            return poi_intent
+        
+        # If action is "reference", minimal normalization (just name)
+        if action == "reference":
+            name = poi_intent.name
+            name_is_invalid = not name or not isinstance(name, str) or len(name.strip()) == 0
+            
+            if name_is_invalid:
+                # Reference actions need a name - if missing, use fallback
+                fallback_name = location_name if location_name else "Unknown Location"
+                logger.info("POI reference missing name - using fallback", fallback_name=fallback_name)
+                return POIIntent(
+                    action="reference",
+                    name=fallback_name,
+                    description=poi_intent.description,
+                    reference_tags=poi_intent.reference_tags
+                )
+            
+            # Trim name if too long
+            if len(name) > 200:
+                logger.info("POI reference name too long - trimming", original_length=len(name))
+                trimmed_name = name[:200]
+                return POIIntent(
+                    action="reference",
+                    name=trimmed_name,
+                    description=poi_intent.description,
+                    reference_tags=poi_intent.reference_tags
+                )
+            
+            # If name is valid and not too long, return original intent
+            return poi_intent
+        
+        # Normalize "create" action fields
+        if action == "create":
+            name = poi_intent.name
+            description = poi_intent.description
+            reference_tags = poi_intent.reference_tags
+            
+            # Apply fallbacks for missing/invalid name
+            if not name or not isinstance(name, str) or len(name.strip()) == 0:
+                # Try location name first, then generic fallback
+                fallback_name = location_name if location_name else "A Notable Location"
+                logger.info("POI create missing name - using fallback", fallback_name=fallback_name)
+                name = fallback_name
+            
+            # Trim name if too long (max 200 characters per journey-log spec)
+            if len(name) > 200:
+                logger.info("POI create name too long - trimming", original_length=len(name))
+                name = name[:200]
+            
+            # Apply fallbacks for missing/invalid description
+            if not description or not isinstance(description, str) or len(description.strip()) == 0:
+                logger.info("POI create missing description - using fallback")
+                description = "An interesting location worth remembering."
+            
+            # Trim description if too long (max 2000 characters per journey-log spec)
+            if len(description) > 2000:
+                logger.info("POI create description too long - trimming", original_length=len(description))
+                description = description[:2000]
+            
+            # Normalize reference_tags (ensure list)
+            if reference_tags is None:
+                reference_tags = []
+                logger.debug("POI create missing tags - using empty list")
+            elif not isinstance(reference_tags, list):
+                logger.warning("POI create tags was non-list, using empty list", original_type=type(poi_intent.reference_tags).__name__)
+                reference_tags = []
+            
+            return POIIntent(
+                action="create",
+                name=name,
+                description=description,
+                reference_tags=reference_tags
+            )
+        
+        # For any other action, return as-is
+        return poi_intent
     
     def normalize_quest_intent(
         self,

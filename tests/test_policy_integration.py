@@ -115,10 +115,10 @@ async def test_policy_engine_evaluated_before_llm():
 async def test_policy_guardrails_block_quest_intent():
     """Test that policy guardrails block quest intents when roll doesn't pass."""
     from app.api.routes import process_turn
-    from app.models import TurnRequest, IntentsBlock, QuestIntent, POIIntent
+    from app.models import TurnRequest
     from app.config import Settings
     from app.services.journey_log_client import JourneyLogClient
-    from app.services.llm_client import LLMClient, ParsedOutcome, DungeonMasterOutcome
+    from app.services.llm_client import LLMClient
     from app.services.policy_engine import PolicyEngine
     from httpx import AsyncClient
     

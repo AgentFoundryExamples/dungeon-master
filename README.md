@@ -98,7 +98,37 @@ The PolicyEngine provides deterministic quest and POI trigger evaluation with co
 | `QUEST_COOLDOWN_TURNS` | `5` | Turns between quest triggers (0 or greater) |
 | `POI_TRIGGER_PROB` | `0.2` | POI trigger probability (0.0-1.0) |
 | `POI_COOLDOWN_TURNS` | `3` | Turns between POI triggers (0 or greater) |
+| `POI_MEMORY_SPARK_ENABLED` | `false` | Enable fetching random POIs as memory sparks |
+| `POI_MEMORY_SPARK_COUNT` | `3` | Number of random POIs to fetch (1-20) |
 | `RNG_SEED` | (unset) | Optional RNG seed for deterministic behavior |
+
+### POI Memory Sparks
+
+POI Memory Sparks is an optional feature that fetches random POIs from a character's history at the start of each turn and injects them into the LLM prompt. This helps the LLM:
+- Recall previously discovered locations
+- Reference past POIs in narratives naturally
+- Create more connected and immersive storytelling
+
+**Configuration:**
+
+```bash
+# Enable memory sparks
+POI_MEMORY_SPARK_ENABLED=true
+
+# Number of random POIs to fetch (1-20, default: 3)
+POI_MEMORY_SPARK_COUNT=5
+```
+
+**How it works:**
+1. At the start of each turn, before building the prompt, the orchestrator fetches N random POIs from journey-log
+2. These POIs are stored in `context.memory_sparks` for prompt injection
+3. The prompt builder can include these in the LLM context (implementation dependent)
+4. Errors are non-fatal - if the fetch fails, memory_sparks will be empty and the turn continues
+
+**Performance considerations:**
+- Memory spark retrieval adds ~50-100ms to turn latency
+- The journey-log `/pois/random` endpoint is optimized for fast sampling
+- Non-fatal errors ensure turn processing is never blocked
 
 ## Policy Engine Debugging
 
@@ -587,6 +617,54 @@ When enabled, the service tracks:
 Access metrics via GET /metrics endpoint.
 
 **Note**: Metrics are stored in-memory and reset on service restart. For production monitoring, integrate with Prometheus or other observability platforms.
+
+## Intent Normalization
+
+The service includes robust intent normalization to handle cases where the LLM produces incomplete or missing intent data, while still allowing subsystem actions when policy triggers fire.
+
+### Quest Intent Normalization
+
+When the policy engine triggers a quest opportunity but the LLM intent is missing or incomplete, the `OutcomeParser.normalize_quest_intent()` method provides deterministic fallbacks:
+
+- **Missing Intent with Policy Trigger**: Creates minimal "offer" intent with fallback title and summary
+- **Missing Title**: Uses "A New Opportunity" as fallback
+- **Missing Summary**: Uses "An opportunity for adventure presents itself." as fallback
+- **Missing Details**: Uses empty dict as fallback
+
+**Example:**
+```python
+# Policy triggered but LLM returned no quest intent
+# Parser creates: QuestIntent(
+#   action="offer",
+#   quest_title="A New Opportunity",
+#   quest_summary="An opportunity for adventure presents itself.",
+#   quest_details={}
+# )
+```
+
+### POI Intent Normalization
+
+When the policy engine triggers a POI opportunity but the LLM intent is missing or incomplete, the `OutcomeParser.normalize_poi_intent()` method provides deterministic fallbacks:
+
+- **Missing Intent with Policy Trigger**: Creates minimal "create" intent with location name or fallback
+- **Missing Name**: Uses current location name or "A Notable Location" as fallback
+- **Missing Description**: Uses "An interesting location worth remembering." as fallback
+- **Long Name**: Trims to 200 characters (journey-log max)
+- **Long Description**: Trims to 2000 characters (journey-log max)
+- **Missing Tags**: Uses empty list as fallback
+
+**Example:**
+```python
+# Policy triggered but LLM returned incomplete POI intent
+# Parser creates: POIIntent(
+#   action="create",
+#   name="The Ancient Temple",  # from context.location
+#   description="An interesting location worth remembering.",
+#   reference_tags=[]
+# )
+```
+
+This ensures that policy-driven subsystem triggers (quests and POIs) are never lost due to LLM parsing issues, while maintaining deterministic behavior for debugging and testing.
 
 ### LLM Response Parsing and Validation
 

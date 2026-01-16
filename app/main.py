@@ -121,7 +121,9 @@ async def lifespan(app: FastAPI):
         policy_engine=app.state.policy_engine,
         llm_client=app.state.llm_client,
         journey_log_client=app.state.journey_log_client,
-        prompt_builder=app.state.prompt_builder
+        prompt_builder=app.state.prompt_builder,
+        poi_memory_spark_enabled=settings.poi_memory_spark_enabled,
+        poi_memory_spark_count=settings.poi_memory_spark_count
     )
     logger.info("Turn orchestrator initialized")
 

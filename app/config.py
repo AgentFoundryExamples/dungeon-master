@@ -127,6 +127,18 @@ class Settings(BaseSettings):
         description="Optional RNG seed for deterministic debugging (leave unset for secure randomness)"
     )
 
+    # POI Memory Spark Configuration
+    poi_memory_spark_enabled: bool = Field(
+        default=False,
+        description="Enable fetching random POIs as memory sparks for prompts"
+    )
+    poi_memory_spark_count: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Number of random POIs to fetch as memory sparks (1-20)"
+    )
+
     @field_validator('journey_log_base_url')
     @classmethod
     def validate_journey_log_url(cls, v: str) -> str:

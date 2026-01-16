@@ -15,8 +15,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, timezone
-import uuid
 
 from app.models import (
     JourneyLogContext,
@@ -32,7 +30,7 @@ from app.services.turn_orchestrator import TurnOrchestrator
 from app.services.policy_engine import PolicyEngine, QuestTriggerDecision, POITriggerDecision
 from app.services.llm_client import LLMClient
 from app.services.journey_log_client import JourneyLogClient
-from app.services.outcome_parser import ParsedOutcome, OutcomeParser
+from app.services.outcome_parser import ParsedOutcome
 from app.prompting.prompt_builder import PromptBuilder
 
 
