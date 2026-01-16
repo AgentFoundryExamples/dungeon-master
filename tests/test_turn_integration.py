@@ -161,7 +161,10 @@ async def test_turn_endpoint_character_not_found(client):
         
         assert response.status_code == 404
         data = response.json()
-        assert "not found" in data["detail"].lower()
+        # Check structured error response
+        assert "error" in data["detail"]
+        assert data["detail"]["error"]["type"] == "character_not_found"
+        assert "not found" in data["detail"]["error"]["message"].lower()
 
 
 @pytest.mark.asyncio
@@ -182,7 +185,10 @@ async def test_turn_endpoint_journey_log_timeout(client):
         
         assert response.status_code == 504  # Gateway timeout
         data = response.json()
-        assert "timed out" in data["detail"].lower()
+        # Check structured error response
+        assert "error" in data["detail"]
+        assert data["detail"]["error"]["type"] == "journey_log_timeout"
+        assert "timed out" in data["detail"]["error"]["message"].lower()
 
 
 @pytest.mark.asyncio
@@ -278,4 +284,7 @@ async def test_turn_endpoint_persist_failure_returns_error(client):
         # Should return 502 error when persistence fails
         assert response.status_code == 502
         data = response.json()
-        assert "journey-log" in data["detail"].lower()
+        # Check structured error response
+        assert "error" in data["detail"]
+        assert data["detail"]["error"]["type"] == "journey_log_error"
+        assert "journey-log" in data["detail"]["error"]["message"].lower()

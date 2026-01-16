@@ -85,6 +85,16 @@ class Settings(BaseSettings):
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
     )
+    log_json_format: bool = Field(
+        default=False,
+        description="Enable JSON structured logging output"
+    )
+
+    # Metrics Configuration
+    enable_metrics: bool = Field(
+        default=False,
+        description="Enable metrics collection and /metrics endpoint"
+    )
 
     @field_validator('journey_log_base_url')
     @classmethod

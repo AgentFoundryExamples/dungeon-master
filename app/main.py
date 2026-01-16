@@ -28,12 +28,10 @@ import logging
 
 from app.api.routes import router
 from app.config import get_settings
+from app.middleware import RequestCorrelationMiddleware
+from app.logging import configure_logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Will be configured in lifespan
 logger = logging.getLogger(__name__)
 
 
@@ -54,10 +52,19 @@ async def lifespan(app: FastAPI):
     # Validate configuration at startup
     try:
         settings = get_settings()
+        
+        # Configure logging with settings
+        configure_logging(
+            level=settings.log_level,
+            json_format=settings.log_json_format,
+            service_name=settings.service_name
+        )
+        
         logger.info("Configuration loaded successfully")
         logger.info(f"Journey-log base URL: {settings.journey_log_base_url}")
         logger.info(f"OpenAI model: {settings.openai_model}")
         logger.info(f"Health check journey-log: {settings.health_check_journey_log}")
+        logger.info(f"Metrics enabled: {settings.enable_metrics}")
     except Exception as e:
         logger.error(f"Configuration validation failed: {e}")
         raise
@@ -120,6 +127,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add request correlation middleware
+app.add_middleware(RequestCorrelationMiddleware)
 
 # Register routes
 app.include_router(router, tags=["game"])

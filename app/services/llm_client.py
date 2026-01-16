@@ -15,11 +15,14 @@
 
 import json
 import logging
+import time
 from typing import Optional
 from openai import AsyncOpenAI
 import openai
 
-logger = logging.getLogger(__name__)
+from app.logging import StructuredLogger, redact_secrets
+
+logger = StructuredLogger(__name__)
 
 
 class LLMClientError(Exception):
@@ -111,11 +114,13 @@ class LLMClient:
             return self._generate_stub_narrative(user_prompt)
 
         logger.info(
-            f"Generating narrative with model={self.model} "
-            f"(instructions_len={len(system_instructions)}, "
-            f"prompt_len={len(user_prompt)}, trace_id={trace_id})"
+            f"Generating narrative with LLM",
+            model=self.model,
+            instructions_length=len(system_instructions),
+            prompt_length=len(user_prompt)
         )
 
+        start_time = time.time()
         try:
             # Use OpenAI Responses API as per LLMs.md guidelines
             # The Responses API uses 'instructions' for system context and 'input' for user message
@@ -173,8 +178,11 @@ class LLMClient:
                     logger.error("LLM response missing 'narrative' field or empty")
                     raise LLMResponseError("LLM response missing narrative field")
 
+                duration_ms = (time.time() - start_time) * 1000
                 logger.info(
-                    f"Successfully generated narrative: {len(narrative)} characters"
+                    f"Successfully generated narrative",
+                    narrative_length=len(narrative),
+                    duration_ms=f"{duration_ms:.2f}"
                 )
                 return narrative
 
@@ -186,17 +194,31 @@ class LLMClient:
                 ) from e
 
         except openai.APITimeoutError as e:
-            logger.error(f"LLM request timed out after {self.timeout}s")
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                f"LLM request timed out",
+                timeout_seconds=self.timeout,
+                duration_ms=f"{duration_ms:.2f}"
+            )
             raise LLMTimeoutError(
                 f"LLM request timed out after {self.timeout}s"
             ) from e
 
         except openai.AuthenticationError as e:
-            logger.error("LLM authentication failed - invalid API key")
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "LLM authentication failed",
+                duration_ms=f"{duration_ms:.2f}"
+            )
             raise LLMConfigurationError("Invalid OpenAI API key") from e
 
         except openai.BadRequestError as e:
-            logger.error(f"LLM bad request error: {e}")
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                f"LLM bad request error",
+                error=redact_secrets(str(e)),
+                duration_ms=f"{duration_ms:.2f}"
+            )
             raise LLMClientError(f"Invalid request to LLM: {e}") from e
 
         except (LLMResponseError, LLMTimeoutError, LLMConfigurationError):
@@ -204,7 +226,13 @@ class LLMClient:
             raise
 
         except Exception as e:
-            logger.error(f"Unexpected error during LLM generation: {e}")
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                f"Unexpected error during LLM generation",
+                error_type=type(e).__name__,
+                error=redact_secrets(str(e)),
+                duration_ms=f"{duration_ms:.2f}"
+            )
             raise LLMClientError(f"Failed to generate narrative: {e}") from e
 
     def _generate_stub_narrative(self, user_prompt: str) -> str:
