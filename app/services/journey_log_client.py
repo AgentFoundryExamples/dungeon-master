@@ -681,12 +681,17 @@ class JourneyLogClient:
     ) -> None:
         """Create, update, or end combat for the character.
         
-        Makes a PUT request to /characters/{character_id}/combat with combat data.
+        Makes a PUT request to /characters/{character_id}/combat with combat_state.
+        
+        The journey-log PUT /combat endpoint expects:
+        {
+          "combat_state": <CombatState object or null>
+        }
         
         Args:
             character_id: UUID of the character
-            combat_data: Combat information (enemies, notes, etc.)
-            action_type: Type of combat action (start/continue/end)
+            combat_data: Combat state object (CombatState schema) or None to clear
+            action_type: Type of combat action (start/continue/end) for logging only
             trace_id: Optional trace ID for request correlation
             
         Raises:
@@ -702,15 +707,17 @@ class JourneyLogClient:
         
         logger.info(
             "Putting combat to journey-log",
-            action_type=action_type
+            action_type=action_type,
+            has_combat_data=combat_data is not None
         )
         
         start_time = time.time()
         try:
-            # Build request payload based on action type
-            payload = {"action": action_type}
-            if combat_data:
-                payload.update(combat_data)
+            # Build request payload per UpdateCombatRequest schema
+            # combat_state can be a CombatState object or null
+            payload = {
+                "combat_state": combat_data
+            }
             
             response = await self.http_client.put(
                 url,
@@ -724,7 +731,8 @@ class JourneyLogClient:
             logger.info(
                 "Successfully put combat",
                 status_code=getattr(response, 'status_code', None),
-                duration_ms=f"{duration_ms:.2f}"
+                duration_ms=f"{duration_ms:.2f}",
+                action_type=action_type
             )
         
         except HTTPStatusError as e:
