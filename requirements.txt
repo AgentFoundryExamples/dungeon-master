@@ -1,0 +1,24 @@
+# Dungeon Master Service Dependencies
+# Python 3.14+ required (see python_dev_versions.txt)
+
+# Core Framework (from python_dev_versions.txt)
+fastapi[standard]==0.128.0
+pydantic==2.12.5
+pydantic-settings==2.7.0
+uvicorn==0.40.0
+starlette==0.49.1  # Updated to patch CVE (O(n^2) DoS via Range header)
+
+# HTTP Client
+httpx==0.28.1
+
+# Environment Configuration
+python-dotenv==1.0.1
+
+# OpenAI LLM Integration (from infrastructure_versions.txt)
+openai==2.14.0
+
+# Development & Testing
+pytest==8.3.4
+pytest-asyncio==0.25.0
+ruff==0.8.0
+mypy==1.14.0

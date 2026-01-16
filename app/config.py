@@ -1,0 +1,128 @@
+"""Configuration module for Dungeon Master service.
+
+This module loads and validates configuration from environment variables.
+All settings are validated at startup to fail fast if configuration is invalid.
+"""
+
+import os
+from functools import lru_cache
+from typing import Optional
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables.
+    
+    All settings can be overridden via environment variables.
+    See .env.example for detailed documentation of each setting.
+    """
+    
+    # Journey Log Service Configuration
+    journey_log_base_url: str = Field(
+        ...,
+        description="Base URL for the journey-log service",
+        examples=["http://localhost:8000", "https://journey-log.example.com"]
+    )
+    journey_log_timeout: int = Field(
+        default=30,
+        ge=1,
+        le=300,
+        description="HTTP timeout for journey-log requests in seconds"
+    )
+    
+    # OpenAI Configuration
+    openai_api_key: str = Field(
+        ...,
+        description="OpenAI API key for LLM requests"
+    )
+    openai_model: str = Field(
+        default="gpt-4",
+        description="OpenAI model to use for narrative generation"
+    )
+    openai_timeout: int = Field(
+        default=60,
+        ge=1,
+        le=600,
+        description="HTTP timeout for OpenAI requests in seconds"
+    )
+    
+    # Health Check Configuration
+    health_check_journey_log: bool = Field(
+        default=False,
+        description="Whether to ping journey-log service during health checks"
+    )
+    
+    # Service Configuration
+    service_name: str = Field(
+        default="dungeon-master",
+        description="Service name for logging and identification"
+    )
+    log_level: str = Field(
+        default="INFO",
+        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+    )
+    
+    @field_validator('journey_log_base_url')
+    @classmethod
+    def validate_journey_log_url(cls, v: str) -> str:
+        """Validate journey-log base URL format."""
+        if not v:
+            raise ValueError("journey_log_base_url cannot be empty")
+        if not (v.startswith('http://') or v.startswith('https://')):
+            raise ValueError(
+                f"journey_log_base_url must start with http:// or https://, got: {v}"
+            )
+        # Remove trailing slash for consistency
+        return v.rstrip('/')
+    
+    @field_validator('openai_api_key')
+    @classmethod
+    def validate_openai_key(cls, v: str) -> str:
+        """Validate OpenAI API key is not empty."""
+        if not v or v.strip() == "":
+            raise ValueError(
+                "openai_api_key cannot be empty. Set OPENAI_API_KEY environment variable."
+            )
+        return v
+    
+    @field_validator('log_level')
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        """Validate log level is a recognized value."""
+        valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
+        v_upper = v.upper()
+        if v_upper not in valid_levels:
+            raise ValueError(
+                f"log_level must be one of {valid_levels}, got: {v}"
+            )
+        return v_upper
+    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get the settings instance with LRU caching.
+    
+    Uses functools.lru_cache for thread-safe singleton pattern.
+    The cache can be cleared for testing using get_settings.cache_clear().
+    
+    Returns:
+        Settings instance with validated configuration
+        
+    Raises:
+        ValueError: If required configuration is missing or invalid
+    """
+    try:
+        return Settings()
+    except Exception as e:
+        raise ValueError(
+            f"Configuration error: {e}. "
+            "Ensure all required environment variables are set. "
+            "See .env.example for required configuration."
+        ) from e
