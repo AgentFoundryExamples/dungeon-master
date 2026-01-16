@@ -101,8 +101,8 @@ Total files: 41
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for prompt builder  
-**Size:** 11.88 KB  
-**LOC:** 224  
+**Size:** 13.95 KB  
+**LOC:** 260  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/__init__.py
@@ -335,8 +335,8 @@ Total files: 41
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 14.89 KB  
-**LOC:** 326  
+**Size:** 22.30 KB  
+**LOC:** 508  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_quest_integration.py

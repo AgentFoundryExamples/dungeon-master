@@ -151,8 +151,8 @@
       "summary": "Python module for prompt builder",
       "summary_text": "Python module for prompt builder",
       "metrics": {
-        "size_bytes": 12163,
-        "loc": 224,
+        "size_bytes": 14285,
+        "loc": 260,
         "todo_count": 0
       }
     },
@@ -515,8 +515,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 15248,
-        "loc": 326,
+        "size_bytes": 22838,
+        "loc": 508,
         "todo_count": 0
       }
     },
