@@ -513,11 +513,12 @@ async def test_turn_endpoint_policy_decisions_logged(client, caplog):
         policy_logs = [msg for msg in log_messages if "Policy decisions evaluated" in msg]
         
         # Should have logged policy decisions
-        assert len(policy_logs) >= 1
+        assert len(policy_logs) >= 1, "Expected policy decision log message"
         
-        # Check that log contains decision info
+        # Check that log contains decision info with specific fields
         policy_log_text = " ".join(policy_logs)
-        assert "quest_eligible" in policy_log_text or "Policy decisions" in policy_log_text
+        assert "quest_eligible" in policy_log_text, "Policy log should contain quest_eligible field"
+        assert "poi_eligible" in policy_log_text, "Policy log should contain poi_eligible field"
 
 
 @pytest.mark.asyncio

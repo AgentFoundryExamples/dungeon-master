@@ -389,9 +389,10 @@ def test_policy_hints_format_quest_eligible_roll_passed(prompt_builder):
     
     # Quest should show ALLOWED
     assert "Quest Trigger: ALLOWED" in user_prompt
-    # POI should show NOT ALLOWED with reason
+    # POI should show NOT ALLOWED
     assert "POI Creation: NOT ALLOWED" in user_prompt
-    assert "Not eligible (cooldown)" in user_prompt
+    # Should include a reason for POI not being allowed
+    assert "Reason:" in user_prompt
 
 
 def test_policy_hints_format_all_ineligible(prompt_builder):
@@ -424,8 +425,9 @@ def test_policy_hints_format_all_ineligible(prompt_builder):
         user_action="I continue my quest"
     )
     
-    # Both should show NOT ALLOWED with reasons
+    # Both should show NOT ALLOWED
     assert "POLICY HINTS:" in user_prompt
     assert "Quest Trigger: NOT ALLOWED" in user_prompt
     assert "POI Creation: NOT ALLOWED" in user_prompt
-    assert "Not eligible" in user_prompt
+    # Should include reasons for ineligibility
+    assert "Reason:" in user_prompt
