@@ -46,13 +46,32 @@ def client(test_env):
         
         from app.main import app
         from httpx import AsyncClient
+        from app.services.journey_log_client import JourneyLogClient
+        from app.services.llm_client import LLMClient
         
         # Create test HTTP client
         test_http_client = AsyncClient()
         
-        # Override the get_http_client dependency
-        from app.api.routes import get_http_client
+        # Create test service clients
+        settings = get_settings()
+        test_journey_log_client = JourneyLogClient(
+            base_url=settings.journey_log_base_url,
+            http_client=test_http_client,
+            timeout=settings.journey_log_timeout,
+            recent_n_default=settings.journey_log_recent_n
+        )
+        test_llm_client = LLMClient(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            timeout=settings.openai_timeout,
+            stub_mode=True  # Always use stub mode in tests
+        )
+        
+        # Override all dependencies
+        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
         app.dependency_overrides[get_http_client] = lambda: test_http_client
+        app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
+        app.dependency_overrides[get_llm_client] = lambda: test_llm_client
         
         client = TestClient(app)
         
@@ -213,8 +232,8 @@ async def test_turn_endpoint_with_trace_id(client):
 
 
 @pytest.mark.asyncio
-async def test_turn_endpoint_persist_failure_still_returns_narrative(client):
-    """Test that turn endpoint returns narrative even if persistence fails."""
+async def test_turn_endpoint_persist_failure_returns_error(client):
+    """Test that turn endpoint returns error when persistence fails."""
     from httpx import Response, HTTPStatusError, Request
     from unittest.mock import MagicMock
     
@@ -256,7 +275,7 @@ async def test_turn_endpoint_persist_failure_still_returns_narrative(client):
             }
         )
         
-        # Should still return 200 with narrative despite persistence failure
-        assert response.status_code == 200
+        # Should return 502 error when persistence fails
+        assert response.status_code == 502
         data = response.json()
-        assert "narrative" in data
+        assert "journey-log" in data["detail"].lower()

@@ -198,8 +198,8 @@ async def test_generate_narrative_authentication_error():
 
 
 @pytest.mark.asyncio
-async def test_generate_narrative_fallback_plain_text():
-    """Test narrative generation fallback to plain text."""
+async def test_generate_narrative_invalid_json_raises_error():
+    """Test narrative generation with invalid JSON response raises error."""
     client = LLMClient(
         api_key="sk-test-key",
         model="gpt-5.1",
@@ -207,6 +207,7 @@ async def test_generate_narrative_fallback_plain_text():
     )
     
     # Mock response with plain text instead of JSON
+    # With strict schema enforcement, this should raise an error
     mock_output_item = MagicMock()
     mock_output_item.content = "You discover a hidden treasure chest."
     
@@ -216,10 +217,9 @@ async def test_generate_narrative_fallback_plain_text():
     with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_response
         
-        narrative = await client.generate_narrative(
-            system_instructions="You are a game master",
-            user_prompt="The player searches the room"
-        )
-        
-        # Should fallback to using the raw content
-        assert narrative == "You discover a hidden treasure chest."
+        # Should raise LLMResponseError since strict schema should prevent non-JSON
+        with pytest.raises(LLMResponseError, match="Strict schema enforcement"):
+            await client.generate_narrative(
+                system_instructions="You are a game master",
+                user_prompt="The player searches the room"
+            )

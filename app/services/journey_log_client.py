@@ -127,19 +127,32 @@ class JourneyLogClient:
 
             # Map the journey-log response to our JourneyLogContext model
             # The journey-log API returns a CharacterContextResponse structure
+            # Use defensive .get() to handle optional fields and prevent KeyErrors
+            player_state = data.get("player_state", {})
+            narrative_data = data.get("narrative", {})
+            combat_data = data.get("combat", {})
+
+            # Validate required fields
+            if not data.get("character_id"):
+                raise JourneyLogClientError("Response missing required 'character_id' field")
+            if not player_state.get("status"):
+                raise JourneyLogClientError("Response missing required 'player_state.status' field")
+            if not player_state.get("location"):
+                raise JourneyLogClientError("Response missing required 'player_state.location' field")
+
             context = JourneyLogContext(
                 character_id=data["character_id"],
-                status=data["player_state"]["status"],
-                location=data["player_state"]["location"],
+                status=player_state["status"],
+                location=player_state["location"],
                 active_quest=data.get("quest"),
-                combat_state=data.get("combat", {}).get("state"),
+                combat_state=combat_data.get("state"),
                 recent_history=[
                     {
                         "player_action": turn.get("player_action", ""),
                         "gm_response": turn.get("gm_response", ""),
                         "timestamp": turn.get("timestamp", "")
                     }
-                    for turn in data.get("narrative", {}).get("recent_turns", [])
+                    for turn in narrative_data.get("recent_turns", [])
                 ]
             )
 

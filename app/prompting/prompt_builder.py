@@ -210,7 +210,7 @@ Generate a narrative response to the player's action based on the above context.
             return "  (No recent history)"
 
         # Show last 5 turns for context (most recent last)
-        recent_turns = history[-5:] if len(history) > 5 else history
+        recent_turns = history[-5:]
 
         lines = []
         for i, turn in enumerate(recent_turns, 1):

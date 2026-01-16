@@ -53,13 +53,32 @@ def client(test_env):
         # Import after setting environment to ensure settings load correctly
         from app.main import app
         from httpx import AsyncClient
+        from app.services.journey_log_client import JourneyLogClient
+        from app.services.llm_client import LLMClient
         
         # Create a test HTTP client for dependency override
         test_http_client = AsyncClient()
         
-        # Override the get_http_client dependency for testing
-        from app.api.routes import get_http_client
+        # Create test service clients
+        settings = get_settings()
+        test_journey_log_client = JourneyLogClient(
+            base_url=settings.journey_log_base_url,
+            http_client=test_http_client,
+            timeout=settings.journey_log_timeout,
+            recent_n_default=settings.journey_log_recent_n
+        )
+        test_llm_client = LLMClient(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+            timeout=settings.openai_timeout,
+            stub_mode=True  # Always use stub mode in tests
+        )
+        
+        # Override all dependencies for testing
+        from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
         app.dependency_overrides[get_http_client] = lambda: test_http_client
+        app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
+        app.dependency_overrides[get_llm_client] = lambda: test_llm_client
         
         client = TestClient(app)
         

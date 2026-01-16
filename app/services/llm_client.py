@@ -180,13 +180,10 @@ class LLMClient:
 
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse LLM response as JSON: {e}")
-                # Fallback: try to extract narrative from raw content
-                # This handles cases where the LLM returns plain text instead of JSON
-                if content and len(content.strip()) > 0:
-                    logger.warning("Using raw content as fallback narrative")
-                    return content.strip()
-                else:
-                    raise LLMResponseError(f"Failed to parse LLM response: {e}") from e
+                # With strict schema enforcement, we should not receive non-JSON responses
+                raise LLMResponseError(
+                    f"Failed to parse LLM response as JSON. Strict schema enforcement should prevent this: {e}"
+                ) from e
 
         except openai.APITimeoutError as e:
             logger.error(f"LLM request timed out after {self.timeout}s")
