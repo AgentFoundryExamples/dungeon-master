@@ -13,46 +13,75 @@
 # limitations under the License.
 """Prompt builder for constructing LLM prompts from game context."""
 
+import json
 from typing import Tuple
-from app.models import JourneyLogContext
+from app.models import JourneyLogContext, get_outcome_json_schema, get_outcome_schema_example
 
 
 class PromptBuilder:
     """Builds structured prompts for LLM narrative generation.
     
     This class composes:
-    - System instructions defining the LLM's role
+    - System instructions defining the LLM's role and JSON output requirements
+    - DungeonMasterOutcome JSON schema for structured output
     - Serialized game context (status, location, quest, combat, history)
     - User action to respond to
     
-    The modular structure allows downstream subsystems to extend prompts
-    with additional context or instructions.
+    The prompt enforces JSON-only output with the DungeonMasterOutcome schema.
+    The LLM generates narrative and suggests intents, but does NOT decide
+    subsystem eligibility - that's handled by deterministic service logic.
+    
+    Schema Evolution:
+    - When models evolve, update get_outcome_json_schema() in models.py
+    - The schema is automatically included in prompts
+    - Test with new models to ensure compatibility
+    - Consider token limits when schema grows (currently ~2-3KB)
+    
+    Token Management:
+    - Schema text: ~2-3KB (acceptable for GPT-5+ context windows)
+    - Recent history: Last 5 turns with truncation at 200/300 chars
+    - If needed, reduce history window or omit optional schema descriptions
     """
 
-    SYSTEM_INSTRUCTIONS = """You are a narrative engine and decision-making system for a text-based adventure game.
+    SYSTEM_INSTRUCTIONS = """You are a narrative engine for a text-based adventure game.
+
+CRITICAL: You MUST respond with valid JSON matching the DungeonMasterOutcome schema provided below.
+Do NOT output any prose, explanations, or text outside the JSON object.
+Output ONLY valid JSON that conforms exactly to the schema.
 
 Your role:
 - Generate engaging, immersive narrative responses to player actions
 - Maintain consistency with the character's current state and ongoing story
 - Consider active quests, combat situations, and location context
-- Keep responses concise but descriptive (aim for 2-4 paragraphs)
+- Suggest intents (quest, combat, POI actions) based on narrative context
+- Keep narrative concise but descriptive (aim for 2-4 paragraphs)
 - Respond to the player's action in a natural, story-driven way
 
-Guidelines:
+Guidelines for narrative field:
 - Use vivid, atmospheric language appropriate for fantasy adventure
 - React to the character's health status and current situation
 - Reference recent story events when relevant
 - Maintain appropriate tone based on context (tense in combat, relaxed in safe areas)
 - Do not make decisions for the player - describe outcomes and present choices
 
+Guidelines for intents field:
+- Fill intents based on what happens in the narrative
+- Intents are SUGGESTIONS only - the game service makes final decisions
+- Subsystem eligibility (can quest be offered? can combat start?) is determined by 
+  DETERMINISTIC game logic, NOT by you
+- Be concise in intent descriptions - avoid repeating full narrative text
+- Use "none" action when no specific intent applies
+
+IMPORTANT: Subsystem decisions are DETERMINISTIC and handled by the game engine:
+- You suggest intents based on narrative
+- The game engine decides if those intents are eligible/valid
+- Do NOT try to decide eligibility yourself - just suggest what fits the story
+
 You will receive:
 1. Character context (status, location, quest, combat state, recent history)
 2. The player's current action
 
-Generate a narrative response that:
-- Directly addresses the player's action
-- Advances the story naturally
-- Maintains immersion and engagement"""
+OUTPUT FORMAT (DungeonMasterOutcome JSON Schema):"""
 
     def __init__(self):
         """Initialize the prompt builder."""
@@ -71,9 +100,24 @@ Generate a narrative response that:
             
         Returns:
             Tuple of (system_instructions, user_prompt)
-            System instructions define the LLM's role
-            User prompt contains serialized context and action
+            System instructions define the LLM's role and include JSON schema
+            User prompt contains serialized context, action, and JSON format reminder
         """
+        # Get the JSON schema and example for DungeonMasterOutcome
+        schema = get_outcome_json_schema()
+        schema_json = json.dumps(schema, indent=2)
+        example_json = get_outcome_schema_example()
+        
+        # Build complete system instructions with schema
+        complete_system_instructions = f"""{self.SYSTEM_INSTRUCTIONS}
+
+{schema_json}
+
+EXAMPLE OUTPUT:
+{example_json}
+
+Remember: Output ONLY valid JSON matching this schema. No additional text before or after the JSON object."""
+
         # Serialize the context into a structured format
         context_str = self._serialize_context(context)
 
@@ -83,9 +127,10 @@ Generate a narrative response that:
 PLAYER ACTION:
 {user_action}
 
-Generate a narrative response to the player's action based on the above context."""
+Generate a DungeonMasterOutcome JSON response to the player's action based on the above context.
+Output ONLY the JSON object, no other text."""
 
-        return (self.SYSTEM_INSTRUCTIONS, user_prompt)
+        return (complete_system_instructions, user_prompt)
 
     def _serialize_context(self, context: JourneyLogContext) -> str:
         """Serialize game context into a readable format for the LLM.
@@ -199,6 +244,10 @@ Generate a narrative response to the player's action based on the above context.
     def _format_history(self, history: list) -> str:
         """Format recent narrative history.
         
+        Displays the last ~20 turns of narrative history to provide context
+        for the LLM while keeping token usage reasonable. Long text is
+        truncated to prevent excessive prompt length.
+        
         Args:
             history: List of recent turn dicts from context
             
@@ -208,8 +257,9 @@ Generate a narrative response to the player's action based on the above context.
         if not history:
             return "  (No recent history)"
 
-        # Show last 5 turns for context (most recent last)
-        recent_turns = history[-5:]
+        # Show last 20 turns for context (configurable via JOURNEY_LOG_RECENT_N)
+        # This provides sufficient story continuity while managing token usage
+        recent_turns = history[-20:]
 
         lines = []
         for i, turn in enumerate(recent_turns, 1):

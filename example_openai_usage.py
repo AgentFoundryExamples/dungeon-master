@@ -23,6 +23,89 @@ Key features:
 - Configurable retry logic with exponential backoff for transient errors
 - Structured logging without exposing secrets
 - Proper error classification and handling
+
+=========================================================================================
+DUNGEON MASTER STRUCTURED OUTPUT EXAMPLE
+=========================================================================================
+
+The DungeonMaster service uses structured JSON output with the DungeonMasterOutcome schema.
+This ensures the LLM returns properly formatted responses with narrative and intents.
+
+Example usage with OpenAI Responses API and DungeonMasterOutcome schema:
+
+    from openai import AsyncOpenAI
+    from app.models import get_outcome_json_schema, DungeonMasterOutcome
+    import json
+    
+    # Initialize client
+    client = AsyncOpenAI(api_key="sk-...", timeout=60)
+    
+    # Get the DungeonMasterOutcome JSON schema
+    schema = get_outcome_json_schema()
+    
+    # System instructions (already includes schema in production)
+    system_instructions = '''You are a narrative engine for a text-based adventure game.
+    
+    CRITICAL: You MUST respond with valid JSON matching the DungeonMasterOutcome schema.
+    Output ONLY valid JSON, no prose outside the JSON object.
+    
+    [... rest of instructions ...]
+    '''
+    
+    # Make API call with strict JSON schema enforcement
+    response = await client.responses.create(
+        model="gpt-5.1",
+        instructions=system_instructions,
+        input="Character enters a dark tavern...",
+        max_output_tokens=4000,
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "dungeon_master_outcome",
+                "strict": True,  # Reject non-conforming responses
+                "schema": schema
+            }
+        }
+    )
+    
+    # Extract and parse response
+    content = response.output[0].content
+    if isinstance(content, list):
+        content = "".join([item.text for item in content if hasattr(item, "text")])
+    
+    # Parse JSON and validate against Pydantic model
+    outcome_data = json.loads(content)
+    outcome = DungeonMasterOutcome.model_validate(outcome_data)
+    
+    # Access structured data
+    print(f"Narrative: {outcome.narrative}")
+    if outcome.intents.quest_intent:
+        print(f"Quest action: {outcome.intents.quest_intent.action}")
+    if outcome.intents.combat_intent:
+        print(f"Combat action: {outcome.intents.combat_intent.action}")
+
+Key benefits of structured output:
+1. **Schema enforcement**: OpenAI API rejects non-conforming responses
+2. **Type safety**: Pydantic validation ensures correct structure
+3. **Intent extraction**: Structured intents for quest/combat/POI actions
+4. **No parsing ambiguity**: JSON structure is well-defined
+5. **Evolution support**: Update schema in models.py as needed
+
+When models evolve:
+- Update get_outcome_json_schema() in app/models.py
+- Adjust DungeonMasterOutcome Pydantic models if needed
+- Test with new model to ensure schema compatibility
+- Schema is automatically used in all LLM calls
+
+Token management:
+- Schema size: ~2-3KB (acceptable for GPT-5+ context windows)
+- Recent history: Last 20 turns with truncation (configurable)
+- If schema grows large, consider:
+  * Reducing optional field descriptions
+  * Splitting into multiple smaller schemas
+  * Using schema references instead of inline definitions
+
+=========================================================================================
 """
 
 import logging
