@@ -13,7 +13,6 @@
 # limitations under the License.
 """Integration tests for policy state context flow through services."""
 
-import pytest
 from app.models import JourneyLogContext, PolicyState
 from app.services.policy_engine import PolicyEngine
 

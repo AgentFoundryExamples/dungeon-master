@@ -18,7 +18,6 @@ provides deterministic fallbacks when the policy engine triggers a POI
 opportunity but the LLM intent is missing or incomplete.
 """
 
-import pytest
 from app.services.outcome_parser import OutcomeParser
 from app.models import POIIntent
 

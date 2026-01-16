@@ -40,9 +40,8 @@ from app.models import (
     IntentsBlock,
     TurnSubsystemSummary,
     SubsystemActionType,
-    QuestChangeType,
-    CombatChangeType,
-    POIChangeType,
+    QuestTriggerDecision,
+    POITriggerDecision,
 )
 from app.services.policy_engine import PolicyEngine
 from app.services.llm_client import LLMClient
@@ -355,8 +354,8 @@ class TurnOrchestrator:
         self,
         context: JourneyLogContext,
         intents: Optional[IntentsBlock],
-        quest_decision: "QuestTriggerDecision",
-        poi_decision: "POITriggerDecision"
+        quest_decision: QuestTriggerDecision,
+        poi_decision: POITriggerDecision
     ) -> dict[str, SubsystemAction]:
         """Derive subsystem actions from policy decisions and LLM intents.
         

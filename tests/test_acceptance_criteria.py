@@ -26,7 +26,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.llm_client import LLMClient
 from app.services.outcome_parser import OutcomeParser, ParsedOutcome
-from app.metrics import MetricsCollector, init_metrics_collector, disable_metrics_collector
+from app.metrics import init_metrics_collector, disable_metrics_collector
 from app.models import OUTCOME_VERSION
 
 

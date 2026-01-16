@@ -952,7 +952,7 @@ class JourneyLogClient:
             )
             return []
         
-        except TimeoutException as e:
+        except TimeoutException:
             duration_ms = (time.time() - start_time) * 1000
             # Non-fatal error - log and return empty list
             logger.warning(

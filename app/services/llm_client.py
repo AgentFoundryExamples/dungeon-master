@@ -13,12 +13,10 @@
 # limitations under the License.
 """LLM client for narrative generation using OpenAI Responses API."""
 
-import json
 import time
 from typing import Optional
 from openai import AsyncOpenAI
 import openai
-from pydantic import ValidationError
 
 from app.logging import StructuredLogger, redact_secrets
 from app.models import (

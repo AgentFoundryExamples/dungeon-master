@@ -20,17 +20,14 @@ ensuring narrative text is always preserved for persistence.
 
 import json
 import re
-from typing import Optional, Tuple, List
+from typing import Optional, List
 from dataclasses import dataclass
 from pydantic import ValidationError
 
 from app.models import (
     DungeonMasterOutcome,
-    IntentsBlock,
     QuestIntent,
-    CombatIntent,
     POIIntent,
-    MetaIntent,
     OUTCOME_VERSION
 )
 from app.logging import StructuredLogger, redact_secrets

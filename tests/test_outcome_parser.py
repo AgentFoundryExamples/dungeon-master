@@ -15,7 +15,7 @@
 
 import pytest
 import json
-from app.services.outcome_parser import OutcomeParser, ParsedOutcome
+from app.services.outcome_parser import OutcomeParser
 from app.models import OUTCOME_VERSION
 
 

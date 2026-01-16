@@ -18,7 +18,6 @@ from httpx import AsyncClient, Response
 from unittest.mock import AsyncMock
 
 from app.services.journey_log_client import JourneyLogClient
-from app.models import PolicyState
 
 
 @pytest.fixture
