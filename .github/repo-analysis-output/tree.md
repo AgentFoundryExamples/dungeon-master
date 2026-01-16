@@ -48,6 +48,8 @@
   ├── test_metrics.py
   ├── test_outcome_models.py
   ├── test_outcome_parser.py
+  ├── test_poi_memory_sparks.py
+  ├── test_poi_normalization.py
   ├── test_policy_context_integration.py
   ├── test_policy_engine.py
   ├── test_policy_integration.py
@@ -61,6 +63,7 @@
 ├── .gitignore
 ├── example_openai_usage.py
 ├── gcp_deployment_reference.md
+├── IMPLEMENTATION_SUMMARY.md
 ├── infrastructure_versions.txt
 ├── journey-log.openapi.json
 ├── LICENSE
@@ -68,4 +71,5 @@
 ├── pytest.ini
 ├── python_dev_versions.txt
 ├── README.md
-└── requirements.txt
+├── requirements.txt
+└── verify_poi_features.py

@@ -212,6 +212,14 @@
         },
         {
           "type": "file",
+          "name": "test_poi_memory_sparks.py"
+        },
+        {
+          "type": "file",
+          "name": "test_poi_normalization.py"
+        },
+        {
+          "type": "file",
           "name": "test_policy_context_integration.py"
         },
         {
@@ -266,6 +274,10 @@
     },
     {
       "type": "file",
+      "name": "IMPLEMENTATION_SUMMARY.md"
+    },
+    {
+      "type": "file",
       "name": "infrastructure_versions.txt"
     },
     {
@@ -295,6 +307,10 @@
     {
       "type": "file",
       "name": "requirements.txt"
+    },
+    {
+      "type": "file",
+      "name": "verify_poi_features.py"
     }
   ]
 }

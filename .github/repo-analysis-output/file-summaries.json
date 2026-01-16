@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 38,
+  "total_files": 41,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 22984,
-        "loc": 525,
+        "size_bytes": 22849,
+        "loc": 522,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 6317,
-        "loc": 150,
+        "size_bytes": 6679,
+        "loc": 160,
         "todo_count": 0
       }
     },
@@ -81,8 +81,8 @@
       "summary": "Python main entry point (role: entry-point)",
       "summary_text": "Python main entry point (role: entry-point)",
       "metrics": {
-        "size_bytes": 9733,
-        "loc": 204,
+        "size_bytes": 9865,
+        "loc": 206,
         "todo_count": 0
       }
     },
@@ -123,8 +123,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 32807,
-        "loc": 723,
+        "size_bytes": 33150,
+        "loc": 731,
         "todo_count": 0
       }
     },
@@ -179,8 +179,8 @@
       "summary": "Python module for journey log client",
       "summary_text": "Python module for journey log client",
       "metrics": {
-        "size_bytes": 33487,
-        "loc": 734,
+        "size_bytes": 37376,
+        "loc": 817,
         "todo_count": 0
       }
     },
@@ -193,8 +193,8 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 12423,
-        "loc": 246,
+        "size_bytes": 12374,
+        "loc": 244,
         "todo_count": 0
       }
     },
@@ -207,8 +207,8 @@
       "summary": "Python module for outcome parser",
       "summary_text": "Python module for outcome parser",
       "metrics": {
-        "size_bytes": 16661,
-        "loc": 298,
+        "size_bytes": 22652,
+        "loc": 389,
         "todo_count": 0
       }
     },
@@ -235,8 +235,8 @@
       "summary": "Python module for turn orchestrator",
       "summary_text": "Python module for turn orchestrator",
       "metrics": {
-        "size_bytes": 37819,
-        "loc": 700,
+        "size_bytes": 39956,
+        "loc": 739,
         "todo_count": 0
       }
     },
@@ -291,7 +291,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 14016,
+        "size_bytes": 13998,
         "loc": 268,
         "todo_count": 0
       }
@@ -319,8 +319,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 17257,
-        "loc": 407,
+        "size_bytes": 17190,
+        "loc": 405,
         "todo_count": 0
       }
     },
@@ -403,8 +403,36 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 13006,
+        "size_bytes": 12991,
         "loc": 268,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_poi_memory_sparks.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 10079,
+        "loc": 223,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_poi_normalization.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 9381,
+        "loc": 248,
         "todo_count": 0
       }
     },
@@ -417,8 +445,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 6718,
-        "loc": 103,
+        "size_bytes": 6704,
+        "loc": 102,
         "todo_count": 0
       }
     },
@@ -445,7 +473,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 10755,
+        "size_bytes": 10680,
         "loc": 217,
         "todo_count": 0
       }
@@ -473,8 +501,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 16924,
-        "loc": 348,
+        "size_bytes": 16889,
+        "loc": 347,
         "todo_count": 0
       }
     },
@@ -501,8 +529,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 17332,
-        "loc": 377,
+        "size_bytes": 17224,
+        "loc": 374,
         "todo_count": 0
       }
     },
@@ -531,6 +559,20 @@
       "metrics": {
         "size_bytes": 29172,
         "loc": 554,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "verify_poi_features.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for verify poi features",
+      "summary_text": "Python module for verify poi features",
+      "metrics": {
+        "size_bytes": 4032,
+        "loc": 77,
         "todo_count": 0
       }
     }

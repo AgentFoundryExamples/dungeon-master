@@ -197,14 +197,12 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "json",
           "time",
           "typing.Optional"
         ],
         "third-party": [
           "openai",
-          "openai.AsyncOpenAI",
-          "pydantic.ValidationError"
+          "openai.AsyncOpenAI"
         ]
       }
     },
@@ -218,8 +216,7 @@
           "json",
           "re",
           "typing.List",
-          "typing.Optional",
-          "typing.Tuple"
+          "typing.Optional"
         ],
         "third-party": [
           "pydantic.ValidationError"
@@ -343,11 +340,8 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "datetime.datetime",
-          "datetime.timezone",
           "unittest.mock.AsyncMock",
-          "unittest.mock.MagicMock",
-          "uuid"
+          "unittest.mock.MagicMock"
         ],
         "third-party": [
           "pytest"
@@ -448,14 +442,39 @@
       }
     },
     {
+      "id": "tests/test_poi_memory_sparks.py",
+      "path": "tests/test_poi_memory_sparks.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "unittest.mock.AsyncMock",
+          "unittest.mock.MagicMock"
+        ],
+        "third-party": [
+          "httpx.AsyncClient",
+          "httpx.HTTPStatusError",
+          "httpx.Response",
+          "httpx.TimeoutException",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_poi_normalization.py",
+      "path": "tests/test_poi_normalization.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": []
+      }
+    },
+    {
       "id": "tests/test_policy_context_integration.py",
       "path": "tests/test_policy_context_integration.py",
       "type": "file",
       "external_dependencies": {
         "stdlib": [],
-        "third-party": [
-          "pytest"
-        ]
+        "third-party": []
       }
     },
     {
@@ -530,11 +549,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "datetime.datetime",
-          "datetime.timezone",
-          "unittest.mock.AsyncMock",
-          "unittest.mock.MagicMock",
-          "unittest.mock.patch"
+          "unittest.mock.AsyncMock"
         ],
         "third-party": [
           "pytest"
@@ -572,6 +587,15 @@
           "pytest"
         ]
       }
+    },
+    {
+      "id": "verify_poi_features.py",
+      "path": "verify_poi_features.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": []
+      }
     }
   ],
   "edges": [
@@ -593,19 +617,11 @@
     },
     {
       "source": "app/api/routes.py",
-      "target": "app/services/policy_engine.py"
-    },
-    {
-      "source": "app/api/routes.py",
       "target": "app/services/outcome_parser.py"
     },
     {
       "source": "app/api/routes.py",
       "target": "app/services/turn_orchestrator.py"
-    },
-    {
-      "source": "app/api/routes.py",
-      "target": "app/prompting/prompt_builder.py"
     },
     {
       "source": "app/api/routes.py",
@@ -936,6 +952,18 @@
       "target": "app/models.py"
     },
     {
+      "source": "tests/test_poi_memory_sparks.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_poi_normalization.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "tests/test_poi_normalization.py",
+      "target": "app/models.py"
+    },
+    {
       "source": "tests/test_policy_context_integration.py",
       "target": "app/models.py"
     },
@@ -992,10 +1020,6 @@
       "target": "app/services/journey_log_client.py"
     },
     {
-      "source": "tests/test_policy_state_extraction.py",
-      "target": "app/models.py"
-    },
-    {
       "source": "tests/test_prompt_builder.py",
       "target": "app/prompting/prompt_builder.py"
     },
@@ -1042,6 +1066,14 @@
     {
       "source": "tests/test_turn_integration.py",
       "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "verify_poi_features.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "verify_poi_features.py",
+      "target": "app/models.py"
     }
   ],
   "external_dependencies_summary": {
