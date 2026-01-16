@@ -1,0 +1,24 @@
+# agent-foundry-ai-template
+
+├── .github
+  ├── af-config
+    ├── license-header.config.json
+    ├── LICENSE_HEADER
+    └── repo-analyzer.config.json
+  ├── repo-analysis-output
+    ├── dependencies.json
+    ├── dependencies.md
+    ├── file-summaries.json
+    ├── file-summaries.md
+    ├── SUMMARY.md
+    ├── tree.json
+    └── tree.md
+  └── workflows
+    └── af_maintenance.yml
+├── example_openai_usage.py
+├── gcp_deployment_reference.md
+├── infrastructure_versions.txt
+├── LICENSE
+├── LLMs.md
+├── python_dev_versions.txt
+└── README.md

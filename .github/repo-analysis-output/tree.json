@@ -1,0 +1,102 @@
+{
+  "type": "directory",
+  "name": "agent-foundry-ai-template",
+  "children": [
+    {
+      "type": "directory",
+      "name": ".github",
+      "children": [
+        {
+          "type": "directory",
+          "name": "af-config",
+          "children": [
+            {
+              "type": "file",
+              "name": "license-header.config.json"
+            },
+            {
+              "type": "file",
+              "name": "LICENSE_HEADER"
+            },
+            {
+              "type": "file",
+              "name": "repo-analyzer.config.json"
+            }
+          ]
+        },
+        {
+          "type": "directory",
+          "name": "repo-analysis-output",
+          "children": [
+            {
+              "type": "file",
+              "name": "dependencies.json"
+            },
+            {
+              "type": "file",
+              "name": "dependencies.md"
+            },
+            {
+              "type": "file",
+              "name": "file-summaries.json"
+            },
+            {
+              "type": "file",
+              "name": "file-summaries.md"
+            },
+            {
+              "type": "file",
+              "name": "SUMMARY.md"
+            },
+            {
+              "type": "file",
+              "name": "tree.json"
+            },
+            {
+              "type": "file",
+              "name": "tree.md"
+            }
+          ]
+        },
+        {
+          "type": "directory",
+          "name": "workflows",
+          "children": [
+            {
+              "type": "file",
+              "name": "af_maintenance.yml"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "name": "example_openai_usage.py"
+    },
+    {
+      "type": "file",
+      "name": "gcp_deployment_reference.md"
+    },
+    {
+      "type": "file",
+      "name": "infrastructure_versions.txt"
+    },
+    {
+      "type": "file",
+      "name": "LICENSE"
+    },
+    {
+      "type": "file",
+      "name": "LLMs.md"
+    },
+    {
+      "type": "file",
+      "name": "python_dev_versions.txt"
+    },
+    {
+      "type": "file",
+      "name": "README.md"
+    }
+  ]
+}

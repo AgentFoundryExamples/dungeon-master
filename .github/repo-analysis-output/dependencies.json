@@ -1,0 +1,50 @@
+{
+  "nodes": [
+    {
+      "id": "example_openai_usage.py",
+      "path": "example_openai_usage.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "logging",
+          "time",
+          "typing.Optional"
+        ],
+        "third-party": [
+          "app.services.llm_client.",
+          "app.services.llm_client.BaseLLMClient",
+          "app.services.llm_client.LLMConfigurationError",
+          "app.services.llm_client.LLMRequestError",
+          "app.services.llm_client.LLMResponseError",
+          "app.services.metrics.get_metrics_collector",
+          "app.utils.logging_helpers.log_llm_request",
+          "app.utils.logging_helpers.log_llm_response",
+          "openai",
+          "openai.OpenAI"
+        ]
+      }
+    }
+  ],
+  "edges": [],
+  "external_dependencies_summary": {
+    "stdlib": [
+      "logging",
+      "time",
+      "typing.Optional"
+    ],
+    "third-party": [
+      "app.services.llm_client.",
+      "app.services.llm_client.BaseLLMClient",
+      "app.services.llm_client.LLMConfigurationError",
+      "app.services.llm_client.LLMRequestError",
+      "app.services.llm_client.LLMResponseError",
+      "app.services.metrics.get_metrics_collector",
+      "app.utils.logging_helpers.log_llm_request",
+      "app.utils.logging_helpers.log_llm_response",
+      "openai",
+      "openai.OpenAI"
+    ],
+    "stdlib_count": 3,
+    "third-party_count": 10
+  }
+}

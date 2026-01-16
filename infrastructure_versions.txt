@@ -1,0 +1,23 @@
+# Infrastructure & Cloud (Jan 2026)
+
+# Docker
+python:3.14-slim+    # Base Image
+docker-ce>=29.1.4+
+docker-compose-plugin>=2.30.0+
+
+# Databases
+postgres:18.1-alpine+
+redis:7.4-alpine+
+
+# Google Cloud SDK
+google-cloud-sdk>=551.0.0+
+google-cloud-run>=0.10.0+
+google-cloud-storage>=2.14.0+
+google-cloud-pubsub>=2.18.0+
+
+# AI & LLM Ecosystem
+openai>=2.14.0+         # GPT-5.1 Support
+anthropic>=0.75.0+      # Claude 4.5 Support
+google-genai>=1.57.0+   # Gemini 3.0 Support
+langchain>=0.4.0+
+pinecone>=8.0.0+

@@ -1,0 +1,84 @@
+{
+  "output_dir": ".github/repo-analysis-output",
+  "dry_run": false,
+  "tree_config": {
+    "max_depth": null,
+    "exclude_patterns": [
+      ".git",
+      "__pycache__",
+      "*.pyc",
+      "node_modules",
+      ".venv",
+      "venv"
+    ]
+  },
+  "file_summary_config": {
+    "max_file_size_kb": 1024,
+    "include_patterns": [
+      "*.py",
+      "*.js",
+      "*.ts",
+      "*.java",
+      "*.go",
+      "*.rs",
+      "*.c",
+      "*.cpp",
+      "*.cc",
+      "*.cxx",
+      "*.h",
+      "*.hpp",
+      "*.hh",
+      "*.hxx",
+      "*.s",
+      "*.S",
+      "*.asm",
+      "*.sx",
+      "*.pl",
+      "*.pm",
+      "*.perl"
+    ],
+    "detail_level": "standard",
+    "include_legacy_summary": true
+  },
+  "dependency_config": {
+    "scan_package_files": true,
+    "package_files": [
+      "package.json",
+      "requirements.txt",
+      "Pipfile",
+      "pyproject.toml",
+      "go.mod",
+      "Cargo.toml"
+    ]
+  },
+  "language_config": {
+    "enabled_languages": null,
+    "disabled_languages": [],
+    "language_overrides": {}
+  },
+  "parser_config": {
+    "enable_structured_parsers": true,
+    "enable_parser_cache": true,
+    "parsers": {
+      "tree_sitter": {
+        "enabled": true,
+        "graceful_degradation": true
+      },
+      "libclang": {
+        "enabled": true,
+        "graceful_degradation": true
+      }
+    },
+    "language_parser_preferences": {
+      "C": ["libclang", "tree_sitter", "regex"],
+      "C++": ["libclang", "tree_sitter", "regex"],
+      "Rust": ["tree_sitter", "regex"],
+      "Perl": ["tree_sitter", "regex"],
+      "ASM": ["regex"]
+    },
+    "performance": {
+      "max_file_size_for_structured_parsing_kb": 512,
+      "max_parse_time_seconds": 5.0
+    }
+  }
+}

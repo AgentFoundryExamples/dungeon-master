@@ -1,0 +1,20 @@
+{
+  "schema_version": "2.0",
+  "total_files": 1,
+  "files": [
+    {
+      "schema_version": "2.0",
+      "path": "example_openai_usage.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for example openai usage",
+      "summary_text": "Python module for example openai usage",
+      "metrics": {
+        "size_bytes": 20786,
+        "loc": 402,
+        "todo_count": 0
+      }
+    }
+  ]
+}

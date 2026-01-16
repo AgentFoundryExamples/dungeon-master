@@ -1,0 +1,190 @@
+name: Agent Foundry Maintenance
+
+on:
+  push:
+    branches:
+      - main  # runs when PRs are merged into main (and any direct pushes)
+
+permissions:
+  contents: write
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    # Optional: avoid re-running on the bot's own maintenance commit
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"  # 3.11+ is required; 3.12 is fine
+
+      - name: Install repository analyzer from GitHub
+        run: |
+          pip install "git+https://github.com/AgentFoundryExamples/repo-summarizer-v1.git@main"
+
+      - name: Install license header CLI from GitHub
+        run: |
+          pip install "git+https://github.com/AgentFoundryExamples/license-header.git@main"
+
+      - name: Install tree sitter
+        run: |
+          pip install tree-sitter
+
+      - name: Install Language specific tree sitters
+        run: |
+          pip install tree-sitter-rust tree-sitter-c tree-sitter-cpp
+
+      - name: Write repo-analyzer config
+        run: |
+          mkdir -p .github/af-config
+          cat << 'EOF' > .github/af-config/repo-analyzer.config.json
+          {
+            "output_dir": ".github/repo-analysis-output",
+            "dry_run": false,
+            "tree_config": {
+              "max_depth": null,
+              "exclude_patterns": [
+                ".git",
+                "__pycache__",
+                "*.pyc",
+                "node_modules",
+                ".venv",
+                "venv"
+              ]
+            },
+            "file_summary_config": {
+              "max_file_size_kb": 1024,
+              "include_patterns": [
+                "*.py",
+                "*.js",
+                "*.ts",
+                "*.java",
+                "*.go",
+                "*.rs",
+                "*.c",
+                "*.cpp",
+                "*.cc",
+                "*.cxx",
+                "*.h",
+                "*.hpp",
+                "*.hh",
+                "*.hxx",
+                "*.s",
+                "*.S",
+                "*.asm",
+                "*.sx",
+                "*.pl",
+                "*.pm",
+                "*.perl"
+              ],
+              "detail_level": "standard",
+              "include_legacy_summary": true
+            },
+            "dependency_config": {
+              "scan_package_files": true,
+              "package_files": [
+                "package.json",
+                "requirements.txt",
+                "Pipfile",
+                "pyproject.toml",
+                "go.mod",
+                "Cargo.toml"
+              ]
+            },
+            "language_config": {
+              "enabled_languages": null,
+              "disabled_languages": [],
+              "language_overrides": {}
+            },
+            "parser_config": {
+              "enable_structured_parsers": true,
+              "enable_parser_cache": true,
+              "parsers": {
+                "tree_sitter": {
+                  "enabled": true,
+                  "graceful_degradation": true
+                },
+                "libclang": {
+                  "enabled": true,
+                  "graceful_degradation": true
+                }
+              },
+              "language_parser_preferences": {
+                "C": ["libclang", "tree_sitter", "regex"],
+                "C++": ["libclang", "tree_sitter", "regex"],
+                "Rust": ["tree_sitter", "regex"],
+                "Perl": ["tree_sitter", "regex"],
+                "ASM": ["regex"]
+              },
+              "performance": {
+                "max_file_size_for_structured_parsing_kb": 512,
+                "max_parse_time_seconds": 5.0
+              }
+            }
+          }
+          EOF
+
+      - name: Write license header template
+        run: |
+          mkdir -p .github/af-config
+          cat << 'EOF' > .github/af-config/LICENSE_HEADER
+          Copyright 2025 John Brosnihan
+
+          Licensed under the Apache License, Version 2.0 (the "License");
+          you may not use this file except in compliance with the License.
+          You may obtain a copy of the License at
+          
+              http://www.apache.org/licenses/LICENSE-2.0
+          
+          Unless required by applicable law or agreed to in writing, software
+          distributed under the License is distributed on an "AS IS" BASIS,
+          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+          See the License for the specific language governing permissions and
+          limitations under the License. 
+          EOF
+
+      - name: Write license-header config
+        run: |
+          mkdir -p .github/af-config
+          cat << 'EOF' > .github/af-config/license-header.config.json
+          {
+            "header_file": ".github/af-config/LICENSE_HEADER",
+            "include_extensions": [".py", ".js", ".ts", ".java", ".c", ".cpp", ".h", ".cs", ".rs"],
+            "exclude_paths": [
+              ".git",
+              "node_modules", ".git", "__pycache__", "venv", "env", ".venv", "dist", "build",
+              "repo-analysis-output"
+            ],
+
+            "output_dir": null
+          }
+          EOF
+
+      - name: Apply license headers
+        run: |
+          license-header apply \
+            --config .github/af-config/license-header.config.json
+
+      - name: Run repo analyzer
+        run: |
+          repo-analyzer scan \
+            --config .github/af-config/repo-analyzer.config.json
+
+      - name: Commit changes (if any)
+        run: |
+          if git status --porcelain | grep .; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore: apply Agent Foundry maintenance"
+            git push
+          else
+            echo "No changes to commit."
+          fi
