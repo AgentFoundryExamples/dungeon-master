@@ -323,3 +323,49 @@ async def test_generate_narrative_with_full_outcome():
         # Should extract narrative text
         assert narrative == "You enter the tavern and meet a grizzled innkeeper."
         mock_create.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_generate_narrative_with_provided_schema():
+    """Test that generate_narrative uses provided schema instead of regenerating."""
+    client = LLMClient(
+        api_key="sk-test-key",
+        model="gpt-5.1",
+        stub_mode=False
+    )
+    
+    # Mock successful response
+    mock_output_item = MagicMock()
+    mock_output_item.content = '''{
+        "narrative": "Test narrative with provided schema",
+        "intents": {
+            "quest_intent": {"action": "none"},
+            "combat_intent": {"action": "none"},
+            "poi_intent": {"action": "none"},
+            "meta": null
+        }
+    }'''
+    
+    mock_response = MagicMock()
+    mock_response.output = [mock_output_item]
+    
+    # Pre-generate schema once
+    from app.models import get_outcome_json_schema
+    pre_generated_schema = get_outcome_json_schema()
+    
+    with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = mock_response
+        
+        # Call with provided schema
+        narrative = await client.generate_narrative(
+            system_instructions="You are a game master",
+            user_prompt="The player searches",
+            json_schema=pre_generated_schema
+        )
+        
+        # Verify narrative extracted correctly
+        assert narrative == "Test narrative with provided schema"
+        
+        # Verify the provided schema was used in the API call
+        call_kwargs = mock_create.call_args.kwargs
+        assert call_kwargs["text"]["format"]["schema"] == pre_generated_schema

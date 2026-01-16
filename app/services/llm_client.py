@@ -18,6 +18,7 @@ import time
 from typing import Optional
 from openai import AsyncOpenAI
 import openai
+from pydantic import ValidationError
 
 from app.logging import StructuredLogger, redact_secrets
 from app.models import DungeonMasterOutcome, get_outcome_json_schema
@@ -61,6 +62,13 @@ class LLMClient:
     - No prose or explanatory text outside JSON structure
     - Rich narrative text is in the 'narrative' field
     - Concise intents are in structured 'intents' block
+    
+    Token Usage Considerations:
+    - Schema injection adds ~9KB per request (acceptable for GPT-5+ 128K context)
+    - History includes up to 20 turns (~5KB)
+    - Total overhead: ~14KB per request
+    - Monitor token consumption in production; consider fallback strategies
+      for cost control or older models with smaller context windows
     
     When models evolve:
     - Update get_outcome_json_schema() in models.py
@@ -106,7 +114,8 @@ class LLMClient:
         self,
         system_instructions: str,
         user_prompt: str,
-        trace_id: Optional[str] = None
+        trace_id: Optional[str] = None,
+        json_schema: Optional[dict] = None
     ) -> str:
         """Generate narrative using the LLM with strict JSON enforcement.
         
@@ -123,6 +132,8 @@ class LLMClient:
             system_instructions: System-level instructions for the LLM (includes schema)
             user_prompt: The user prompt containing context and action
             trace_id: Optional trace ID for request correlation
+            json_schema: Optional pre-generated JSON schema to avoid redundant generation.
+                        If not provided, schema will be generated via get_outcome_json_schema().
             
         Returns:
             Generated narrative text (extracted from DungeonMasterOutcome.narrative)
@@ -149,8 +160,9 @@ class LLMClient:
 
         start_time = time.time()
         try:
-            # Get the JSON schema for DungeonMasterOutcome
-            schema = get_outcome_json_schema()
+            # Use the provided schema, or generate it if not available
+            # Passing schema as parameter avoids redundant generation on repeated calls
+            schema = json_schema or get_outcome_json_schema()
             
             # Use OpenAI Responses API with strict JSON schema enforcement
             # The Responses API uses 'instructions' for system context and 'input' for user message
@@ -235,10 +247,22 @@ class LLMClient:
                     f"Failed to parse LLM response as JSON. "
                     f"Strict schema enforcement should prevent this: {e}"
                 ) from e
-            except Exception as e:
-                logger.error(f"Failed to validate LLM response against DungeonMasterOutcome schema: {e}")
+            except ValidationError as e:
+                # Pydantic validation error - response JSON doesn't match DungeonMasterOutcome schema
+                logger.error(
+                    f"LLM response failed Pydantic validation against DungeonMasterOutcome schema: {e}"
+                )
                 raise LLMResponseError(
-                    f"LLM response validation failed: {e}"
+                    f"LLM response structure validation failed. "
+                    f"The JSON does not conform to DungeonMasterOutcome schema: {e}"
+                ) from e
+            except Exception as e:
+                # Unexpected error during validation/parsing
+                logger.error(
+                    f"Unexpected error during LLM response validation: {type(e).__name__}: {e}"
+                )
+                raise LLMResponseError(
+                    f"Unexpected error validating LLM response: {e}"
                 ) from e
 
         except openai.APITimeoutError as e:
