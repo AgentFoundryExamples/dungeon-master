@@ -642,6 +642,9 @@ class TurnOrchestrator:
                 
                 # Extract enemies from intent_data
                 enemies_intent = action.intent_data.get("enemies", []) if action.intent_data else []
+                # Handle case where enemies is explicitly None
+                if enemies_intent is None:
+                    enemies_intent = []
                 
                 # Convert EnemyDescriptor list to EnemyState list
                 enemies_list = []
@@ -743,7 +746,13 @@ class TurnOrchestrator:
             )
             
             # Update summary with appropriate change type
-            change_type = "started" if action.action_type == "start" else action.action_type + "d"
+            # Map action types to change types: start->started, continue->continued, end->ended
+            change_type_map = {
+                "start": "started",
+                "continue": "continued",
+                "end": "ended"
+            }
+            change_type = change_type_map.get(action.action_type, action.action_type)
             summary.combat_change = SubsystemActionType(
                 action=change_type,
                 success=True,
