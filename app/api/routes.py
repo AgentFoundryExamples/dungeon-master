@@ -46,6 +46,7 @@ from app.logging import (
     set_character_id,
     get_request_id
 )
+from app.metrics import get_metrics_collector, MetricsTimer
 
 logger = StructuredLogger(__name__)
 
@@ -221,7 +222,7 @@ async def process_turn(
         prompt_builder = PromptBuilder()
 
         # Step 1: Fetch context from journey-log
-        with PhaseTimer("context_fetch", logger):
+        with PhaseTimer("context_fetch", logger), MetricsTimer("journey_log_fetch"):
             logger.debug("Fetching context from journey-log")
             context = await journey_log_client.get_context(
                 character_id=request.character_id,
@@ -237,7 +238,7 @@ async def process_turn(
             )
 
         # Step 3: Call LLM for narrative generation
-        with PhaseTimer("llm_call", logger):
+        with PhaseTimer("llm_call", logger), MetricsTimer("llm_call"):
             logger.debug("Generating narrative with LLM")
             narrative = await llm_client.generate_narrative(
                 system_instructions=system_instructions,
@@ -246,7 +247,7 @@ async def process_turn(
             )
 
         # Step 4: Persist to journey-log
-        with PhaseTimer("narrative_save", logger):
+        with PhaseTimer("narrative_save", logger), MetricsTimer("journey_log_persist"):
             logger.debug("Persisting narrative to journey-log")
             await journey_log_client.persist_narrative(
                 character_id=request.character_id,
@@ -264,6 +265,8 @@ async def process_turn(
 
     except JourneyLogNotFoundError as e:
         logger.error(f"Character not found", error=str(e))
+        if (collector := get_metrics_collector()):
+            collector.record_error("character_not_found")
         raise create_error_response(
             error_type="character_not_found",
             message=f"Character {request.character_id} not found in journey-log",
@@ -271,6 +274,8 @@ async def process_turn(
         ) from e
     except JourneyLogTimeoutError as e:
         logger.error(f"Journey-log timeout", error=str(e))
+        if (collector := get_metrics_collector()):
+            collector.record_error("journey_log_timeout")
         raise create_error_response(
             error_type="journey_log_timeout",
             message="Journey-log service timed out. Please try again.",
@@ -278,6 +283,8 @@ async def process_turn(
         ) from e
     except JourneyLogClientError as e:
         logger.error(f"Journey-log client error", error=str(e))
+        if (collector := get_metrics_collector()):
+            collector.record_error("journey_log_error")
         raise create_error_response(
             error_type="journey_log_error",
             message=f"Failed to communicate with journey-log: {str(e)}",
@@ -285,6 +292,8 @@ async def process_turn(
         ) from e
     except LLMTimeoutError as e:
         logger.error(f"LLM timeout", error=str(e))
+        if (collector := get_metrics_collector()):
+            collector.record_error("llm_timeout")
         raise create_error_response(
             error_type="llm_timeout",
             message="LLM service timed out. Please try again.",
@@ -292,6 +301,8 @@ async def process_turn(
         ) from e
     except LLMResponseError as e:
         logger.error(f"LLM response error", error=str(e))
+        if (collector := get_metrics_collector()):
+            collector.record_error("llm_response_error")
         raise create_error_response(
             error_type="llm_response_error",
             message=f"LLM returned invalid response: {str(e)}",
@@ -299,6 +310,8 @@ async def process_turn(
         ) from e
     except LLMClientError as e:
         logger.error(f"LLM client error", error=str(e))
+        if (collector := get_metrics_collector()):
+            collector.record_error("llm_error")
         raise create_error_response(
             error_type="llm_error",
             message=f"Failed to generate narrative: {str(e)}",
@@ -307,6 +320,8 @@ async def process_turn(
     except Exception as e:
         # Catch-all for unexpected errors
         logger.error(f"Unexpected error processing turn", error=str(e), error_type=type(e).__name__)
+        if (collector := get_metrics_collector()):
+            collector.record_error("internal_error")
         raise create_error_response(
             error_type="internal_error",
             message="An unexpected error occurred while processing your turn",
@@ -400,3 +415,86 @@ async def health_check(
         service=settings.service_name,
         journey_log_accessible=journey_log_accessible
     )
+
+
+@router.get(
+    "/metrics",
+    status_code=status.HTTP_200_OK,
+    summary="Metrics endpoint",
+    description=(
+        "Get service metrics including request counts, error rates, and latencies. "
+        "Only available when ENABLE_METRICS is true. Returns 404 if metrics are disabled."
+    ),
+    responses={
+        200: {
+            "description": "Metrics collected",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "uptime_seconds": 3600.0,
+                        "requests": {
+                            "total": 150,
+                            "success": 145,
+                            "errors": 5,
+                            "by_status_code": {
+                                "200": 145,
+                                "404": 3,
+                                "502": 2
+                            }
+                        },
+                        "errors": {
+                            "by_type": {
+                                "character_not_found": 3,
+                                "llm_error": 2
+                            }
+                        },
+                        "latencies": {
+                            "turn": {
+                                "count": 145,
+                                "avg_ms": 1250.5,
+                                "min_ms": 800.2,
+                                "max_ms": 3200.8
+                            },
+                            "llm_call": {
+                                "count": 145,
+                                "avg_ms": 950.3,
+                                "min_ms": 600.1,
+                                "max_ms": 2500.5
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        404: {"description": "Metrics disabled"}
+    }
+)
+async def get_metrics(settings: Settings = Depends(get_settings)):
+    """Get service metrics.
+    
+    Returns collected metrics including request counts, error rates, and latencies.
+    Only available when ENABLE_METRICS configuration is enabled.
+    
+    Args:
+        settings: Application settings (injected)
+        
+    Returns:
+        Dictionary with metrics data
+        
+    Raises:
+        HTTPException: If metrics are disabled
+    """
+    if not settings.enable_metrics:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Metrics endpoint is disabled. Set ENABLE_METRICS=true to enable."
+        )
+    
+    collector = get_metrics_collector()
+    if not collector:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Metrics collector not initialized"
+        )
+    
+    return collector.get_metrics()

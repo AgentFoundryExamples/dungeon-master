@@ -30,6 +30,7 @@ from app.api.routes import router
 from app.config import get_settings
 from app.middleware import RequestCorrelationMiddleware
 from app.logging import configure_logging
+from app.metrics import init_metrics_collector, disable_metrics_collector
 
 # Will be configured in lifespan
 logger = logging.getLogger(__name__)
@@ -65,6 +66,14 @@ async def lifespan(app: FastAPI):
         logger.info(f"OpenAI model: {settings.openai_model}")
         logger.info(f"Health check journey-log: {settings.health_check_journey_log}")
         logger.info(f"Metrics enabled: {settings.enable_metrics}")
+        
+        # Initialize metrics collector if enabled
+        if settings.enable_metrics:
+            init_metrics_collector()
+            logger.info("Metrics collector initialized")
+        else:
+            disable_metrics_collector()
+            logger.info("Metrics collection disabled")
     except Exception as e:
         logger.error(f"Configuration validation failed: {e}")
         raise

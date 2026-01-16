@@ -84,6 +84,8 @@ All configuration is managed through environment variables. Copy `.env.example` 
 | `HEALTH_CHECK_JOURNEY_LOG` | `false` | Enable journey-log ping in health checks |
 | `SERVICE_NAME` | `dungeon-master` | Service name for logging |
 | `LOG_LEVEL` | `INFO` | Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL) |
+| `LOG_JSON_FORMAT` | `false` | Enable JSON structured logging output |
+| `ENABLE_METRICS` | `false` | Enable metrics collection and /metrics endpoint |
 
 ### Configuration Validation
 
@@ -156,6 +158,178 @@ Check service health status with optional journey-log connectivity verification.
 - `200`: Service is operational (healthy or degraded)
 
 Note: The health endpoint returns 200 even when degraded to avoid restart loops. Use the `status` field to determine actual health.
+
+### GET /metrics
+
+Get service metrics including request counts, error rates, and operation latencies (requires `ENABLE_METRICS=true`).
+
+**Response:**
+```json
+{
+  "uptime_seconds": 3600.0,
+  "requests": {
+    "total": 150,
+    "success": 145,
+    "errors": 5,
+    "by_status_code": {
+      "200": 145,
+      "404": 3,
+      "502": 2
+    }
+  },
+  "errors": {
+    "by_type": {
+      "character_not_found": 3,
+      "llm_error": 2
+    }
+  },
+  "latencies": {
+    "turn": {
+      "count": 145,
+      "avg_ms": 1250.5,
+      "min_ms": 800.2,
+      "max_ms": 3200.8
+    },
+    "llm_call": {
+      "count": 145,
+      "avg_ms": 950.3,
+      "min_ms": 600.1,
+      "max_ms": 2500.5
+    },
+    "journey_log_fetch": {
+      "count": 145,
+      "avg_ms": 150.2,
+      "min_ms": 80.5,
+      "max_ms": 450.1
+    }
+  }
+}
+```
+
+**Status Codes:**
+- `200`: Metrics available
+- `404`: Metrics endpoint disabled (set `ENABLE_METRICS=true`)
+
+## Observability
+
+### Structured Logging
+
+The service provides comprehensive structured logging with correlation IDs for request tracking.
+
+#### Log Fields
+
+All logs include:
+- `timestamp`: ISO 8601 timestamp
+- `level`: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- `logger`: Logger name (module path)
+- `message`: Log message
+- `request_id`: Request correlation ID (from X-Trace-Id or X-Request-Id header, or auto-generated UUID)
+- `character_id`: Character UUID (when processing a turn)
+
+#### Log Phases
+
+The service logs all major phases of turn processing:
+1. **Request Start**: Incoming request with method, path, and client IP
+2. **Context Fetch**: Journey-log context retrieval with duration
+3. **Prompt Build**: Prompt construction phase
+4. **LLM Call**: Narrative generation with model and duration
+5. **Narrative Save**: Persistence to journey-log with duration
+6. **Request Complete**: Final response with status code and total duration
+
+#### JSON Logging
+
+Enable JSON structured logging for easier parsing by log aggregation tools:
+```bash
+LOG_JSON_FORMAT=true
+```
+
+Example JSON log:
+```json
+{
+  "timestamp": "2025-01-16T10:30:45.123Z",
+  "level": "INFO",
+  "logger": "app.api.routes",
+  "message": "Phase completed: llm_call",
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "character_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "duration_ms": "1250.45"
+}
+```
+
+#### Secret Redaction
+
+API keys and sensitive data are automatically redacted from logs:
+- OpenAI API keys (`sk-***REDACTED***`)
+- Bearer tokens
+- Generic API key patterns
+
+#### Correlation IDs
+
+Requests can include correlation IDs for distributed tracing:
+- **X-Trace-Id header**: Client-provided trace ID (highest priority)
+- **X-Request-Id header**: Alternative request ID header
+- **Auto-generated**: UUID generated if no header provided
+
+All logs and responses include the request ID for end-to-end tracing.
+
+### Error Handling
+
+The service returns structured error responses for all failure scenarios:
+
+```json
+{
+  "detail": {
+    "error": {
+      "type": "character_not_found",
+      "message": "Character 550e8400-e29b-41d4-a716-446655440000 not found in journey-log",
+      "request_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+    }
+  }
+}
+```
+
+#### Error Types
+
+Machine-readable error types for automated handling:
+- `character_not_found`: Character doesn't exist (404)
+- `journey_log_timeout`: Journey-log service timeout (504)
+- `journey_log_error`: Journey-log communication failure (502)
+- `llm_timeout`: LLM service timeout (504)
+- `llm_response_error`: Invalid LLM response (502)
+- `llm_error`: LLM generation failure (502)
+- `internal_error`: Unexpected error (500)
+
+### Metrics Collection
+
+Enable optional in-memory metrics collection:
+```bash
+ENABLE_METRICS=true
+```
+
+When enabled, the service tracks:
+- **Request Counts**: Total, success, errors by status code
+- **Error Counts**: By error type
+- **Latencies**: Min, max, average for operations
+  - `turn`: Complete turn processing time
+  - `llm_call`: LLM narrative generation time
+  - `journey_log_fetch`: Context retrieval time
+  - `journey_log_persist`: Narrative persistence time
+
+Access metrics via GET /metrics endpoint.
+
+**Note**: Metrics are stored in-memory and reset on service restart. For production monitoring, integrate with Prometheus or other observability platforms.
+
+### Health Checks
+
+The /health endpoint provides service health status:
+- Returns `healthy` when all systems operational
+- Returns `degraded` when journey-log is unreachable (if health checks enabled)
+- Always returns HTTP 200 to avoid restart loops
+
+Enable journey-log health checks:
+```bash
+HEALTH_CHECK_JOURNEY_LOG=true
+```
 
 ## Development
 
@@ -318,10 +492,21 @@ graph LR
 - Extensible structure for future enhancements
 
 ✅ **Comprehensive Testing**:
-- 37 unit and integration tests
+- 46 unit and integration tests
 - Mocked dependencies for isolated testing
 - Coverage for error cases and edge cases
 - All tests passing
+
+✅ **Observability & Monitoring**:
+- Structured logging with correlation IDs (request_id, character_id)
+- Request tracking via X-Trace-Id and X-Request-Id headers
+- Phase-based logging (context fetch, LLM call, narrative save)
+- Automatic secret redaction (API keys, tokens)
+- JSON logging format option for log aggregation
+- Structured error responses with machine-readable error types
+- Optional in-memory metrics collection (/metrics endpoint)
+- Request counters, error tracking, and latency histograms
+- Health check endpoint with optional journey-log ping
 
 ### Development Mode
 
@@ -371,8 +556,12 @@ In stub mode:
 - OpenAI Responses API integration (gpt-5.1)
 - Structured prompt building with game context
 - Complete /turn endpoint orchestration
-- Comprehensive error handling
-- 37 passing tests with >90% coverage
+- Comprehensive error handling with structured responses
+- Structured logging with correlation IDs and secret redaction
+- Request correlation middleware with X-Trace-Id/X-Request-Id support
+- Optional metrics collection (/metrics endpoint)
+- Health checks with optional journey-log connectivity verification
+- 46 passing tests with >90% coverage
 
 
 

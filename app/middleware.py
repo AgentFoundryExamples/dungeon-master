@@ -17,6 +17,7 @@ This module provides:
 - Request ID generation and propagation
 - Request/response logging with latency
 - Context variable management for correlation IDs
+- Optional metrics recording
 """
 
 import logging
@@ -27,6 +28,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.logging import set_request_id, clear_context, get_request_id
+from app.metrics import get_metrics_collector, MetricsTimer
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +77,16 @@ class RequestCorrelationMiddleware(BaseHTTPMiddleware):
         )
         
         try:
-            # Process request
-            response = await call_next(request)
+            # Process request with metrics timing if enabled
+            with MetricsTimer("turn" if request.url.path == "/turn" else "request"):
+                response = await call_next(request)
             
             # Calculate duration
             duration_ms = (time.time() - start_time) * 1000
+            
+            # Record metrics if enabled
+            if (collector := get_metrics_collector()):
+                collector.record_request(response.status_code)
             
             # Log request completion
             logger.info(
