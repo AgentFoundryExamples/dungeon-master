@@ -22,10 +22,9 @@ All handlers are stubbed for now and will be implemented in a future issue.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from httpx import AsyncClient
-import logging
 import re
 
-from app.models import TurnRequest, TurnResponse, HealthResponse, ErrorDetail, ErrorResponse
+from app.models import TurnRequest, TurnResponse, HealthResponse
 from app.config import get_settings, Settings
 from app.services.journey_log_client import (
     JourneyLogClient,
@@ -215,7 +214,7 @@ async def process_turn(
     safe_action = sanitize_for_log(request.user_action, 50)
 
     logger.info(
-        f"Processing turn request",
+        "Processing turn request",
         character_id=safe_character_id,
         action_preview=safe_action
     )
@@ -260,13 +259,13 @@ async def process_turn(
 
         # Step 5: Return response
         logger.info(
-            f"Successfully processed turn",
+            "Successfully processed turn",
             narrative_length=len(narrative)
         )
         return TurnResponse(narrative=narrative)
 
     except JourneyLogNotFoundError as e:
-        logger.error(f"Character not found", error=str(e))
+        logger.error("Character not found", error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("character_not_found")
         raise create_error_response(
@@ -275,7 +274,7 @@ async def process_turn(
             status_code=status.HTTP_404_NOT_FOUND
         ) from e
     except JourneyLogTimeoutError as e:
-        logger.error(f"Journey-log timeout", error=str(e))
+        logger.error("Journey-log timeout", error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("journey_log_timeout")
         raise create_error_response(
@@ -284,7 +283,7 @@ async def process_turn(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT
         ) from e
     except JourneyLogClientError as e:
-        logger.error(f"Journey-log client error", error=str(e))
+        logger.error("Journey-log client error", error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("journey_log_error")
         raise create_error_response(
@@ -293,7 +292,7 @@ async def process_turn(
             status_code=status.HTTP_502_BAD_GATEWAY
         ) from e
     except LLMTimeoutError as e:
-        logger.error(f"LLM timeout", error=str(e))
+        logger.error("LLM timeout", error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("llm_timeout")
         raise create_error_response(
@@ -302,7 +301,7 @@ async def process_turn(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT
         ) from e
     except LLMResponseError as e:
-        logger.error(f"LLM response error", error=str(e))
+        logger.error("LLM response error", error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("llm_response_error")
         raise create_error_response(
@@ -311,7 +310,7 @@ async def process_turn(
             status_code=status.HTTP_502_BAD_GATEWAY
         ) from e
     except LLMClientError as e:
-        logger.error(f"LLM client error", error=str(e))
+        logger.error("LLM client error", error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("llm_error")
         raise create_error_response(
@@ -321,7 +320,7 @@ async def process_turn(
         ) from e
     except Exception as e:
         # Catch-all for unexpected errors
-        logger.error(f"Unexpected error processing turn", error=str(e), error_type=type(e).__name__)
+        logger.error("Unexpected error processing turn", error=str(e), error_type=type(e).__name__)
         if (collector := get_metrics_collector()):
             collector.record_error("internal_error")
         raise create_error_response(
@@ -394,7 +393,7 @@ async def health_check(
     # Optionally check journey-log service accessibility
     if settings.health_check_journey_log:
         try:
-            logger.debug(f"Pinging journey-log service")
+            logger.debug("Pinging journey-log service")
             response = await http_client.get(
                 f"{settings.journey_log_base_url}/health",
                 timeout=5.0  # Short timeout for health checks
@@ -403,12 +402,12 @@ async def health_check(
 
             if not journey_log_accessible:
                 logger.warning(
-                    f"Journey-log health check returned non-200 status",
+                    "Journey-log health check returned non-200 status",
                     status_code=response.status_code
                 )
                 service_status = "degraded"
         except Exception as e:
-            logger.warning(f"Journey-log health check failed", error=str(e))
+            logger.warning("Journey-log health check failed", error=str(e))
             journey_log_accessible = False
             service_status = "degraded"
 

@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests for metrics collection."""
 
-import pytest
 from unittest.mock import patch
 import os
 

@@ -84,7 +84,7 @@ def client(test_env):
 @pytest.mark.asyncio
 async def test_turn_endpoint_full_flow_stub_mode(client):
     """Test the full turn endpoint flow in stub mode."""
-    from httpx import Response, Request
+    from httpx import Response
     from unittest.mock import MagicMock
     
     # Mock journey-log context response

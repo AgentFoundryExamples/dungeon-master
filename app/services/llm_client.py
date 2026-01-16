@@ -14,7 +14,6 @@
 """LLM client for narrative generation using OpenAI Responses API."""
 
 import json
-import logging
 import time
 from typing import Optional
 from openai import AsyncOpenAI
@@ -114,7 +113,7 @@ class LLMClient:
             return self._generate_stub_narrative(user_prompt)
 
         logger.info(
-            f"Generating narrative with LLM",
+            "Generating narrative with LLM",
             model=self.model,
             instructions_length=len(system_instructions),
             prompt_length=len(user_prompt)
@@ -180,7 +179,7 @@ class LLMClient:
 
                 duration_ms = (time.time() - start_time) * 1000
                 logger.info(
-                    f"Successfully generated narrative",
+                    "Successfully generated narrative",
                     narrative_length=len(narrative),
                     duration_ms=f"{duration_ms:.2f}"
                 )
@@ -196,7 +195,7 @@ class LLMClient:
         except openai.APITimeoutError as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error(
-                f"LLM request timed out",
+                "LLM request timed out",
                 timeout_seconds=self.timeout,
                 duration_ms=f"{duration_ms:.2f}"
             )
@@ -215,7 +214,7 @@ class LLMClient:
         except openai.BadRequestError as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error(
-                f"LLM bad request error",
+                "LLM bad request error",
                 error=redact_secrets(str(e)),
                 duration_ms=f"{duration_ms:.2f}"
             )
@@ -228,7 +227,7 @@ class LLMClient:
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error(
-                f"Unexpected error during LLM generation",
+                "Unexpected error during LLM generation",
                 error_type=type(e).__name__,
                 error=redact_secrets(str(e)),
                 duration_ms=f"{duration_ms:.2f}"

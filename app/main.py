@@ -176,7 +176,6 @@ def get_journey_log_client_override():
     Raises:
         RuntimeError: If journey_log_client is not initialized in app state
     """
-    from app.services.journey_log_client import JourneyLogClient
     if not hasattr(app.state, 'journey_log_client'):
         raise RuntimeError(
             "Journey-log client not initialized. "
@@ -194,7 +193,6 @@ def get_llm_client_override():
     Raises:
         RuntimeError: If llm_client is not initialized in app state
     """
-    from app.services.llm_client import LLMClient
     if not hasattr(app.state, 'llm_client'):
         raise RuntimeError(
             "LLM client not initialized. "
@@ -204,7 +202,7 @@ def get_llm_client_override():
 
 
 # Use FastAPI's dependency_overrides instead of monkey-patching
-from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
+from app.api.routes import get_http_client, get_journey_log_client, get_llm_client  # noqa: E402
 app.dependency_overrides[get_http_client] = get_http_client_override
 app.dependency_overrides[get_journey_log_client] = get_journey_log_client_override
 app.dependency_overrides[get_llm_client] = get_llm_client_override

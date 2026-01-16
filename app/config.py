@@ -17,9 +17,7 @@ This module loads and validates configuration from environment variables.
 All settings are validated at startup to fail fast if configuration is invalid.
 """
 
-import os
 from functools import lru_cache
-from typing import Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

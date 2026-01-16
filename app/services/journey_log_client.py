@@ -13,7 +13,6 @@
 # limitations under the License.
 """Journey-log service client for context retrieval and narrative persistence."""
 
-import logging
 import time
 from typing import Optional
 from httpx import AsyncClient, HTTPStatusError, TimeoutException
@@ -111,7 +110,7 @@ class JourneyLogClient:
             headers["X-Trace-Id"] = trace_id
 
         logger.info(
-            f"Fetching context from journey-log",
+            "Fetching context from journey-log",
             recent_n=recent_n
         )
 
@@ -128,7 +127,7 @@ class JourneyLogClient:
 
             data = response.json()
             logger.debug(
-                f"Context fetch successful",
+                "Context fetch successful",
                 status_code=getattr(response, 'status_code', None),
                 duration_ms=f"{duration_ms:.2f}",
                 response_size=len(str(data))
@@ -166,7 +165,7 @@ class JourneyLogClient:
             )
 
             logger.info(
-                f"Successfully fetched context",
+                "Successfully fetched context",
                 status=context.status,
                 has_quest=context.active_quest is not None,
                 history_turns=len(context.recent_history)
@@ -178,7 +177,7 @@ class JourneyLogClient:
             duration_ms = (time.time() - start_time) * 1000
             if e.response.status_code == 404:
                 logger.error(
-                    f"Character not found in journey-log",
+                    "Character not found in journey-log",
                     status_code=404,
                     duration_ms=f"{duration_ms:.2f}"
                 )
@@ -187,7 +186,7 @@ class JourneyLogClient:
                 ) from e
             else:
                 logger.error(
-                    f"HTTP error from journey-log",
+                    "HTTP error from journey-log",
                     status_code=e.response.status_code,
                     duration_ms=f"{duration_ms:.2f}",
                     error=redact_secrets(e.response.text)
@@ -199,7 +198,7 @@ class JourneyLogClient:
         except TimeoutException as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error(
-                f"Timeout fetching context",
+                "Timeout fetching context",
                 timeout_seconds=self.timeout,
                 duration_ms=f"{duration_ms:.2f}"
             )
@@ -210,7 +209,7 @@ class JourneyLogClient:
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error(
-                f"Unexpected error fetching context",
+                "Unexpected error fetching context",
                 error_type=type(e).__name__,
                 duration_ms=f"{duration_ms:.2f}"
             )
@@ -254,7 +253,7 @@ class JourneyLogClient:
         }
 
         logger.info(
-            f"Persisting narrative to journey-log",
+            "Persisting narrative to journey-log",
             action_length=len(user_action),
             narrative_length=len(narrative)
         )
@@ -271,7 +270,7 @@ class JourneyLogClient:
             response.raise_for_status()
 
             logger.info(
-                f"Successfully persisted narrative",
+                "Successfully persisted narrative",
                 status_code=getattr(response, 'status_code', None),
                 duration_ms=f"{duration_ms:.2f}"
             )
@@ -280,7 +279,7 @@ class JourneyLogClient:
             duration_ms = (time.time() - start_time) * 1000
             if e.response.status_code == 404:
                 logger.error(
-                    f"Character not found in journey-log",
+                    "Character not found in journey-log",
                     status_code=404,
                     duration_ms=f"{duration_ms:.2f}"
                 )
@@ -289,7 +288,7 @@ class JourneyLogClient:
                 ) from e
             else:
                 logger.error(
-                    f"HTTP error persisting narrative",
+                    "HTTP error persisting narrative",
                     status_code=e.response.status_code,
                     duration_ms=f"{duration_ms:.2f}",
                     error=redact_secrets(e.response.text)
@@ -301,7 +300,7 @@ class JourneyLogClient:
         except TimeoutException as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error(
-                f"Timeout persisting narrative",
+                "Timeout persisting narrative",
                 timeout_seconds=self.timeout,
                 duration_ms=f"{duration_ms:.2f}"
             )
@@ -312,7 +311,7 @@ class JourneyLogClient:
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error(
-                f"Unexpected error persisting narrative",
+                "Unexpected error persisting narrative",
                 error_type=type(e).__name__,
                 duration_ms=f"{duration_ms:.2f}"
             )

@@ -27,7 +27,7 @@ from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.logging import set_request_id, clear_context, get_request_id
+from app.logging import set_request_id, clear_context
 from app.metrics import get_metrics_collector, MetricsTimer
 
 logger = logging.getLogger(__name__)

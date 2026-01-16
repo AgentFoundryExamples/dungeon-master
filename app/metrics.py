@@ -20,8 +20,8 @@ This module provides simple in-memory metrics collection:
 """
 
 import time
-from typing import Dict, Optional, List
-from dataclasses import dataclass, field
+from typing import Dict, Optional
+from dataclasses import dataclass
 from threading import Lock
 from collections import defaultdict
 

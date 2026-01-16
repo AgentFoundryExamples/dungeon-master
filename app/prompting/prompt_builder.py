@@ -13,7 +13,6 @@
 # limitations under the License.
 """Prompt builder for constructing LLM prompts from game context."""
 
-import json
 from typing import Tuple
 from app.models import JourneyLogContext
 
