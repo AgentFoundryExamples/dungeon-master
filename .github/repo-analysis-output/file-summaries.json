@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 9,
+  "total_files": 18,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,9 +39,9 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 7938,
-        "loc": 171,
-        "todo_count": 1
+        "size_bytes": 12455,
+        "loc": 279,
+        "todo_count": 0
       }
     },
     {
@@ -53,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 4670,
-        "loc": 105,
+        "size_bytes": 4974,
+        "loc": 115,
         "todo_count": 0
       }
     },
@@ -67,8 +67,8 @@
       "summary": "Python main entry point (role: entry-point)",
       "summary_text": "Python main entry point (role: entry-point)",
       "metrics": {
-        "size_bytes": 4655,
-        "loc": 94,
+        "size_bytes": 6813,
+        "loc": 140,
         "todo_count": 0
       }
     },
@@ -83,6 +83,76 @@
       "metrics": {
         "size_bytes": 4603,
         "loc": 109,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/prompting/__init__.py",
+      "language": "Python",
+      "role": "module-init",
+      "role_justification": "module initialization file '__init__'",
+      "summary": "Python module initialization (role: module-init)",
+      "summary_text": "Python module initialization (role: module-init)",
+      "metrics": {
+        "size_bytes": 578,
+        "loc": 0,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/prompting/prompt_builder.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for prompt builder",
+      "summary_text": "Python module for prompt builder",
+      "metrics": {
+        "size_bytes": 7762,
+        "loc": 157,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/services/__init__.py",
+      "language": "Python",
+      "role": "module-init",
+      "role_justification": "module initialization file '__init__'",
+      "summary": "Python module initialization (role: module-init)",
+      "summary_text": "Python module initialization (role: module-init)",
+      "metrics": {
+        "size_bytes": 578,
+        "loc": 0,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/services/journey_log_client.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for journey log client",
+      "summary_text": "Python module for journey log client",
+      "metrics": {
+        "size_bytes": 9817,
+        "loc": 209,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/services/llm_client.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for llm client",
+      "summary_text": "Python module for llm client",
+      "metrics": {
+        "size_bytes": 8442,
+        "loc": 164,
         "todo_count": 0
       }
     },
@@ -123,8 +193,64 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 6541,
-        "loc": 141,
+        "size_bytes": 8667,
+        "loc": 180,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_journey_log_client.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 5971,
+        "loc": 121,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_llm_client.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 7253,
+        "loc": 160,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_prompt_builder.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 7867,
+        "loc": 175,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_turn_integration.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 10151,
+        "loc": 206,
         "todo_count": 0
       }
     }

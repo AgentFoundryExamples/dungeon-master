@@ -89,6 +89,38 @@
           ]
         },
         {
+          "type": "directory",
+          "name": "prompting",
+          "children": [
+            {
+              "type": "file",
+              "name": "__init__.py"
+            },
+            {
+              "type": "file",
+              "name": "prompt_builder.py"
+            }
+          ]
+        },
+        {
+          "type": "directory",
+          "name": "services",
+          "children": [
+            {
+              "type": "file",
+              "name": "__init__.py"
+            },
+            {
+              "type": "file",
+              "name": "journey_log_client.py"
+            },
+            {
+              "type": "file",
+              "name": "llm_client.py"
+            }
+          ]
+        },
+        {
           "type": "file",
           "name": "__init__.py"
         },
@@ -117,6 +149,22 @@
         {
           "type": "file",
           "name": "test_api.py"
+        },
+        {
+          "type": "file",
+          "name": "test_journey_log_client.py"
+        },
+        {
+          "type": "file",
+          "name": "test_llm_client.py"
+        },
+        {
+          "type": "file",
+          "name": "test_prompt_builder.py"
+        },
+        {
+          "type": "file",
+          "name": "test_turn_integration.py"
         }
       ]
     },

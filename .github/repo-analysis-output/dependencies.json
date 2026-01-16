@@ -89,6 +89,68 @@
       }
     },
     {
+      "id": "app/prompting/__init__.py",
+      "path": "app/prompting/__init__.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/prompting/prompt_builder.py",
+      "path": "app/prompting/prompt_builder.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json",
+          "typing.Tuple"
+        ],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/services/__init__.py",
+      "path": "app/services/__init__.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/services/journey_log_client.py",
+      "path": "app/services/journey_log_client.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "logging",
+          "typing.Optional"
+        ],
+        "third-party": [
+          "httpx.AsyncClient",
+          "httpx.HTTPStatusError",
+          "httpx.TimeoutException"
+        ]
+      }
+    },
+    {
+      "id": "app/services/llm_client.py",
+      "path": "app/services/llm_client.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json",
+          "logging",
+          "typing.Optional"
+        ],
+        "third-party": [
+          "openai",
+          "openai.AsyncOpenAI"
+        ]
+      }
+    },
+    {
       "id": "example_openai_usage.py",
       "path": "example_openai_usage.py",
       "type": "file",
@@ -120,12 +182,82 @@
       "external_dependencies": {
         "stdlib": [
           "os",
+          "unittest.mock.AsyncMock",
+          "unittest.mock.MagicMock",
           "unittest.mock.patch"
         ],
         "third-party": [
           "fastapi.testclient.TestClient",
           "httpx.AsyncClient",
+          "httpx.Response",
           "pydantic.ValidationError",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_journey_log_client.py",
+      "path": "tests/test_journey_log_client.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "unittest.mock.AsyncMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "httpx.AsyncClient",
+          "httpx.HTTPStatusError",
+          "httpx.Request",
+          "httpx.Response",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_llm_client.py",
+      "path": "tests/test_llm_client.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "unittest.mock.AsyncMock",
+          "unittest.mock.MagicMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "openai",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_prompt_builder.py",
+      "path": "tests/test_prompt_builder.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_turn_integration.py",
+      "path": "tests/test_turn_integration.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "os",
+          "unittest.mock.AsyncMock",
+          "unittest.mock.MagicMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "fastapi.testclient.TestClient",
+          "httpx.AsyncClient",
+          "httpx.HTTPStatusError",
+          "httpx.Request",
+          "httpx.Response",
+          "httpx.TimeoutException",
           "pytest"
         ]
       }
@@ -141,6 +273,18 @@
       "target": "app/config.py"
     },
     {
+      "source": "app/api/routes.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "app/api/routes.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "app/api/routes.py",
+      "target": "app/prompting/prompt_builder.py"
+    },
+    {
       "source": "app/main.py",
       "target": "app/api/routes.py"
     },
@@ -149,8 +293,32 @@
       "target": "app/config.py"
     },
     {
+      "source": "app/main.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "app/prompting/prompt_builder.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "app/services/journey_log_client.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "example_openai_usage.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
       "source": "example_openai_usage.py",
       "target": "app/__init__.py"
+    },
+    {
+      "source": "example_openai_usage.py",
+      "target": "app/services/__init__.py"
     },
     {
       "source": "tests/test_api.py",
@@ -162,23 +330,71 @@
     },
     {
       "source": "tests/test_api.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_api.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_api.py",
       "target": "app/api/routes.py"
     },
     {
       "source": "tests/test_api.py",
       "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_journey_log_client.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_llm_client.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_prompt_builder.py",
+      "target": "app/prompting/prompt_builder.py"
+    },
+    {
+      "source": "tests/test_prompt_builder.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/config.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/main.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/api/routes.py"
     }
   ],
   "external_dependencies_summary": {
     "stdlib": [
       "contextlib.asynccontextmanager",
       "functools.lru_cache",
+      "json",
       "logging",
       "os",
       "re",
       "time",
       "typing.List",
       "typing.Optional",
+      "typing.Tuple",
+      "unittest.mock.AsyncMock",
+      "unittest.mock.MagicMock",
       "unittest.mock.patch",
       "uuid.UUID"
     ],
@@ -191,7 +407,12 @@
       "fastapi.status",
       "fastapi.testclient.TestClient",
       "httpx.AsyncClient",
+      "httpx.HTTPStatusError",
+      "httpx.Request",
+      "httpx.Response",
+      "httpx.TimeoutException",
       "openai",
+      "openai.AsyncOpenAI",
       "openai.OpenAI",
       "pydantic.BaseModel",
       "pydantic.Field",
@@ -202,7 +423,7 @@
       "pytest",
       "uvicorn"
     ],
-    "stdlib_count": 10,
-    "third-party_count": 18
+    "stdlib_count": 14,
+    "third-party_count": 23
   }
 }
