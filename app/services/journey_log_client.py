@@ -483,3 +483,380 @@ class JourneyLogClient:
             raise JourneyLogClientError(
                 f"Failed to persist narrative: {e}"
             ) from e
+    
+    async def put_quest(
+        self,
+        character_id: str,
+        quest_data: Optional[dict],
+        trace_id: Optional[str] = None
+    ) -> None:
+        """Create or update a quest for the character.
+        
+        Makes a PUT request to /characters/{character_id}/quest with quest data.
+        
+        Args:
+            character_id: UUID of the character
+            quest_data: Quest information (title, summary, details)
+            trace_id: Optional trace ID for request correlation
+            
+        Raises:
+            JourneyLogNotFoundError: If character not found (404)
+            JourneyLogTimeoutError: If request times out
+            JourneyLogClientError: For other errors
+        """
+        url = f"{self.base_url}/characters/{character_id}/quest"
+        
+        headers = {}
+        if trace_id:
+            headers["X-Trace-Id"] = trace_id
+        
+        logger.info(
+            "Putting quest to journey-log",
+            quest_title=quest_data.get("title") if quest_data else None
+        )
+        
+        start_time = time.time()
+        try:
+            response = await self.http_client.put(
+                url,
+                json=quest_data or {},
+                headers=headers,
+                timeout=self.timeout
+            )
+            duration_ms = (time.time() - start_time) * 1000
+            response.raise_for_status()
+            
+            logger.info(
+                "Successfully put quest",
+                status_code=getattr(response, 'status_code', None),
+                duration_ms=f"{duration_ms:.2f}"
+            )
+        
+        except HTTPStatusError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            if e.response.status_code == 404:
+                logger.error(
+                    "Character not found in journey-log",
+                    status_code=404,
+                    duration_ms=f"{duration_ms:.2f}"
+                )
+                raise JourneyLogNotFoundError(
+                    f"Character {character_id} not found"
+                ) from e
+            else:
+                logger.error(
+                    "HTTP error putting quest",
+                    status_code=e.response.status_code,
+                    duration_ms=f"{duration_ms:.2f}",
+                    error=redact_secrets(e.response.text)
+                )
+                raise JourneyLogClientError(
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                ) from e
+        
+        except TimeoutException as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Timeout putting quest",
+                timeout_seconds=self.timeout,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogTimeoutError(
+                f"Journey-log request timed out after {self.timeout}s"
+            ) from e
+        
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Unexpected error putting quest",
+                error_type=type(e).__name__,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogClientError(
+                f"Failed to put quest: {e}"
+            ) from e
+    
+    async def delete_quest(
+        self,
+        character_id: str,
+        trace_id: Optional[str] = None
+    ) -> None:
+        """Delete (complete/abandon) the active quest for the character.
+        
+        Makes a DELETE request to /characters/{character_id}/quest.
+        
+        Args:
+            character_id: UUID of the character
+            trace_id: Optional trace ID for request correlation
+            
+        Raises:
+            JourneyLogNotFoundError: If character not found (404)
+            JourneyLogTimeoutError: If request times out
+            JourneyLogClientError: For other errors
+        """
+        url = f"{self.base_url}/characters/{character_id}/quest"
+        
+        headers = {}
+        if trace_id:
+            headers["X-Trace-Id"] = trace_id
+        
+        logger.info("Deleting quest from journey-log")
+        
+        start_time = time.time()
+        try:
+            response = await self.http_client.delete(
+                url,
+                headers=headers,
+                timeout=self.timeout
+            )
+            duration_ms = (time.time() - start_time) * 1000
+            response.raise_for_status()
+            
+            logger.info(
+                "Successfully deleted quest",
+                status_code=getattr(response, 'status_code', None),
+                duration_ms=f"{duration_ms:.2f}"
+            )
+        
+        except HTTPStatusError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            if e.response.status_code == 404:
+                logger.error(
+                    "Character not found in journey-log",
+                    status_code=404,
+                    duration_ms=f"{duration_ms:.2f}"
+                )
+                raise JourneyLogNotFoundError(
+                    f"Character {character_id} not found"
+                ) from e
+            else:
+                logger.error(
+                    "HTTP error deleting quest",
+                    status_code=e.response.status_code,
+                    duration_ms=f"{duration_ms:.2f}",
+                    error=redact_secrets(e.response.text)
+                )
+                raise JourneyLogClientError(
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                ) from e
+        
+        except TimeoutException as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Timeout deleting quest",
+                timeout_seconds=self.timeout,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogTimeoutError(
+                f"Journey-log request timed out after {self.timeout}s"
+            ) from e
+        
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Unexpected error deleting quest",
+                error_type=type(e).__name__,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogClientError(
+                f"Failed to delete quest: {e}"
+            ) from e
+    
+    async def put_combat(
+        self,
+        character_id: str,
+        combat_data: Optional[dict],
+        action_type: str,
+        trace_id: Optional[str] = None
+    ) -> None:
+        """Create, update, or end combat for the character.
+        
+        Makes a PUT request to /characters/{character_id}/combat with combat data.
+        
+        Args:
+            character_id: UUID of the character
+            combat_data: Combat information (enemies, notes, etc.)
+            action_type: Type of combat action (start/continue/end)
+            trace_id: Optional trace ID for request correlation
+            
+        Raises:
+            JourneyLogNotFoundError: If character not found (404)
+            JourneyLogTimeoutError: If request times out
+            JourneyLogClientError: For other errors
+        """
+        url = f"{self.base_url}/characters/{character_id}/combat"
+        
+        headers = {}
+        if trace_id:
+            headers["X-Trace-Id"] = trace_id
+        
+        logger.info(
+            "Putting combat to journey-log",
+            action_type=action_type
+        )
+        
+        start_time = time.time()
+        try:
+            # Build request payload based on action type
+            payload = {"action": action_type}
+            if combat_data:
+                payload.update(combat_data)
+            
+            response = await self.http_client.put(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.timeout
+            )
+            duration_ms = (time.time() - start_time) * 1000
+            response.raise_for_status()
+            
+            logger.info(
+                "Successfully put combat",
+                status_code=getattr(response, 'status_code', None),
+                duration_ms=f"{duration_ms:.2f}"
+            )
+        
+        except HTTPStatusError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            if e.response.status_code == 404:
+                logger.error(
+                    "Character not found in journey-log",
+                    status_code=404,
+                    duration_ms=f"{duration_ms:.2f}"
+                )
+                raise JourneyLogNotFoundError(
+                    f"Character {character_id} not found"
+                ) from e
+            else:
+                logger.error(
+                    "HTTP error putting combat",
+                    status_code=e.response.status_code,
+                    duration_ms=f"{duration_ms:.2f}",
+                    error=redact_secrets(e.response.text)
+                )
+                raise JourneyLogClientError(
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                ) from e
+        
+        except TimeoutException as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Timeout putting combat",
+                timeout_seconds=self.timeout,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogTimeoutError(
+                f"Journey-log request timed out after {self.timeout}s"
+            ) from e
+        
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Unexpected error putting combat",
+                error_type=type(e).__name__,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogClientError(
+                f"Failed to put combat: {e}"
+            ) from e
+    
+    async def post_poi(
+        self,
+        character_id: str,
+        poi_data: Optional[dict],
+        action_type: str,
+        trace_id: Optional[str] = None
+    ) -> None:
+        """Create or reference a point of interest.
+        
+        Makes a POST request to /characters/{character_id}/pois with POI data.
+        
+        Args:
+            character_id: UUID of the character
+            poi_data: POI information (name, description, tags)
+            action_type: Type of POI action (create/reference)
+            trace_id: Optional trace ID for request correlation
+            
+        Raises:
+            JourneyLogNotFoundError: If character not found (404)
+            JourneyLogTimeoutError: If request times out
+            JourneyLogClientError: For other errors
+        """
+        url = f"{self.base_url}/characters/{character_id}/pois"
+        
+        headers = {}
+        if trace_id:
+            headers["X-Trace-Id"] = trace_id
+        
+        logger.info(
+            "Posting POI to journey-log",
+            action_type=action_type,
+            poi_name=poi_data.get("name") if poi_data else None
+        )
+        
+        start_time = time.time()
+        try:
+            # Build request payload
+            payload = {"action": action_type}
+            if poi_data:
+                payload.update(poi_data)
+            
+            response = await self.http_client.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.timeout
+            )
+            duration_ms = (time.time() - start_time) * 1000
+            response.raise_for_status()
+            
+            logger.info(
+                "Successfully posted POI",
+                status_code=getattr(response, 'status_code', None),
+                duration_ms=f"{duration_ms:.2f}"
+            )
+        
+        except HTTPStatusError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            if e.response.status_code == 404:
+                logger.error(
+                    "Character not found in journey-log",
+                    status_code=404,
+                    duration_ms=f"{duration_ms:.2f}"
+                )
+                raise JourneyLogNotFoundError(
+                    f"Character {character_id} not found"
+                ) from e
+            else:
+                logger.error(
+                    "HTTP error posting POI",
+                    status_code=e.response.status_code,
+                    duration_ms=f"{duration_ms:.2f}",
+                    error=redact_secrets(e.response.text)
+                )
+                raise JourneyLogClientError(
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}"
+                ) from e
+        
+        except TimeoutException as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Timeout posting POI",
+                timeout_seconds=self.timeout,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogTimeoutError(
+                f"Journey-log request timed out after {self.timeout}s"
+            ) from e
+        
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Unexpected error posting POI",
+                error_type=type(e).__name__,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogClientError(
+                f"Failed to post POI: {e}"
+            ) from e
