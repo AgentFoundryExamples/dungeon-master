@@ -76,6 +76,7 @@ class RequestCorrelationMiddleware(BaseHTTPMiddleware):
             }
         )
         
+        response = None
         try:
             # Process request with metrics timing if enabled
             # Track turn endpoint requests separately for more detailed metrics
@@ -111,6 +112,10 @@ class RequestCorrelationMiddleware(BaseHTTPMiddleware):
             # Calculate duration even on error
             duration_ms = (time.time() - start_time) * 1000
             
+            # Record metrics for unhandled exception
+            if (collector := get_metrics_collector()):
+                collector.record_request(500)
+            
             # Log request error
             logger.error(
                 f"Request failed: {request.method} {request.url.path} - {type(e).__name__}",
@@ -128,4 +133,6 @@ class RequestCorrelationMiddleware(BaseHTTPMiddleware):
             
         finally:
             # Clear context to prevent leaks across requests
+            # Note: Context is cleared after response/exception handling to ensure
+            # error responses can still access request_id from context
             clear_context()

@@ -320,7 +320,12 @@ async def process_turn(
         ) from e
     except Exception as e:
         # Catch-all for unexpected errors
-        logger.error("Unexpected error processing turn", error=str(e), error_type=type(e).__name__)
+        logger.error(
+            "Unexpected error processing turn",
+            error=str(e),
+            error_type=type(e).__name__,
+            exc_info=True
+        )
         if (collector := get_metrics_collector()):
             collector.record_error("internal_error")
         raise create_error_response(

@@ -234,6 +234,14 @@ class JsonFormatter(logging.Formatter):
     - additional fields from extra
     """
     
+    # Reserved attributes from Python's logging module that should not be added to log_data
+    RESERVED_ATTRS = {
+        'name', 'msg', 'args', 'levelname', 'levelno', 'pathname', 'filename',
+        'module', 'exc_info', 'exc_text', 'stack_info', 'lineno', 'funcName',
+        'created', 'msecs', 'relativeCreated', 'thread', 'threadName',
+        'processName', 'process', 'message'
+    }
+    
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as JSON.
         
@@ -250,19 +258,9 @@ class JsonFormatter(logging.Formatter):
             'message': record.getMessage()
         }
         
-        # Add correlation IDs if present in record
-        if hasattr(record, 'request_id') and record.request_id:
-            log_data['request_id'] = record.request_id
-        if hasattr(record, 'character_id') and record.character_id:
-            log_data['character_id'] = record.character_id
-        
-        # Add any additional extra fields
+        # Add all other attributes from the record that are not reserved
         for key, value in record.__dict__.items():
-            if key not in ['name', 'msg', 'args', 'created', 'filename', 'funcName',
-                          'levelname', 'levelno', 'lineno', 'module', 'msecs',
-                          'message', 'pathname', 'process', 'processName', 'relativeCreated',
-                          'thread', 'threadName', 'exc_info', 'exc_text', 'stack_info',
-                          'request_id', 'character_id', 'timestamp', 'level', 'logger']:
+            if key not in self.RESERVED_ATTRS and key not in log_data:
                 log_data[key] = value
         
         # Add exception info if present
