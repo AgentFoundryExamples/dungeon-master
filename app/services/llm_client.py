@@ -51,7 +51,7 @@ class LLMClient:
     - Handles errors and provides fallback mechanisms
     - Supports stub/mock mode for offline development
     """
-    
+
     def __init__(
         self,
         api_key: str,
@@ -69,11 +69,11 @@ class LLMClient:
         """
         if not api_key or api_key.strip() == "":
             raise LLMConfigurationError("API key cannot be empty")
-        
+
         self.model = model
         self.timeout = timeout
         self.stub_mode = stub_mode
-        
+
         if not stub_mode:
             self.client = AsyncOpenAI(
                 api_key=api_key,
@@ -85,7 +85,7 @@ class LLMClient:
         else:
             self.client = None
             logger.info("Initialized LLMClient in STUB MODE (no API calls will be made)")
-    
+
     async def generate_narrative(
         self,
         system_instructions: str,
@@ -109,13 +109,13 @@ class LLMClient:
         """
         if self.stub_mode:
             return self._generate_stub_narrative(user_prompt)
-        
+
         logger.info(
             f"Generating narrative with model={self.model} "
             f"(instructions_len={len(system_instructions)}, "
             f"prompt_len={len(user_prompt)}, trace_id={trace_id})"
         )
-        
+
         try:
             # Use OpenAI Responses API as per LLMs.md guidelines
             # The Responses API uses 'instructions' for system context and 'input' for user message
@@ -138,14 +138,14 @@ class LLMClient:
                     "additionalProperties": False
                 }}}
             )
-            
+
             # Extract content from Responses API structure
             if not response.output:
                 logger.error("OpenAI API returned empty output")
                 raise LLMResponseError("LLM returned empty output")
-            
+
             output_item = response.output[0]
-            
+
             # Extract text content
             if isinstance(output_item.content, str):
                 content = output_item.content
@@ -159,25 +159,25 @@ class LLMClient:
                 content = "".join(text_parts)
             else:
                 content = None
-            
+
             if not content:
                 logger.error("OpenAI API returned empty content")
                 raise LLMResponseError("LLM returned empty content")
-            
+
             # Parse the JSON response to extract narrative
             try:
                 response_data = json.loads(content)
                 narrative = response_data.get("narrative", "").strip()
-                
+
                 if not narrative:
                     logger.error("LLM response missing 'narrative' field or empty")
                     raise LLMResponseError("LLM response missing narrative field")
-                
+
                 logger.info(
                     f"Successfully generated narrative: {len(narrative)} characters"
                 )
                 return narrative
-                
+
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse LLM response as JSON: {e}")
                 # Fallback: try to extract narrative from raw content
@@ -187,29 +187,29 @@ class LLMClient:
                     return content.strip()
                 else:
                     raise LLMResponseError(f"Failed to parse LLM response: {e}") from e
-            
+
         except openai.APITimeoutError as e:
             logger.error(f"LLM request timed out after {self.timeout}s")
             raise LLMTimeoutError(
                 f"LLM request timed out after {self.timeout}s"
             ) from e
-            
+
         except openai.AuthenticationError as e:
             logger.error("LLM authentication failed - invalid API key")
             raise LLMConfigurationError("Invalid OpenAI API key") from e
-            
+
         except openai.BadRequestError as e:
             logger.error(f"LLM bad request error: {e}")
             raise LLMClientError(f"Invalid request to LLM: {e}") from e
-            
+
         except (LLMResponseError, LLMTimeoutError, LLMConfigurationError):
             # Re-raise our custom exceptions
             raise
-            
+
         except Exception as e:
             logger.error(f"Unexpected error during LLM generation: {e}")
             raise LLMClientError(f"Failed to generate narrative: {e}") from e
-    
+
     def _generate_stub_narrative(self, user_prompt: str) -> str:
         """Generate stub narrative for offline development.
         
@@ -220,10 +220,10 @@ class LLMClient:
             Stub narrative response
         """
         logger.debug("Generating stub narrative (API not called)")
-        
+
         # Extract a snippet from the prompt to make the stub response more relevant
         prompt_snippet = user_prompt[:100] if len(user_prompt) > 100 else user_prompt
-        
+
         return (
             f"[STUB MODE] This is a placeholder narrative response. "
             f"In production, this would be generated by {self.model}. "

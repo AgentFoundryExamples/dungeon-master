@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info("Starting Dungeon Master service...")
-    
+
     # Validate configuration at startup
     try:
         settings = get_settings()
@@ -61,13 +61,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Configuration validation failed: {e}")
         raise
-    
+
     # Initialize HTTP client and store in app state
     app.state.http_client = AsyncClient()
     logger.info("HTTP client initialized")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down Dungeon Master service...")
     if hasattr(app.state, 'http_client'):
@@ -135,12 +135,12 @@ app.dependency_overrides[get_http_client] = get_http_client_override
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     settings = get_settings()
-    
+
     # Configure log level from settings
     logging.getLogger().setLevel(settings.log_level)
-    
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

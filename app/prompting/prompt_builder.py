@@ -29,7 +29,7 @@ class PromptBuilder:
     The modular structure allows downstream subsystems to extend prompts
     with additional context or instructions.
     """
-    
+
     SYSTEM_INSTRUCTIONS = """You are a narrative engine and decision-making system for a text-based adventure game.
 
 Your role:
@@ -54,11 +54,11 @@ Generate a narrative response that:
 - Directly addresses the player's action
 - Advances the story naturally
 - Maintains immersion and engagement"""
-    
+
     def __init__(self):
         """Initialize the prompt builder."""
         pass
-    
+
     def build_prompt(
         self,
         context: JourneyLogContext,
@@ -77,7 +77,7 @@ Generate a narrative response that:
         """
         # Serialize the context into a structured format
         context_str = self._serialize_context(context)
-        
+
         # Build the user prompt combining context and action
         user_prompt = f"""{context_str}
 
@@ -85,9 +85,9 @@ PLAYER ACTION:
 {user_action}
 
 Generate a narrative response to the player's action based on the above context."""
-        
+
         return (self.SYSTEM_INSTRUCTIONS, user_prompt)
-    
+
     def _serialize_context(self, context: JourneyLogContext) -> str:
         """Serialize game context into a readable format for the LLM.
         
@@ -98,31 +98,31 @@ Generate a narrative response to the player's action based on the above context.
             Formatted context string
         """
         sections = []
-        
+
         # Character Status
         sections.append(f"CHARACTER STATUS: {context.status}")
-        
+
         # Location
         location_str = self._format_location(context.location)
         sections.append(f"CURRENT LOCATION: {location_str}")
-        
+
         # Active Quest
         if context.active_quest:
             quest_str = self._format_quest(context.active_quest)
             sections.append(f"ACTIVE QUEST:\n{quest_str}")
-        
+
         # Combat State
         if context.combat_state:
             combat_str = self._format_combat(context.combat_state)
             sections.append(f"COMBAT STATE:\n{combat_str}")
-        
+
         # Recent History
         if context.recent_history:
             history_str = self._format_history(context.recent_history)
             sections.append(f"RECENT NARRATIVE HISTORY:\n{history_str}")
-        
+
         return "\n\n".join(sections)
-    
+
     def _format_location(self, location: dict) -> str:
         """Format location information.
         
@@ -142,7 +142,7 @@ Generate a narrative response to the player's action based on the above context.
             return location
         else:
             return "Unknown Location"
-    
+
     def _format_quest(self, quest: dict) -> str:
         """Format quest information.
         
@@ -155,20 +155,20 @@ Generate a narrative response to the player's action based on the above context.
         name = quest.get("name", "Unknown Quest")
         description = quest.get("description", "")
         completion_state = quest.get("completion_state", "unknown")
-        
+
         lines = [
             f"  Name: {name}",
             f"  Description: {description}",
             f"  Status: {completion_state}"
         ]
-        
+
         requirements = quest.get("requirements", [])
         if requirements:
             req_str = ", ".join(requirements)
             lines.append(f"  Requirements: {req_str}")
-        
+
         return "\n".join(lines)
-    
+
     def _format_combat(self, combat_state: dict) -> str:
         """Format combat state information.
         
@@ -180,12 +180,12 @@ Generate a narrative response to the player's action based on the above context.
         """
         if not combat_state:
             return "  No active combat"
-        
+
         turn = combat_state.get("turn", 1)
         enemies = combat_state.get("enemies", [])
-        
+
         lines = [f"  Turn: {turn}"]
-        
+
         if enemies:
             lines.append(f"  Enemies ({len(enemies)}):")
             for enemy in enemies:
@@ -194,9 +194,9 @@ Generate a narrative response to the player's action based on the above context.
                 weapon = enemy.get("weapon", "")
                 weapon_str = f" (armed with {weapon})" if weapon else ""
                 lines.append(f"    - {name}: {status}{weapon_str}")
-        
+
         return "\n".join(lines)
-    
+
     def _format_history(self, history: list) -> str:
         """Format recent narrative history.
         
@@ -208,23 +208,23 @@ Generate a narrative response to the player's action based on the above context.
         """
         if not history:
             return "  (No recent history)"
-        
+
         # Show last 5 turns for context (most recent last)
         recent_turns = history[-5:] if len(history) > 5 else history
-        
+
         lines = []
         for i, turn in enumerate(recent_turns, 1):
             player_action = turn.get("player_action", "")
             gm_response = turn.get("gm_response", "")
-            
+
             # Truncate long responses for context efficiency
             if len(player_action) > 200:
                 player_action = player_action[:200] + "..."
             if len(gm_response) > 300:
                 gm_response = gm_response[:300] + "..."
-            
+
             lines.append(f"  Turn {i}:")
             lines.append(f"    Player: {player_action}")
             lines.append(f"    GM: {gm_response}")
-        
+
         return "\n".join(lines)

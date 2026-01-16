@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     All settings can be overridden via environment variables.
     See .env.example for detailed documentation of each setting.
     """
-    
+
     # Journey Log Service Configuration
     journey_log_base_url: str = Field(
         ...,
@@ -43,7 +43,7 @@ class Settings(BaseSettings):
         le=300,
         description="HTTP timeout for journey-log requests in seconds"
     )
-    
+
     # OpenAI Configuration
     openai_api_key: str = Field(
         ...,
@@ -69,13 +69,13 @@ class Settings(BaseSettings):
         le=100,
         description="Default number of recent narrative turns to fetch from journey-log"
     )
-    
+
     # Health Check Configuration
     health_check_journey_log: bool = Field(
         default=False,
         description="Whether to ping journey-log service during health checks"
     )
-    
+
     # Service Configuration
     service_name: str = Field(
         default="dungeon-master",
@@ -85,7 +85,7 @@ class Settings(BaseSettings):
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
     )
-    
+
     @field_validator('journey_log_base_url')
     @classmethod
     def validate_journey_log_url(cls, v: str) -> str:
@@ -98,7 +98,7 @@ class Settings(BaseSettings):
             )
         # Remove trailing slash for consistency
         return v.rstrip('/')
-    
+
     @field_validator('openai_api_key')
     @classmethod
     def validate_openai_key(cls, v: str) -> str:
@@ -108,7 +108,7 @@ class Settings(BaseSettings):
                 "openai_api_key cannot be empty. Set OPENAI_API_KEY environment variable."
             )
         return v
-    
+
     @field_validator('log_level')
     @classmethod
     def validate_log_level(cls, v: str) -> str:
@@ -120,7 +120,7 @@ class Settings(BaseSettings):
                 f"log_level must be one of {valid_levels}, got: {v}"
             )
         return v_upper
-    
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

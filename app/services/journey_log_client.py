@@ -44,7 +44,7 @@ class JourneyLogClient:
     - Persisting narrative turns after LLM generation
     - Error handling and retries for transient failures
     """
-    
+
     def __init__(
         self,
         base_url: str,
@@ -64,12 +64,12 @@ class JourneyLogClient:
         self.http_client = http_client
         self.timeout = timeout
         self.recent_n_default = recent_n_default
-        
+
         logger.info(
             f"Initialized JourneyLogClient with base_url={self.base_url}, "
             f"timeout={self.timeout}s, recent_n_default={self.recent_n_default}"
         )
-    
+
     async def get_context(
         self,
         character_id: str,
@@ -97,22 +97,22 @@ class JourneyLogClient:
         """
         if recent_n is None:
             recent_n = self.recent_n_default
-        
+
         url = f"{self.base_url}/characters/{character_id}/context"
         params = {
             "recent_n": recent_n,
             "include_pois": False
         }
-        
+
         headers = {}
         if trace_id:
             headers["X-Trace-Id"] = trace_id
-        
+
         logger.info(
             f"Fetching context for character {character_id} "
             f"(recent_n={recent_n}, trace_id={trace_id})"
         )
-        
+
         try:
             response = await self.http_client.get(
                 url,
@@ -121,10 +121,10 @@ class JourneyLogClient:
                 timeout=self.timeout
             )
             response.raise_for_status()
-            
+
             data = response.json()
             logger.debug(f"Received context response: {len(str(data))} bytes")
-            
+
             # Map the journey-log response to our JourneyLogContext model
             # The journey-log API returns a CharacterContextResponse structure
             context = JourneyLogContext(
@@ -142,16 +142,16 @@ class JourneyLogClient:
                     for turn in data.get("narrative", {}).get("recent_turns", [])
                 ]
             )
-            
+
             logger.info(
                 f"Successfully fetched context for {character_id}: "
                 f"status={context.status}, "
                 f"has_quest={context.active_quest is not None}, "
                 f"history_turns={len(context.recent_history)}"
             )
-            
+
             return context
-            
+
         except HTTPStatusError as e:
             if e.response.status_code == 404:
                 logger.error(f"Character {character_id} not found in journey-log")
@@ -165,19 +165,19 @@ class JourneyLogClient:
                 raise JourneyLogClientError(
                     f"Journey-log returned {e.response.status_code}: {e.response.text}"
                 ) from e
-                
+
         except TimeoutException as e:
             logger.error(f"Timeout fetching context for {character_id}")
             raise JourneyLogTimeoutError(
                 f"Journey-log request timed out after {self.timeout}s"
             ) from e
-            
+
         except Exception as e:
             logger.error(f"Unexpected error fetching context: {e}")
             raise JourneyLogClientError(
                 f"Failed to fetch context: {e}"
             ) from e
-    
+
     async def persist_narrative(
         self,
         character_id: str,
@@ -203,22 +203,22 @@ class JourneyLogClient:
             JourneyLogClientError: For other errors
         """
         url = f"{self.base_url}/characters/{character_id}/narrative"
-        
+
         headers = {}
         if trace_id:
             headers["X-Trace-Id"] = trace_id
-        
+
         payload = {
             "user_action": user_action,
             "ai_response": narrative
         }
-        
+
         logger.info(
             f"Persisting narrative for character {character_id} "
             f"(action_len={len(user_action)}, narrative_len={len(narrative)}, "
             f"trace_id={trace_id})"
         )
-        
+
         try:
             response = await self.http_client.post(
                 url,
@@ -227,9 +227,9 @@ class JourneyLogClient:
                 timeout=self.timeout
             )
             response.raise_for_status()
-            
+
             logger.info(f"Successfully persisted narrative for {character_id}")
-            
+
         except HTTPStatusError as e:
             if e.response.status_code == 404:
                 logger.error(f"Character {character_id} not found in journey-log")
@@ -243,13 +243,13 @@ class JourneyLogClient:
                 raise JourneyLogClientError(
                     f"Journey-log returned {e.response.status_code}: {e.response.text}"
                 ) from e
-                
+
         except TimeoutException as e:
             logger.error(f"Timeout persisting narrative for {character_id}")
             raise JourneyLogTimeoutError(
                 f"Journey-log request timed out after {self.timeout}s"
             ) from e
-            
+
         except Exception as e:
             logger.error(f"Unexpected error persisting narrative: {e}")
             raise JourneyLogClientError(

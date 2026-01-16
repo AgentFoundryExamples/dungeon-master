@@ -138,12 +138,12 @@ async def process_turn(
     # Sanitize inputs for logging to prevent log injection
     safe_character_id = sanitize_for_log(request.character_id, 36)
     safe_action = sanitize_for_log(request.user_action, 50)
-    
+
     logger.info(
         f"Processing turn for character {safe_character_id}: {safe_action}... "
         f"(trace_id={request.trace_id})"
     )
-    
+
     try:
         # Step 1: Initialize clients
         journey_log_client = JourneyLogClient(
@@ -152,16 +152,16 @@ async def process_turn(
             timeout=settings.journey_log_timeout,
             recent_n_default=settings.journey_log_recent_n
         )
-        
+
         llm_client = LLMClient(
             api_key=settings.openai_api_key,
             model=settings.openai_model,
             timeout=settings.openai_timeout,
             stub_mode=settings.openai_stub_mode
         )
-        
+
         prompt_builder = PromptBuilder()
-        
+
         # Step 2: Fetch context from journey-log
         logger.debug(f"Fetching context for character {safe_character_id}")
         try:
@@ -187,14 +187,14 @@ async def process_turn(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to fetch context from journey-log: {str(e)}"
             ) from e
-        
+
         # Step 3: Build prompt
         logger.debug("Building prompt from context and user action")
         system_instructions, user_prompt = prompt_builder.build_prompt(
             context=context,
             user_action=request.user_action
         )
-        
+
         # Step 4: Call LLM for narrative generation
         logger.debug("Generating narrative with LLM")
         try:
@@ -221,7 +221,7 @@ async def process_turn(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to generate narrative: {str(e)}"
             ) from e
-        
+
         # Step 5: Persist to journey-log
         logger.debug("Persisting narrative to journey-log")
         try:
@@ -245,14 +245,14 @@ async def process_turn(
                 f"Failed to persist narrative: {e}. "
                 "Returning narrative to user anyway."
             )
-        
+
         # Step 6: Return response
         logger.info(
             f"Successfully processed turn for {safe_character_id}: "
             f"generated {len(narrative)} character narrative"
         )
         return TurnResponse(narrative=narrative)
-        
+
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
@@ -321,10 +321,10 @@ async def health_check(
         HealthResponse with status and optional journey-log accessibility
     """
     logger.debug("Health check requested")
-    
+
     journey_log_accessible = None
     service_status = "healthy"
-    
+
     # Optionally check journey-log service accessibility
     if settings.health_check_journey_log:
         try:
@@ -334,7 +334,7 @@ async def health_check(
                 timeout=5.0  # Short timeout for health checks
             )
             journey_log_accessible = response.status_code == 200
-            
+
             if not journey_log_accessible:
                 logger.warning(
                     f"Journey-log health check returned status {response.status_code}"
@@ -344,7 +344,7 @@ async def health_check(
             logger.warning(f"Journey-log health check failed: {e}")
             journey_log_accessible = False
             service_status = "degraded"
-    
+
     return HealthResponse(
         status=service_status,
         service=settings.service_name,
