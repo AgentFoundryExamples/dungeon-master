@@ -615,7 +615,7 @@ async def debug_parse_llm(
     
     # Build summary of intents if outcome is valid
     intents_summary = None
-    if parsed.is_valid and parsed.outcome:
+    if parsed.is_valid and parsed.outcome and parsed.outcome.intents:
         intents_summary = {
             "has_quest_intent": parsed.outcome.intents.quest_intent is not None,
             "has_combat_intent": parsed.outcome.intents.combat_intent is not None,
