@@ -75,6 +75,43 @@ class PolicyState(BaseModel):
     quest and POI eligibility, including timestamps, turn counters, combat flags,
     and player engagement metadata.
     
+    **Field Authoritative Sources:**
+    
+    Journey-log managed (authoritative):
+    - has_active_quest: Derived from quest field in CharacterContextResponse
+    - combat_active: Derived from combat.active field in CharacterContextResponse
+    
+    DM-managed via additional_fields (interim storage until journey-log support):
+    - last_quest_offered_at: Timestamp when DM last offered a quest
+    - last_poi_created_at: Timestamp when DM last created a POI
+    - turns_since_last_quest: Turn counter incremented by DM per narrative turn
+    - turns_since_last_poi: Turn counter incremented by DM per narrative turn
+    - user_is_wandering: Flag set by DM based on LLM meta intents
+    - requested_guidance: Flag set by DM when player explicitly asks for help
+    
+    **Coordination with Journey-Log:**
+    
+    The DM service currently stores quest/POI timestamps and turn counters in
+    journey-log's player_state.additional_fields as a temporary solution. These
+    fields enable policy decisions without waiting for journey-log schema evolution.
+    
+    Future journey-log enhancements will provide first-class fields for quest/POI
+    history, at which point the DM service will migrate to reading from those
+    authoritative sources. The additional_fields storage mechanism ensures forward
+    compatibility and allows policy logic to work today.
+    
+    **State Write Pattern (Not Implemented Yet):**
+    
+    When the DM service makes policy decisions (e.g., offer quest, create POI),
+    it will eventually write back to journey-log to update:
+    - Quest history timestamps (via future journey-log endpoints)
+    - POI creation timestamps (via future journey-log endpoints)
+    - Turn counters (incremented on each narrative append)
+    
+    The write-back mechanism is deliberately not implemented yet to avoid coupling
+    with journey-log schema changes. For now, the DM service reads state from
+    additional_fields and can mock writes locally for testing.
+    
     Attributes:
         last_quest_offered_at: Timestamp when last quest was offered (ISO 8601 or None)
         last_poi_created_at: Timestamp when last POI was created (ISO 8601 or None)
@@ -149,6 +186,35 @@ class JourneyLogContext(BaseModel):
     This model contains pass-through fields that will be fetched from
     the journey-log service and used for LLM context generation, including
     enriched policy state for quest and POI trigger evaluation.
+    
+    **Data Flow:**
+    
+    1. Journey-log provides authoritative character state (status, location, quest, combat)
+    2. DM extracts policy state from journey-log response and additional_fields
+    3. PolicyEngine uses policy_state for deterministic quest/POI decisions
+    4. PromptBuilder serializes full context for LLM narrative generation
+    
+    **Field Sources:**
+    
+    From journey-log first-class fields:
+    - character_id: CharacterContextResponse.character_id
+    - status: CharacterContextResponse.player_state.status
+    - location: CharacterContextResponse.player_state.location
+    - active_quest: CharacterContextResponse.quest
+    - combat_state: CharacterContextResponse.combat.state
+    - recent_history: CharacterContextResponse.narrative.recent_turns
+    
+    From journey-log additional_fields (DM-managed interim storage):
+    - policy_state fields: Extracted from player_state.additional_fields
+    - additional_fields: Pass-through of player_state.additional_fields
+    
+    **Coordination Notes:**
+    
+    The additional_fields dictionary serves as forward-compatible storage for
+    DM-managed state that journey-log doesn't yet track. As journey-log adds
+    first-class fields for quest/POI history, the extraction logic in
+    journey_log_client._extract_policy_state() will migrate to read from those
+    authoritative sources while maintaining backward compatibility.
     
     Attributes:
         character_id: UUID identifier for the character

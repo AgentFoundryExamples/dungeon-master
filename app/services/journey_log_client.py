@@ -82,6 +82,27 @@ class JourneyLogClient:
         - Turn counters from additional_fields or defaults to 0
         - Player engagement flags from additional_fields
         
+        **Authoritative Sources:**
+        - has_active_quest: Derived from journey-log quest field (authoritative)
+        - combat_active: Derived from journey-log combat.active field (authoritative)
+        - last_quest_offered_at: DM-managed in additional_fields (interim until journey-log support)
+        - last_poi_created_at: DM-managed in additional_fields (interim until journey-log support)
+        - turns_since_last_quest: DM-managed in additional_fields (interim until journey-log support)
+        - turns_since_last_poi: DM-managed in additional_fields (interim until journey-log support)
+        - user_is_wandering: DM-managed in additional_fields (may move to journey-log)
+        - requested_guidance: DM-managed in additional_fields (may move to journey-log)
+        
+        **Journey-Log Coordination Plan:**
+        The DM service currently manages quest/POI timestamps and turn counters in
+        additional_fields as a temporary storage solution. Future journey-log enhancements
+        will provide first-class fields for:
+        - Quest history timestamps (last_quest_offered_at, quest_completed_at)
+        - POI creation timestamps (last_poi_created_at)
+        - Turn counter tracking (turns_since_last_quest, turns_since_last_poi)
+        
+        When journey-log adds these fields, this method will prioritize reading from
+        first-class fields while maintaining backward compatibility with additional_fields.
+        
         Args:
             data: Raw journey-log response dictionary
             
