@@ -160,6 +160,11 @@ Output ONLY the JSON object, no other text."""
             combat_str = self._format_combat(context.combat_state)
             sections.append(f"COMBAT STATE:\n{combat_str}")
 
+        # Policy Hints (if available)
+        if context.policy_hints:
+            policy_str = self._format_policy_hints(context.policy_hints)
+            sections.append(f"POLICY HINTS:\n{policy_str}")
+
         # Recent History
         if context.recent_history:
             history_str = self._format_history(context.recent_history)
@@ -239,6 +244,41 @@ Output ONLY the JSON object, no other text."""
                 weapon_str = f" (armed with {weapon})" if weapon else ""
                 lines.append(f"    - {name}: {status}{weapon_str}")
 
+        return "\n".join(lines)
+
+    def _format_policy_hints(self, policy_hints) -> str:
+        """Format policy hints information.
+        
+        Args:
+            policy_hints: PolicyHints from context
+            
+        Returns:
+            Formatted policy hints string
+        """
+        lines = []
+        
+        # Quest trigger decision
+        quest_dec = policy_hints.quest_trigger_decision
+        quest_status = "ALLOWED" if quest_dec.roll_passed else "NOT ALLOWED"
+        lines.append(f"  Quest Trigger: {quest_status}")
+        if not quest_dec.roll_passed:
+            if not quest_dec.eligible:
+                lines.append("    Reason: Not eligible (cooldown or active quest)")
+            else:
+                lines.append("    Reason: Roll did not pass")
+        
+        # POI trigger decision
+        poi_dec = policy_hints.poi_trigger_decision
+        poi_status = "ALLOWED" if poi_dec.roll_passed else "NOT ALLOWED"
+        lines.append(f"  POI Creation: {poi_status}")
+        if not poi_dec.roll_passed:
+            if not poi_dec.eligible:
+                lines.append("    Reason: Not eligible (cooldown)")
+            else:
+                lines.append("    Reason: Roll did not pass")
+        
+        lines.append("\n  Note: Only suggest quest offers or POI creation if marked as ALLOWED above.")
+        
         return "\n".join(lines)
 
     def _format_history(self, history: list) -> str:

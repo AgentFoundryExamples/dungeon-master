@@ -85,6 +85,7 @@ async def lifespan(app: FastAPI):
     # Initialize shared service clients and store in app state
     from app.services.llm_client import LLMClient
     from app.services.journey_log_client import JourneyLogClient
+    from app.services.policy_engine import PolicyEngine
 
     app.state.llm_client = LLMClient(
         api_key=settings.openai_api_key,
@@ -101,6 +102,15 @@ async def lifespan(app: FastAPI):
         recent_n_default=settings.journey_log_recent_n
     )
     logger.info(f"Journey-log client initialized (base_url={settings.journey_log_base_url})")
+
+    app.state.policy_engine = PolicyEngine(
+        quest_trigger_prob=settings.quest_trigger_prob,
+        quest_cooldown_turns=settings.quest_cooldown_turns,
+        poi_trigger_prob=settings.poi_trigger_prob,
+        poi_cooldown_turns=settings.poi_cooldown_turns,
+        rng_seed=settings.rng_seed
+    )
+    logger.info(f"Policy engine initialized (quest_prob={settings.quest_trigger_prob}, poi_prob={settings.poi_trigger_prob})")
 
     yield
 
@@ -201,11 +211,29 @@ def get_llm_client_override():
     return app.state.llm_client
 
 
+def get_policy_engine_override():
+    """Dependency override that provides the PolicyEngine from app state.
+    
+    Returns:
+        PolicyEngine instance from app state
+        
+    Raises:
+        RuntimeError: If policy_engine is not initialized in app state
+    """
+    if not hasattr(app.state, 'policy_engine'):
+        raise RuntimeError(
+            "Policy engine not initialized. "
+            "Ensure the application lifespan has started."
+        )
+    return app.state.policy_engine
+
+
 # Use FastAPI's dependency_overrides instead of monkey-patching
-from app.api.routes import get_http_client, get_journey_log_client, get_llm_client  # noqa: E402
+from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine  # noqa: E402
 app.dependency_overrides[get_http_client] = get_http_client_override
 app.dependency_overrides[get_journey_log_client] = get_journey_log_client_override
 app.dependency_overrides[get_llm_client] = get_llm_client_override
+app.dependency_overrides[get_policy_engine] = get_policy_engine_override
 
 
 if __name__ == "__main__":

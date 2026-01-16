@@ -304,6 +304,7 @@ async def test_parser_integration_with_routes_flow():
     from app.models import TurnRequest
     from app.config import Settings
     from httpx import AsyncClient
+    from app.services.policy_engine import PolicyEngine
     
     # Create mocks
     mock_http_client = AsyncMock(spec=AsyncClient)
@@ -344,6 +345,13 @@ async def test_parser_integration_with_routes_flow():
     mock_llm_response = MagicMock()
     mock_llm_response.output = [mock_output_item]
     
+    # Create policy engine
+    policy_engine = PolicyEngine(
+        quest_trigger_prob=0.5,
+        poi_trigger_prob=0.5,
+        rng_seed=42
+    )
+    
     with patch.object(llm_client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_llm_response
         
@@ -364,6 +372,7 @@ async def test_parser_integration_with_routes_flow():
             request=request,
             journey_log_client=journey_client,
             llm_client=llm_client,
+            policy_engine=policy_engine,
             settings=settings
         )
         
