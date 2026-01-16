@@ -160,6 +160,10 @@
         },
         {
           "type": "file",
+          "name": "conftest.py"
+        },
+        {
+          "type": "file",
           "name": "test_api.py"
         },
         {
@@ -215,6 +219,10 @@
     {
       "type": "file",
       "name": "LLMs.md"
+    },
+    {
+      "type": "file",
+      "name": "pytest.ini"
     },
     {
       "type": "file",

@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 22
+Total files: 23
 
 ## app/__init__.py
 **Language:** Python  
@@ -150,6 +150,15 @@ Total files: 22
 **LOC:** 1  
 **TODOs/FIXMEs:** 0  
 
+## tests/conftest.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** located in 'tests' directory  
+**Summary:** Python test implementation (role: test)  
+**Size:** 6.07 KB  
+**LOC:** 123  
+**TODOs/FIXMEs:** 0  
+
 ## tests/test_api.py
 **Language:** Python  
 **Role:** test  
@@ -200,6 +209,6 @@ Total files: 22
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 10.42 KB  
-**LOC:** 212  
+**Size:** 17.26 KB  
+**LOC:** 344  
 **TODOs/FIXMEs:** 0  

@@ -224,6 +224,23 @@
       }
     },
     {
+      "id": "tests/conftest.py",
+      "path": "tests/conftest.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "asyncio",
+          "os",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "fastapi.testclient.TestClient",
+          "httpx.AsyncClient",
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_api.py",
       "path": "tests/test_api.py",
       "type": "file",
@@ -314,8 +331,6 @@
           "unittest.mock.patch"
         ],
         "third-party": [
-          "fastapi.testclient.TestClient",
-          "httpx.AsyncClient",
           "httpx.HTTPStatusError",
           "httpx.Request",
           "httpx.Response",
@@ -419,6 +434,26 @@
       "target": "app/services/__init__.py"
     },
     {
+      "source": "tests/conftest.py",
+      "target": "app/config.py"
+    },
+    {
+      "source": "tests/conftest.py",
+      "target": "app/main.py"
+    },
+    {
+      "source": "tests/conftest.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/conftest.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/conftest.py",
+      "target": "app/api/routes.py"
+    },
+    {
       "source": "tests/test_api.py",
       "target": "app/config.py"
     },
@@ -472,27 +507,12 @@
     },
     {
       "source": "tests/test_turn_integration.py",
-      "target": "app/config.py"
-    },
-    {
-      "source": "tests/test_turn_integration.py",
-      "target": "app/main.py"
-    },
-    {
-      "source": "tests/test_turn_integration.py",
-      "target": "app/services/journey_log_client.py"
-    },
-    {
-      "source": "tests/test_turn_integration.py",
       "target": "app/services/llm_client.py"
-    },
-    {
-      "source": "tests/test_turn_integration.py",
-      "target": "app/api/routes.py"
     }
   ],
   "external_dependencies_summary": {
     "stdlib": [
+      "asyncio",
       "collections.defaultdict",
       "contextlib.asynccontextmanager",
       "contextvars.ContextVar",
@@ -544,7 +564,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 22,
+    "stdlib_count": 23,
     "third-party_count": 26
   }
 }

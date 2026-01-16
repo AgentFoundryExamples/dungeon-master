@@ -8,17 +8,18 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 22
-- **Intra-repo dependencies**: 41
-- **External stdlib dependencies**: 22
+- **Total files**: 23
+- **Intra-repo dependencies**: 42
+- **External stdlib dependencies**: 23
 - **External third-party dependencies**: 26
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 22 unique modules
+Total: 23 unique modules
 
+- `asyncio`
 - `collections.defaultdict`
 - `contextlib.asynccontextmanager`
 - `contextvars.ContextVar`
@@ -38,8 +39,7 @@ Total: 22 unique modules
 - `typing.Tuple`
 - `unittest.mock.AsyncMock`
 - `unittest.mock.MagicMock`
-- `unittest.mock.patch`
-- ... and 2 more (see JSON for full list)
+- ... and 3 more (see JSON for full list)
 
 ### Third-Party Packages
 
@@ -69,7 +69,7 @@ Total: 26 unique packages
 
 ## Most Depended Upon Files (Intra-Repo)
 
-- `app/services/llm_client.py` (6 dependents)
+- `app/services/llm_client.py` (7 dependents)
 - `app/models.py` (5 dependents)
 - `app/config.py` (5 dependents)
 - `app/services/journey_log_client.py` (5 dependents)
@@ -85,7 +85,7 @@ Total: 26 unique packages
 - `app/api/routes.py` (7 dependencies)
 - `app/main.py` (7 dependencies)
 - `tests/test_api.py` (6 dependencies)
-- `tests/test_turn_integration.py` (5 dependencies)
+- `tests/conftest.py` (5 dependencies)
 - `example_openai_usage.py` (3 dependencies)
 - `tests/test_metrics.py` (3 dependencies)
 - `app/middleware.py` (2 dependencies)

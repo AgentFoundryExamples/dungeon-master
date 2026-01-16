@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 22,
+  "total_files": 23,
   "files": [
     {
       "schema_version": "2.0",
@@ -228,6 +228,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "tests/conftest.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "located in 'tests' directory",
+      "summary": "Python test implementation (role: test)",
+      "summary_text": "Python test implementation (role: test)",
+      "metrics": {
+        "size_bytes": 6213,
+        "loc": 123,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "tests/test_api.py",
       "language": "Python",
       "role": "test",
@@ -305,8 +319,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 10665,
-        "loc": 212,
+        "size_bytes": 17673,
+        "loc": 344,
         "todo_count": 0
       }
     }
