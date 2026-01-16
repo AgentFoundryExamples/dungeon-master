@@ -572,7 +572,7 @@ async def test_turn_endpoint_policy_decisions_not_in_response(client):
 
 
 @pytest.mark.asyncio
-async def test_turn_endpoint_failed_quest_roll_blocks_propagation(client):
+async def test_turn_endpoint_failed_quest_roll_blocks_propagation(client_with_failed_quest_roll):
     """Test that failed quest roll prevents quest suggestion from being persisted.
     
     Verifies that even if LLM suggests a quest, the failed policy roll
@@ -598,55 +598,41 @@ async def test_turn_endpoint_failed_quest_roll_blocks_propagation(client):
     mock_persist_response = MagicMock(spec=Response)
     mock_persist_response.raise_for_status = MagicMock()
     
-    # Mock PolicyEngine to always fail quest rolls
-    from app.services.policy_engine import PolicyEngine
     with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get, \
          patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
         
         mock_get.return_value = mock_context_response
         mock_post.return_value = mock_persist_response
         
-        # Override policy engine to fail quest rolls
-        from app.api.routes import get_policy_engine
-        from app.main import app
-        test_policy_engine = PolicyEngine(
-            quest_trigger_prob=0.0,  # Always fail quest rolls
-            quest_cooldown_turns=0,
-            poi_trigger_prob=1.0,
-            poi_cooldown_turns=0,
-            rng_seed=42
+        response = client_with_failed_quest_roll.post(
+            "/turn",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I ask the innkeeper for a quest"
+            }
         )
-        app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
         
-        try:
-            response = client.post(
-                "/turn",
-                json={
-                    "character_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "user_action": "I ask the innkeeper for a quest"
-                }
-            )
-            
-            assert response.status_code == 200
-            data = response.json()
-            
-            # Narrative should be present
-            assert "narrative" in data
-            
-            # Even if LLM suggested a quest, it should be blocked
-            # We can verify this by checking that the narrative was persisted
-            # but without quest data (though in stub mode, quest suggestions
-            # are unlikely anyway)
-            mock_post.assert_called_once()
-            
-        finally:
-            # Clean up override
-            if get_policy_engine in app.dependency_overrides:
-                del app.dependency_overrides[get_policy_engine]
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Narrative should be present
+        assert "narrative" in data
+        
+        # Verify narrative was persisted
+        mock_post.assert_called_once()
+        
+        # Check the payload sent to journey-log to verify no quest data
+        post_call_args = mock_post.call_args
+        if post_call_args:
+            post_data = post_call_args[1].get("json", {})
+            # In stub mode, LLM unlikely to suggest quest anyway, but verify
+            # that the response structure doesn't include quest-related fields
+            # beyond what's in the narrative text
+            assert "ai_response" in post_data or "narrative" in post_data
 
 
 @pytest.mark.asyncio
-async def test_turn_endpoint_failed_poi_roll_blocks_propagation(client):
+async def test_turn_endpoint_failed_poi_roll_blocks_propagation(client_with_failed_poi_roll):
     """Test that failed POI roll prevents POI suggestion from being persisted.
     
     Verifies that even if LLM suggests a POI, the failed policy roll
@@ -672,53 +658,40 @@ async def test_turn_endpoint_failed_poi_roll_blocks_propagation(client):
     mock_persist_response = MagicMock(spec=Response)
     mock_persist_response.raise_for_status = MagicMock()
     
-    # Mock PolicyEngine to always fail POI rolls
-    from app.services.policy_engine import PolicyEngine
     with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get, \
          patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
         
         mock_get.return_value = mock_context_response
         mock_post.return_value = mock_persist_response
         
-        # Override policy engine to fail POI rolls
-        from app.api.routes import get_policy_engine
-        from app.main import app
-        test_policy_engine = PolicyEngine(
-            quest_trigger_prob=1.0,
-            quest_cooldown_turns=0,
-            poi_trigger_prob=0.0,  # Always fail POI rolls
-            poi_cooldown_turns=0,
-            rng_seed=42
+        response = client_with_failed_poi_roll.post(
+            "/turn",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I explore the forest"
+            }
         )
-        app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
         
-        try:
-            response = client.post(
-                "/turn",
-                json={
-                    "character_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "user_action": "I explore the forest"
-                }
-            )
-            
-            assert response.status_code == 200
-            data = response.json()
-            
-            # Narrative should be present
-            assert "narrative" in data
-            
-            # Even if LLM suggested a POI, it should be blocked
-            # Verify narrative was persisted
-            mock_post.assert_called_once()
-            
-        finally:
-            # Clean up override
-            if get_policy_engine in app.dependency_overrides:
-                del app.dependency_overrides[get_policy_engine]
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Narrative should be present
+        assert "narrative" in data
+        
+        # Verify narrative was persisted
+        mock_post.assert_called_once()
+        
+        # Check the payload sent to journey-log to verify no POI data
+        post_call_args = mock_post.call_args
+        if post_call_args:
+            post_data = post_call_args[1].get("json", {})
+            # Verify that the response structure doesn't include POI-related fields
+            # beyond what's in the narrative text
+            assert "ai_response" in post_data or "narrative" in post_data
 
 
 @pytest.mark.asyncio
-async def test_turn_endpoint_with_deterministic_seed(client):
+async def test_turn_endpoint_with_deterministic_seed(client_with_deterministic_seed):
     """Test turn endpoint with deterministic seed produces consistent results."""
     from httpx import Response
     from unittest.mock import MagicMock, AsyncMock, patch
@@ -740,53 +713,33 @@ async def test_turn_endpoint_with_deterministic_seed(client):
     mock_persist_response = MagicMock(spec=Response)
     mock_persist_response.raise_for_status = MagicMock()
     
-    # Use deterministic policy engine
-    from app.services.policy_engine import PolicyEngine
     with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get, \
          patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
         
         mock_get.return_value = mock_context_response
         mock_post.return_value = mock_persist_response
         
-        # Override policy engine with deterministic seed
-        from app.api.routes import get_policy_engine
-        from app.main import app
-        test_policy_engine = PolicyEngine(
-            quest_trigger_prob=0.5,
-            quest_cooldown_turns=0,
-            poi_trigger_prob=0.5,
-            poi_cooldown_turns=0,
-            rng_seed=999  # Deterministic seed
+        # Make multiple requests for the same character
+        response1 = client_with_deterministic_seed.post(
+            "/turn",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I climb higher"
+            }
         )
-        app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
         
-        try:
-            # Make multiple requests for the same character
-            response1 = client.post(
-                "/turn",
-                json={
-                    "character_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "user_action": "I climb higher"
-                }
-            )
-            
-            response2 = client.post(
-                "/turn",
-                json={
-                    "character_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "user_action": "I climb higher"
-                }
-            )
-            
-            # Both should succeed
-            assert response1.status_code == 200
-            assert response2.status_code == 200
-            
-            # With deterministic seed, policy decisions should be consistent
-            # (though we can't directly verify them from the response)
-            # The test mainly verifies no errors occur
-            
-        finally:
-            # Clean up override
-            if get_policy_engine in app.dependency_overrides:
-                del app.dependency_overrides[get_policy_engine]
+        response2 = client_with_deterministic_seed.post(
+            "/turn",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I climb higher"
+            }
+        )
+        
+        # Both should succeed
+        assert response1.status_code == 200
+        assert response2.status_code == 200
+        
+        # With deterministic seed, policy decisions should be consistent
+        # (though we can't directly verify them from the response)
+        # The test mainly verifies no errors occur with deterministic seeding

@@ -602,10 +602,10 @@ def test_profile_override_high_frequency():
         if poi_decision.roll_passed:
             poi_passes += 1
     
-    # With 0.9 probability, expect most to pass (at least 7/10 is reasonable)
-    assert quest_passes >= 7
-    # With 0.8 probability, expect most to pass (at least 6/10 is reasonable)
-    assert poi_passes >= 6
+    # With a fixed seed=12345, the outcome is deterministic
+    # The RNG sequence for this character produces all passes
+    assert quest_passes == 10, f"Expected 10 quest passes with seed=12345, got {quest_passes}"
+    assert poi_passes == 10, f"Expected 10 POI passes with seed=12345, got {poi_passes}"
 
 
 def test_profile_override_low_frequency():
@@ -638,9 +638,10 @@ def test_profile_override_low_frequency():
         if poi_decision.roll_passed:
             poi_passes += 1
     
-    # With 0.1 probability, expect few to pass (at most 3/10 is reasonable)
-    assert quest_passes <= 3
-    assert poi_passes <= 3
+    # With a fixed seed=12345, the outcome is deterministic
+    # The RNG sequence for this character produces all failures at 0.1 probability
+    assert quest_passes == 0, f"Expected 0 quest passes with seed=12345, got {quest_passes}"
+    assert poi_passes == 0, f"Expected 0 POI passes with seed=12345, got {poi_passes}"
 
 
 def test_deterministic_seed_reproducibility():
