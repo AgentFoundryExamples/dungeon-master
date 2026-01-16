@@ -101,11 +101,12 @@ The PolicyEngine provides deterministic quest and POI trigger evaluation with co
 | `RNG_SEED` | `<unset>` | Optional RNG seed for deterministic debugging |
 
 **Notes:**
-- Probabilities outside [0,1] are automatically clamped during config load
+- Probabilities outside [0,1] are rejected at config load and PolicyEngine initialization (fail-fast behavior)
 - Zero or negative cooldown values are valid and skip waiting periods
 - Seeded RNG respects character-specific seeds while allowing global fallback randomness
 - When `RNG_SEED` is unset (recommended for production), secure randomness is used
 - When `RNG_SEED` is set to an integer, enables reproducible behavior for testing/debugging
+- **Memory Management**: Seeded mode caches RNG instances per character. For long-running services with high character turnover, consider using unseeded mode or periodic service restarts
 
 ### Configuration Validation
 

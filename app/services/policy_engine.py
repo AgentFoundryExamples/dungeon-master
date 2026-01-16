@@ -37,7 +37,10 @@ from app.logging import StructuredLogger
 logger = StructuredLogger(__name__)
 
 # Constants for RNG seeding
-_SEED_HASH_DIGEST_LENGTH = 8  # Number of hex characters to use from hash for seed generation
+# Using 8 hex characters from SHA-256 provides ~4 billion possible seeds (2^32).
+# This is sufficient for most use cases while keeping seed values manageable.
+# For larger character spaces requiring higher collision resistance, increase this value.
+_SEED_HASH_DIGEST_LENGTH = 8
 
 
 class PolicyEngine:
@@ -50,6 +53,15 @@ class PolicyEngine:
     
     This engine is designed to be extended with future subsystems without
     referencing the LLM stack.
+    
+    Note on Memory Management:
+        The internal _character_rngs dictionary caches RNG instances per character_id
+        to maintain deterministic sequences. In long-running services with many unique
+        characters, this cache grows unbounded. For production deployments with high
+        character turnover, consider:
+        - Using stateless RNG (set rng_seed=None) to avoid caching
+        - Periodically restarting the service to clear the cache
+        - Implementing cache eviction if character count is a concern
     """
 
     def __init__(
@@ -68,10 +80,22 @@ class PolicyEngine:
             poi_trigger_prob: Probability of POI trigger (0.0-1.0)
             poi_cooldown_turns: Number of turns between POI triggers
             rng_seed: Optional global RNG seed for deterministic behavior
+            
+        Raises:
+            ValueError: If probabilities are outside [0, 1] range
         """
-        # Clamp probabilities to valid range [0, 1]
-        self.quest_trigger_prob = max(0.0, min(1.0, quest_trigger_prob))
-        self.poi_trigger_prob = max(0.0, min(1.0, poi_trigger_prob))
+        # Validate probabilities to fail fast (consistent with config validation)
+        if not (0.0 <= quest_trigger_prob <= 1.0):
+            raise ValueError(
+                f"quest_trigger_prob must be between 0.0 and 1.0, got: {quest_trigger_prob}"
+            )
+        if not (0.0 <= poi_trigger_prob <= 1.0):
+            raise ValueError(
+                f"poi_trigger_prob must be between 0.0 and 1.0, got: {poi_trigger_prob}"
+            )
+        
+        self.quest_trigger_prob = quest_trigger_prob
+        self.poi_trigger_prob = poi_trigger_prob
         
         # Cooldown turns (allow zero or negative - they skip waiting periods)
         self.quest_cooldown_turns = quest_cooldown_turns

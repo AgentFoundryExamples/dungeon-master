@@ -45,15 +45,17 @@ def test_policy_engine_init_custom():
     assert engine.rng_seed == 42
 
 
-def test_policy_engine_clamps_probabilities():
-    """Test that probabilities are clamped to [0, 1] range."""
-    engine = PolicyEngine(
-        quest_trigger_prob=1.5,
-        poi_trigger_prob=-0.5
-    )
+def test_policy_engine_rejects_invalid_probabilities():
+    """Test that probabilities outside [0, 1] range are rejected."""
+    import pytest
     
-    assert engine.quest_trigger_prob == 1.0
-    assert engine.poi_trigger_prob == 0.0
+    # Test probability > 1.0
+    with pytest.raises(ValueError, match="quest_trigger_prob must be between 0.0 and 1.0"):
+        PolicyEngine(quest_trigger_prob=1.5)
+    
+    # Test probability < 0.0
+    with pytest.raises(ValueError, match="poi_trigger_prob must be between 0.0 and 1.0"):
+        PolicyEngine(poi_trigger_prob=-0.5)
 
 
 def test_policy_engine_accepts_zero_cooldown():
