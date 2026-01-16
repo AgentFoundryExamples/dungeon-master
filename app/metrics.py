@@ -121,6 +121,17 @@ class MetricsCollector:
             
             uptime_seconds = time.time() - self._start_time
             
+            # Calculate schema conformance rate
+            llm_parse_success = self._error_counts.get("llm_parse_success", 0)
+            llm_parse_failures = sum(
+                count for error_type, count in self._error_counts.items()
+                if error_type.startswith("llm_parse_failure_")
+            )
+            total_llm_parses = llm_parse_success + llm_parse_failures
+            conformance_rate = (
+                llm_parse_success / total_llm_parses if total_llm_parses > 0 else 0.0
+            )
+            
             return {
                 "uptime_seconds": round(uptime_seconds, 2),
                 "requests": {
@@ -135,6 +146,12 @@ class MetricsCollector:
                 "latencies": {
                     operation: stats.to_dict()
                     for operation, stats in self._latencies.items()
+                },
+                "schema_conformance": {
+                    "total_parses": total_llm_parses,
+                    "successful_parses": llm_parse_success,
+                    "failed_parses": llm_parse_failures,
+                    "conformance_rate": round(conformance_rate, 4)
                 }
             }
     

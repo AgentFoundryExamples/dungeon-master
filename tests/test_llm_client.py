@@ -22,6 +22,7 @@ from app.services.llm_client import (
     LLMTimeoutError,
     LLMResponseError
 )
+from app.services.outcome_parser import ParsedOutcome
 
 
 def test_llm_client_init():
@@ -66,13 +67,16 @@ async def test_generate_narrative_stub_mode():
         stub_mode=True
     )
     
-    narrative = await client.generate_narrative(
+    result = await client.generate_narrative(
         system_instructions="You are a game master",
         user_prompt="The player searches the room"
     )
     
-    assert "[STUB MODE]" in narrative
-    assert "gpt-5.1" in narrative
+    assert isinstance(result, ParsedOutcome)
+    assert result.is_valid
+    assert result.outcome is not None
+    assert "[STUB MODE]" in result.narrative
+    assert "gpt-5.1" in result.narrative
 
 
 @pytest.mark.asyncio
@@ -102,12 +106,15 @@ async def test_generate_narrative_success():
     with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_response
         
-        narrative = await client.generate_narrative(
+        result = await client.generate_narrative(
             system_instructions="You are a game master",
             user_prompt="The player searches the room"
         )
         
-        assert narrative == "You discover a hidden treasure chest in the corner."
+        assert isinstance(result, ParsedOutcome)
+        assert result.is_valid
+        assert result.outcome is not None
+        assert result.narrative == "You discover a hidden treasure chest in the corner."
         mock_create.assert_called_once()
 
 
@@ -135,7 +142,7 @@ async def test_generate_narrative_empty_output():
 
 @pytest.mark.asyncio
 async def test_generate_narrative_missing_narrative_field():
-    """Test narrative generation with missing narrative field."""
+    """Test narrative generation with missing narrative field returns fallback."""
     client = LLMClient(
         api_key="sk-test-key",
         model="gpt-5.1",
@@ -151,11 +158,17 @@ async def test_generate_narrative_missing_narrative_field():
     with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_response
         
-        with pytest.raises(LLMResponseError, match="validation failed"):
-            await client.generate_narrative(
-                system_instructions="You are a game master",
-                user_prompt="The player searches the room"
-            )
+        result = await client.generate_narrative(
+            system_instructions="You are a game master",
+            user_prompt="The player searches the room"
+        )
+        
+        # Should return ParsedOutcome with fallback narrative
+        assert isinstance(result, ParsedOutcome)
+        assert not result.is_valid
+        assert result.outcome is None
+        assert result.error_type == "validation_error"
+        assert result.narrative  # Fallback narrative should be present
 
 
 @pytest.mark.asyncio
@@ -206,7 +219,7 @@ async def test_generate_narrative_authentication_error():
 
 @pytest.mark.asyncio
 async def test_generate_narrative_invalid_json_raises_error():
-    """Test narrative generation with invalid JSON response raises error."""
+    """Test narrative generation with invalid JSON returns fallback."""
     client = LLMClient(
         api_key="sk-test-key",
         model="gpt-5.1",
@@ -214,7 +227,6 @@ async def test_generate_narrative_invalid_json_raises_error():
     )
     
     # Mock response with plain text instead of JSON
-    # With strict schema enforcement, this should raise an error
     mock_output_item = MagicMock()
     mock_output_item.content = "You discover a hidden treasure chest."
     
@@ -224,12 +236,17 @@ async def test_generate_narrative_invalid_json_raises_error():
     with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_response
         
-        # Should raise LLMResponseError since strict schema should prevent non-JSON
-        with pytest.raises(LLMResponseError, match="Strict schema enforcement"):
-            await client.generate_narrative(
-                system_instructions="You are a game master",
-                user_prompt="The player searches the room"
-            )
+        result = await client.generate_narrative(
+            system_instructions="You are a game master",
+            user_prompt="The player searches the room"
+        )
+        
+        # Should return ParsedOutcome with fallback narrative
+        assert isinstance(result, ParsedOutcome)
+        assert not result.is_valid
+        assert result.outcome is None
+        assert result.error_type == "json_decode_error"
+        assert "You discover a hidden treasure chest." in result.narrative
 
 
 @pytest.mark.asyncio
@@ -315,13 +332,18 @@ async def test_generate_narrative_with_full_outcome():
     with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_response
         
-        narrative = await client.generate_narrative(
+        result = await client.generate_narrative(
             system_instructions="You are a game master",
             user_prompt="The player enters the tavern"
         )
         
-        # Should extract narrative text
-        assert narrative == "You enter the tavern and meet a grizzled innkeeper."
+        # Should return valid ParsedOutcome with full intents
+        assert isinstance(result, ParsedOutcome)
+        assert result.is_valid
+        assert result.outcome is not None
+        assert result.narrative == "You enter the tavern and meet a grizzled innkeeper."
+        assert result.outcome.intents.quest_intent is not None
+        assert result.outcome.intents.quest_intent.action == "offer"
         mock_create.assert_called_once()
 
 
@@ -357,14 +379,16 @@ async def test_generate_narrative_with_provided_schema():
         mock_create.return_value = mock_response
         
         # Call with provided schema
-        narrative = await client.generate_narrative(
+        result = await client.generate_narrative(
             system_instructions="You are a game master",
             user_prompt="The player searches",
             json_schema=pre_generated_schema
         )
         
         # Verify narrative extracted correctly
-        assert narrative == "Test narrative with provided schema"
+        assert isinstance(result, ParsedOutcome)
+        assert result.is_valid
+        assert result.narrative == "Test narrative with provided schema"
         
         # Verify the provided schema was used in the API call
         call_kwargs = mock_create.call_args.kwargs

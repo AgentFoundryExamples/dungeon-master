@@ -319,6 +319,79 @@ Access metrics via GET /metrics endpoint.
 
 **Note**: Metrics are stored in-memory and reset on service restart. For production monitoring, integrate with Prometheus or other observability platforms.
 
+### LLM Response Parsing and Validation
+
+The service uses a robust parser (`OutcomeParser`) that defensively validates LLM responses against the `DungeonMasterOutcome` schema while ensuring narrative text is always preserved.
+
+#### Parser Behavior
+
+**On Success:**
+- Validates JSON structure against `DungeonMasterOutcome` schema
+- Returns typed outcome with structured intents
+- Logs successful parse with schema version
+
+**On Failure:**
+- **JSON Decode Errors**: Uses raw response text as narrative fallback
+- **Validation Errors**: Extracts narrative from partial JSON, defaulting intents to None
+- **Schema Violations**: Logs detailed errors with schema version, truncated payload (max 500 chars), and validation error list
+- **Always Returns Narrative**: Ensures journey-log persistence succeeds even with invalid intents
+
+#### Schema Conformance Metrics
+
+When metrics are enabled (`ENABLE_METRICS=true`), the parser tracks schema conformance rate:
+
+```json
+{
+  "schema_conformance": {
+    "total_parses": 150,
+    "successful_parses": 145,
+    "failed_parses": 5,
+    "conformance_rate": 0.9667
+  }
+}
+```
+
+This helps monitor LLM reliability and identify when prompt engineering adjustments may be needed.
+
+#### Validation Error Logging
+
+Failed validations log detailed diagnostic information:
+
+```
+LLM response failed schema validation | schema_version=1 error_type=validation_error 
+error_count=1 error_details=["intents.quest_intent.action: literal_error - Input should be 
+'none', 'offer', 'complete' or 'abandon'"] payload_preview={"narrative": "...", ...} (truncated)
+```
+
+**Logged Information:**
+- `schema_version`: Current outcome schema version for tracking evolution
+- `error_type`: Classification (json_decode_error, validation_error, unexpected_error)
+- `error_details`: Specific field-level validation failures
+- `payload_preview`: Truncated response (secrets redacted, max 500 chars)
+
+#### Fallback Narrative Extraction
+
+The parser uses multiple strategies to preserve narrative:
+
+1. **Direct Field Extraction**: Attempts to get `narrative` field from partial JSON
+2. **Pattern Matching**: Searches for narrative patterns in malformed JSON
+3. **Raw Text Fallback**: Uses entire response text if no structure found
+4. **Safe Default**: Returns error message only if text too short or looks like error
+
+**Example Edge Cases:**
+- **Invalid Action Literal**: `{"action": "ofer"}` → Logs validation error, extracts narrative
+- **Partial JSON Stream**: `{"narrative": "You enter...` → Treated as JSON decode error
+- **Empty Response**: → Returns `"[Unable to generate narrative - LLM response was invalid]"`
+
+#### Testing
+
+Comprehensive tests verify parser behavior:
+- 23 unit tests in `tests/test_outcome_parser.py`
+- 12 acceptance criteria tests in `tests/test_acceptance_criteria.py`
+- Integration tests with full request flow
+
+**Note**: Metrics are stored in-memory and reset on service restart. For production monitoring, integrate with Prometheus or other observability platforms.
+
 ### Health Checks
 
 The /health endpoint provides service health status:
