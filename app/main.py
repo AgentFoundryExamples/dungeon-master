@@ -86,6 +86,8 @@ async def lifespan(app: FastAPI):
     from app.services.llm_client import LLMClient
     from app.services.journey_log_client import JourneyLogClient
     from app.services.policy_engine import PolicyEngine
+    from app.services.turn_orchestrator import TurnOrchestrator
+    from app.prompting.prompt_builder import PromptBuilder
 
     app.state.llm_client = LLMClient(
         api_key=settings.openai_api_key,
@@ -111,6 +113,17 @@ async def lifespan(app: FastAPI):
         rng_seed=settings.rng_seed
     )
     logger.info(f"Policy engine initialized (quest_prob={settings.quest_trigger_prob}, poi_prob={settings.poi_trigger_prob})")
+    
+    app.state.prompt_builder = PromptBuilder()
+    logger.info("Prompt builder initialized")
+    
+    app.state.turn_orchestrator = TurnOrchestrator(
+        policy_engine=app.state.policy_engine,
+        llm_client=app.state.llm_client,
+        journey_log_client=app.state.journey_log_client,
+        prompt_builder=app.state.prompt_builder
+    )
+    logger.info("Turn orchestrator initialized")
 
     yield
 
@@ -228,12 +241,36 @@ def get_policy_engine_override():
     return app.state.policy_engine
 
 
+def get_turn_orchestrator_override():
+    """Dependency override that provides the TurnOrchestrator from app state.
+    
+    Returns:
+        TurnOrchestrator instance from app state
+        
+    Raises:
+        RuntimeError: If turn_orchestrator is not initialized in app state
+    """
+    if not hasattr(app.state, 'turn_orchestrator'):
+        raise RuntimeError(
+            "Turn orchestrator not initialized. "
+            "Ensure the application lifespan has started."
+        )
+    return app.state.turn_orchestrator
+
+
 # Use FastAPI's dependency_overrides instead of monkey-patching
-from app.api.routes import get_http_client, get_journey_log_client, get_llm_client, get_policy_engine  # noqa: E402
+from app.api.routes import (
+    get_http_client,
+    get_journey_log_client,
+    get_llm_client,
+    get_policy_engine,
+    get_turn_orchestrator
+)  # noqa: E402
 app.dependency_overrides[get_http_client] = get_http_client_override
 app.dependency_overrides[get_journey_log_client] = get_journey_log_client_override
 app.dependency_overrides[get_llm_client] = get_llm_client_override
 app.dependency_overrides[get_policy_engine] = get_policy_engine_override
+app.dependency_overrides[get_turn_orchestrator] = get_turn_orchestrator_override
 
 
 if __name__ == "__main__":

@@ -40,6 +40,7 @@ from app.services.llm_client import (
 )
 from app.services.policy_engine import PolicyEngine
 from app.services.outcome_parser import OutcomeParser
+from app.services.turn_orchestrator import TurnOrchestrator
 from app.prompting.prompt_builder import PromptBuilder
 from app.logging import (
     StructuredLogger,
@@ -169,6 +170,21 @@ def get_policy_engine():
     )
 
 
+def get_turn_orchestrator():
+    """Dependency that provides a TurnOrchestrator for turn processing.
+    
+    This is a placeholder that must be overridden by the application.
+    The application lifespan in main.py provides the actual implementation.
+    
+    Raises:
+        NotImplementedError: If not overridden by the application
+    """
+    raise NotImplementedError(
+        "get_turn_orchestrator dependency must be overridden. "
+        "This should be configured in app.main module."
+    )
+
+
 @router.post(
     "/turn",
     response_model=TurnResponse,
@@ -204,32 +220,30 @@ def get_policy_engine():
 async def process_turn(
     request: TurnRequest,
     journey_log_client: JourneyLogClient = Depends(get_journey_log_client),
-    llm_client: LLMClient = Depends(get_llm_client),
-    policy_engine: PolicyEngine = Depends(get_policy_engine),
+    turn_orchestrator: TurnOrchestrator = Depends(get_turn_orchestrator),
     settings: Settings = Depends(get_settings)
 ) -> TurnResponse:
     """Process a player turn and generate narrative response.
     
-    Full orchestration flow:
-    1. Validate request
-    2. Fetch context from journey-log
-    3. Evaluate PolicyEngine for quest and POI trigger decisions
-    4. Inject policy_hints into context
-    5. Build prompt using PromptBuilder
-    6. Call LLM for narrative generation
-    7. Apply policy guardrails to intents
-    8. Persist user_action + narrative to journey-log
-    9. Return TurnResponse
+    Full orchestration flow (delegated to TurnOrchestrator):
+    1. Fetch context from journey-log
+    2. Evaluate PolicyEngine for quest and POI trigger decisions
+    3. Inject policy_hints into context
+    4. Build prompt using PromptBuilder
+    5. Call LLM for narrative generation
+    6. Parse intents and apply policy guardrails
+    7. Derive subsystem actions from policy and intents
+    8. Execute writes in deterministic order (quest → combat → POI → narrative)
+    9. Return TurnResponse with narrative, intents, and subsystem_summary
     
     Args:
         request: Turn request with character_id and user_action
         journey_log_client: JourneyLogClient for journey-log communication (injected)
-        llm_client: LLMClient for LLM communication (injected)
-        policy_engine: PolicyEngine for policy decisions (injected)
+        turn_orchestrator: TurnOrchestrator for turn processing (injected)
         settings: Application settings (injected)
         
     Returns:
-        TurnResponse with generated narrative
+        TurnResponse with generated narrative, intents, and subsystem summary
         
     Raises:
         HTTPException: If request validation fails or processing error occurs
@@ -248,8 +262,6 @@ async def process_turn(
     )
 
     try:
-        prompt_builder = PromptBuilder()
-
         # Step 1: Fetch context from journey-log
         with PhaseTimer("context_fetch", logger), MetricsTimer("journey_log_fetch"):
             logger.debug("Fetching context from journey-log")
@@ -258,115 +270,33 @@ async def process_turn(
                 trace_id=request.trace_id
             )
 
-        # Step 2: Evaluate PolicyEngine for quest and POI trigger decisions
-        with PhaseTimer("policy_evaluation", logger), MetricsTimer("policy_evaluation"):
-            logger.debug("Evaluating policy decisions")
-            
-            # Evaluate quest trigger
-            quest_decision = policy_engine.evaluate_quest_trigger(
-                character_id=request.character_id,
-                turns_since_last_quest=context.policy_state.turns_since_last_quest,
-                has_active_quest=context.policy_state.has_active_quest
-            )
-            
-            # Evaluate POI trigger
-            poi_decision = policy_engine.evaluate_poi_trigger(
-                character_id=request.character_id,
-                turns_since_last_poi=context.policy_state.turns_since_last_poi
-            )
-            
-            # Create policy hints
-            policy_hints = PolicyHints(
-                quest_trigger_decision=quest_decision,
-                poi_trigger_decision=poi_decision
-            )
-            
-            # Inject policy hints into context
-            context.policy_hints = policy_hints
-            
-            # Log policy decisions for observability
-            logger.info(
-                "Policy decisions evaluated",
-                quest_eligible=quest_decision.eligible,
-                quest_roll_passed=quest_decision.roll_passed,
-                poi_eligible=poi_decision.eligible,
-                poi_roll_passed=poi_decision.roll_passed
-            )
-            
-            # Metrics for policy evaluations are recorded by the MetricsTimer
-
-        # Step 3: Build prompt
-        with PhaseTimer("prompt_build", logger):
-            logger.debug("Building prompt from context and user action")
-            system_instructions, user_prompt = prompt_builder.build_prompt(
-                context=context,
-                user_action=request.user_action
-            )
-
-        # Step 4: Call LLM for narrative generation
-        with PhaseTimer("llm_call", logger), MetricsTimer("llm_call"):
-            logger.debug("Generating narrative with LLM")
-            parsed_outcome = await llm_client.generate_narrative(
-                system_instructions=system_instructions,
-                user_prompt=user_prompt,
-                trace_id=request.trace_id
-            )
-        
-        # Extract narrative from parsed outcome (always available even if invalid)
-        narrative = parsed_outcome.narrative
-        
-        # Log if we're using fallback narrative
-        if not parsed_outcome.is_valid:
-            logger.warning(
-                "Using fallback narrative due to validation failure",
-                error_type=parsed_outcome.error_type,
-                error_count=len(parsed_outcome.error_details) if parsed_outcome.error_details else 0
-            )
-
-        # Step 5: Apply policy guardrails to intents
-        intents = None
-        if parsed_outcome.is_valid and parsed_outcome.outcome and parsed_outcome.outcome.intents:
-            intents = parsed_outcome.outcome.intents
-            
-            # Enforce quest guardrail: ignore quest intent if roll didn't pass
-            if intents.quest_intent and intents.quest_intent.action == "offer":
-                if not quest_decision.roll_passed:
-                    logger.info(
-                        "Ignoring quest intent due to policy guardrail",
-                        quest_eligible=quest_decision.eligible,
-                        quest_roll_passed=quest_decision.roll_passed
-                    )
-                    # Set quest intent to "none" to enforce guardrail
-                    intents.quest_intent.action = "none"
-            
-            # Enforce POI guardrail: ignore POI creation if roll didn't pass
-            if intents.poi_intent and intents.poi_intent.action == "create":
-                if not poi_decision.roll_passed:
-                    logger.info(
-                        "Ignoring POI intent due to policy guardrail",
-                        poi_eligible=poi_decision.eligible,
-                        poi_roll_passed=poi_decision.roll_passed
-                    )
-                    # Set POI intent to "none" to enforce guardrail
-                    intents.poi_intent.action = "none"
-
-        # Step 6: Persist to journey-log
-        with PhaseTimer("narrative_save", logger), MetricsTimer("journey_log_persist"):
-            logger.debug("Persisting narrative to journey-log")
-            await journey_log_client.persist_narrative(
+        # Step 2-9: Delegate to TurnOrchestrator for deterministic processing
+        with PhaseTimer("turn_orchestration", logger), MetricsTimer("turn"):
+            logger.debug("Orchestrating turn with TurnOrchestrator")
+            narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn(
                 character_id=request.character_id,
                 user_action=request.user_action,
-                narrative=narrative,
-                trace_id=request.trace_id
+                context=context,
+                trace_id=request.trace_id,
+                dry_run=False
             )
-
-        # Step 7: Return response with narrative and intents
+        
+        # Log orchestration results
         logger.info(
             "Successfully processed turn",
             narrative_length=len(narrative),
-            has_intents=intents is not None
+            has_intents=intents is not None,
+            quest_change=subsystem_summary.quest_change.action,
+            combat_change=subsystem_summary.combat_change.action,
+            poi_change=subsystem_summary.poi_created.action,
+            narrative_persisted=subsystem_summary.narrative_persisted
         )
-        return TurnResponse(narrative=narrative, intents=intents)
+        
+        return TurnResponse(
+            narrative=narrative,
+            intents=intents,
+            subsystem_summary=subsystem_summary
+        )
 
     except JourneyLogNotFoundError as e:
         logger.error("Character not found", error=str(e))
