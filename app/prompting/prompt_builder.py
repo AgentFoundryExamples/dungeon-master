@@ -261,7 +261,8 @@ Output ONLY the JSON object, no other text."""
         if not history:
             return "  (No recent history)"
 
-        # Display all provided history turns (typically last 20)
+        # Display up to the last 20 turns from history
+        # If fewer than 20 turns are provided, all are displayed
         # This provides sufficient story continuity while managing token usage
         recent_turns = history[-20:]
 
