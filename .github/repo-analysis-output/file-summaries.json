@@ -1,7 +1,91 @@
 {
   "schema_version": "2.0",
-  "total_files": 1,
+  "total_files": 9,
   "files": [
+    {
+      "schema_version": "2.0",
+      "path": "app/__init__.py",
+      "language": "Python",
+      "role": "module-init",
+      "role_justification": "module initialization file '__init__'",
+      "summary": "Python module initialization (role: module-init)",
+      "summary_text": "Python module initialization (role: module-init)",
+      "metrics": {
+        "size_bytes": 628,
+        "loc": 1,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/api/__init__.py",
+      "language": "Python",
+      "role": "module-init",
+      "role_justification": "module initialization file '__init__'",
+      "summary": "Python module initialization (role: module-init)",
+      "summary_text": "Python module initialization (role: module-init)",
+      "metrics": {
+        "size_bytes": 604,
+        "loc": 1,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/api/routes.py",
+      "language": "Python",
+      "role": "router",
+      "role_justification": "filename contains routing term",
+      "summary": "Python routing configuration (role: router)",
+      "summary_text": "Python routing configuration (role: router)",
+      "metrics": {
+        "size_bytes": 7938,
+        "loc": 171,
+        "todo_count": 1
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/config.py",
+      "language": "Python",
+      "role": "configuration",
+      "role_justification": "configuration file name 'config'",
+      "summary": "Python configuration file (role: configuration)",
+      "summary_text": "Python configuration file (role: configuration)",
+      "metrics": {
+        "size_bytes": 4670,
+        "loc": 105,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/main.py",
+      "language": "Python",
+      "role": "entry-point",
+      "role_justification": "common entry point name 'main'",
+      "summary": "Python main entry point (role: entry-point)",
+      "summary_text": "Python main entry point (role: entry-point)",
+      "metrics": {
+        "size_bytes": 4655,
+        "loc": 94,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/models.py",
+      "language": "Python",
+      "role": "model",
+      "role_justification": "model/schema name 'models'",
+      "summary": "Python data models (role: model)",
+      "summary_text": "Python data models (role: model)",
+      "metrics": {
+        "size_bytes": 4603,
+        "loc": 109,
+        "todo_count": 0
+      }
+    },
     {
       "schema_version": "2.0",
       "path": "example_openai_usage.py",
@@ -13,6 +97,34 @@
       "metrics": {
         "size_bytes": 20786,
         "loc": 402,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/__init__.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "located in 'tests' directory",
+      "summary": "Python test module initialization (role: test)",
+      "summary_text": "Python test module initialization (role: test)",
+      "metrics": {
+        "size_bytes": 599,
+        "loc": 1,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_api.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 6541,
+        "loc": 141,
         "todo_count": 0
       }
     }

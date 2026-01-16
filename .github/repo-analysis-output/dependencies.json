@@ -1,6 +1,94 @@
 {
   "nodes": [
     {
+      "id": "app/__init__.py",
+      "path": "app/__init__.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/api/__init__.py",
+      "path": "app/api/__init__.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/api/routes.py",
+      "path": "app/api/routes.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "logging",
+          "re"
+        ],
+        "third-party": [
+          "fastapi.APIRouter",
+          "fastapi.Depends",
+          "fastapi.HTTPException",
+          "fastapi.status",
+          "httpx.AsyncClient"
+        ]
+      }
+    },
+    {
+      "id": "app/config.py",
+      "path": "app/config.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "functools.lru_cache",
+          "os",
+          "typing.Optional"
+        ],
+        "third-party": [
+          "pydantic.Field",
+          "pydantic.field_validator",
+          "pydantic_settings.BaseSettings",
+          "pydantic_settings.SettingsConfigDict"
+        ]
+      }
+    },
+    {
+      "id": "app/main.py",
+      "path": "app/main.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "contextlib.asynccontextmanager",
+          "logging"
+        ],
+        "third-party": [
+          "fastapi.FastAPI",
+          "fastapi.middleware.cors.CORSMiddleware",
+          "httpx.AsyncClient",
+          "uvicorn"
+        ]
+      }
+    },
+    {
+      "id": "app/models.py",
+      "path": "app/models.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "typing.List",
+          "typing.Optional",
+          "uuid.UUID"
+        ],
+        "third-party": [
+          "pydantic.BaseModel",
+          "pydantic.Field",
+          "pydantic.field_validator"
+        ]
+      }
+    },
+    {
       "id": "example_openai_usage.py",
       "path": "example_openai_usage.py",
       "type": "file",
@@ -11,40 +99,110 @@
           "typing.Optional"
         ],
         "third-party": [
-          "app.services.llm_client.",
-          "app.services.llm_client.BaseLLMClient",
-          "app.services.llm_client.LLMConfigurationError",
-          "app.services.llm_client.LLMRequestError",
-          "app.services.llm_client.LLMResponseError",
-          "app.services.metrics.get_metrics_collector",
-          "app.utils.logging_helpers.log_llm_request",
-          "app.utils.logging_helpers.log_llm_response",
           "openai",
           "openai.OpenAI"
         ]
       }
+    },
+    {
+      "id": "tests/__init__.py",
+      "path": "tests/__init__.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": []
+      }
+    },
+    {
+      "id": "tests/test_api.py",
+      "path": "tests/test_api.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "os",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "fastapi.testclient.TestClient",
+          "httpx.AsyncClient",
+          "pydantic.ValidationError",
+          "pytest"
+        ]
+      }
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "source": "app/api/routes.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "app/api/routes.py",
+      "target": "app/config.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/api/routes.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/config.py"
+    },
+    {
+      "source": "example_openai_usage.py",
+      "target": "app/__init__.py"
+    },
+    {
+      "source": "tests/test_api.py",
+      "target": "app/config.py"
+    },
+    {
+      "source": "tests/test_api.py",
+      "target": "app/main.py"
+    },
+    {
+      "source": "tests/test_api.py",
+      "target": "app/api/routes.py"
+    },
+    {
+      "source": "tests/test_api.py",
+      "target": "app/models.py"
+    }
+  ],
   "external_dependencies_summary": {
     "stdlib": [
+      "contextlib.asynccontextmanager",
+      "functools.lru_cache",
       "logging",
+      "os",
+      "re",
       "time",
-      "typing.Optional"
+      "typing.List",
+      "typing.Optional",
+      "unittest.mock.patch",
+      "uuid.UUID"
     ],
     "third-party": [
-      "app.services.llm_client.",
-      "app.services.llm_client.BaseLLMClient",
-      "app.services.llm_client.LLMConfigurationError",
-      "app.services.llm_client.LLMRequestError",
-      "app.services.llm_client.LLMResponseError",
-      "app.services.metrics.get_metrics_collector",
-      "app.utils.logging_helpers.log_llm_request",
-      "app.utils.logging_helpers.log_llm_response",
+      "fastapi.APIRouter",
+      "fastapi.Depends",
+      "fastapi.FastAPI",
+      "fastapi.HTTPException",
+      "fastapi.middleware.cors.CORSMiddleware",
+      "fastapi.status",
+      "fastapi.testclient.TestClient",
+      "httpx.AsyncClient",
       "openai",
-      "openai.OpenAI"
+      "openai.OpenAI",
+      "pydantic.BaseModel",
+      "pydantic.Field",
+      "pydantic.ValidationError",
+      "pydantic.field_validator",
+      "pydantic_settings.BaseSettings",
+      "pydantic_settings.SettingsConfigDict",
+      "pytest",
+      "uvicorn"
     ],
-    "stdlib_count": 3,
-    "third-party_count": 10
+    "stdlib_count": 10,
+    "third-party_count": 18
   }
 }

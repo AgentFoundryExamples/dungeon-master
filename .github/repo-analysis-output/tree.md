@@ -15,6 +15,19 @@
     └── tree.md
   └── workflows
     └── af_maintenance.yml
+├── app
+  ├── api
+    ├── __init__.py
+    └── routes.py
+  ├── __init__.py
+  ├── config.py
+  ├── main.py
+  └── models.py
+├── tests
+  ├── __init__.py
+  └── test_api.py
+├── .env.example
+├── .gitignore
 ├── example_openai_usage.py
 ├── gcp_deployment_reference.md
 ├── infrastructure_versions.txt
@@ -22,4 +35,5 @@
 ├── LICENSE
 ├── LLMs.md
 ├── python_dev_versions.txt
-└── README.md
+├── README.md
+└── requirements.txt
