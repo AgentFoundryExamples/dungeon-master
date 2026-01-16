@@ -128,6 +128,7 @@
       "external_dependencies": {
         "stdlib": [
           "datetime.datetime",
+          "enum.Enum",
           "typing.Any",
           "typing.Dict",
           "typing.List",
@@ -235,6 +236,18 @@
           "random",
           "typing.Any",
           "typing.Dict",
+          "typing.Optional"
+        ],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/services/turn_orchestrator.py",
+      "path": "app/services/turn_orchestrator.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "dataclasses.dataclass",
           "typing.Optional"
         ],
         "third-party": []
@@ -539,6 +552,10 @@
     },
     {
       "source": "app/api/routes.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
+      "source": "app/api/routes.py",
       "target": "app/prompting/prompt_builder.py"
     },
     {
@@ -580,6 +597,14 @@
     {
       "source": "app/main.py",
       "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/prompting/prompt_builder.py"
     },
     {
       "source": "app/middleware.py",
@@ -634,6 +659,34 @@
       "target": "app/logging.py"
     },
     {
+      "source": "app/services/turn_orchestrator.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "app/services/turn_orchestrator.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "app/services/turn_orchestrator.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "app/services/turn_orchestrator.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "app/services/turn_orchestrator.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "app/services/turn_orchestrator.py",
+      "target": "app/prompting/prompt_builder.py"
+    },
+    {
+      "source": "app/services/turn_orchestrator.py",
+      "target": "app/logging.py"
+    },
+    {
       "source": "example_openai_usage.py",
       "target": "app/services/llm_client.py"
     },
@@ -670,6 +723,14 @@
       "target": "app/services/policy_engine.py"
     },
     {
+      "source": "tests/conftest.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
+      "source": "tests/conftest.py",
+      "target": "app/prompting/prompt_builder.py"
+    },
+    {
       "source": "tests/test_acceptance_criteria.py",
       "target": "app/services/llm_client.py"
     },
@@ -702,6 +763,14 @@
       "target": "app/services/policy_engine.py"
     },
     {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/prompting/prompt_builder.py"
+    },
+    {
+      "source": "tests/test_acceptance_criteria.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
       "source": "tests/test_api.py",
       "target": "app/config.py"
     },
@@ -720,6 +789,14 @@
     {
       "source": "tests/test_api.py",
       "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "tests/test_api.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
+      "source": "tests/test_api.py",
+      "target": "app/prompting/prompt_builder.py"
     },
     {
       "source": "tests/test_api.py",
@@ -826,6 +903,10 @@
       "target": "app/prompting/prompt_builder.py"
     },
     {
+      "source": "tests/test_policy_integration.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
       "source": "tests/test_policy_models.py",
       "target": "app/models.py"
     },
@@ -858,6 +939,7 @@
       "contextvars.ContextVar",
       "dataclasses.dataclass",
       "datetime.datetime",
+      "enum.Enum",
       "functools.lru_cache",
       "hashlib",
       "json",
@@ -908,7 +990,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 27,
+    "stdlib_count": 28,
     "third-party_count": 26
   }
 }

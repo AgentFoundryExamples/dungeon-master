@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 34
+Total files: 35
 
 ## app/__init__.py
 **Language:** Python  
@@ -29,8 +29,8 @@ Total files: 34
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 25.59 KB  
-**LOC:** 569  
+**Size:** 22.45 KB  
+**LOC:** 525  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -56,8 +56,8 @@ Total files: 34
 **Role:** entry-point  
 **Role Justification:** common entry point name 'main'  
 **Summary:** Python main entry point (role: entry-point)  
-**Size:** 8.35 KB  
-**LOC:** 173  
+**Size:** 9.50 KB  
+**LOC:** 204  
 **TODOs/FIXMEs:** 0  
 
 ## app/metrics.py
@@ -83,8 +83,8 @@ Total files: 34
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 28.52 KB  
-**LOC:** 639  
+**Size:** 32.04 KB  
+**LOC:** 723  
 **TODOs/FIXMEs:** 0  
 
 ## app/prompting/__init__.py
@@ -119,8 +119,8 @@ Total files: 34
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for journey log client  
-**Size:** 18.57 KB  
-**LOC:** 388  
+**Size:** 31.85 KB  
+**LOC:** 717  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/llm_client.py
@@ -150,6 +150,15 @@ Total files: 34
 **LOC:** 195  
 **TODOs/FIXMEs:** 0  
 
+## app/services/turn_orchestrator.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for turn orchestrator  
+**Size:** 25.30 KB  
+**LOC:** 530  
+**TODOs/FIXMEs:** 0  
+
 ## example_openai_usage.py
 **Language:** Python  
 **Role:** implementation  
@@ -173,8 +182,8 @@ Total files: 34
 **Role:** test  
 **Role Justification:** located in 'tests' directory  
 **Summary:** Python test implementation (role: test)  
-**Size:** 13.87 KB  
-**LOC:** 279  
+**Size:** 16.38 KB  
+**LOC:** 343  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_acceptance_criteria.py
@@ -182,8 +191,8 @@ Total files: 34
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 13.33 KB  
-**LOC:** 260  
+**Size:** 13.69 KB  
+**LOC:** 268  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_api.py
@@ -191,8 +200,8 @@ Total files: 34
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 19.94 KB  
-**LOC:** 422  
+**Size:** 21.98 KB  
+**LOC:** 466  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_config.py
@@ -272,8 +281,8 @@ Total files: 34
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 9.17 KB  
-**LOC:** 199  
+**Size:** 10.50 KB  
+**LOC:** 217  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_policy_models.py
@@ -308,6 +317,6 @@ Total files: 34
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 28.04 KB  
-**LOC:** 547  
+**Size:** 28.49 KB  
+**LOC:** 554  
 **TODOs/FIXMEs:** 0  

@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 34,
+  "total_files": 35,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 26200,
-        "loc": 569,
+        "size_bytes": 22984,
+        "loc": 525,
         "todo_count": 0
       }
     },
@@ -81,8 +81,8 @@
       "summary": "Python main entry point (role: entry-point)",
       "summary_text": "Python main entry point (role: entry-point)",
       "metrics": {
-        "size_bytes": 8552,
-        "loc": 173,
+        "size_bytes": 9733,
+        "loc": 204,
         "todo_count": 0
       }
     },
@@ -123,8 +123,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 29204,
-        "loc": 639,
+        "size_bytes": 32807,
+        "loc": 723,
         "todo_count": 0
       }
     },
@@ -179,8 +179,8 @@
       "summary": "Python module for journey log client",
       "summary_text": "Python module for journey log client",
       "metrics": {
-        "size_bytes": 19018,
-        "loc": 388,
+        "size_bytes": 32618,
+        "loc": 717,
         "todo_count": 0
       }
     },
@@ -228,6 +228,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "app/services/turn_orchestrator.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for turn orchestrator",
+      "summary_text": "Python module for turn orchestrator",
+      "metrics": {
+        "size_bytes": 25909,
+        "loc": 530,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "example_openai_usage.py",
       "language": "Python",
       "role": "implementation",
@@ -263,8 +277,8 @@
       "summary": "Python test implementation (role: test)",
       "summary_text": "Python test implementation (role: test)",
       "metrics": {
-        "size_bytes": 14205,
-        "loc": 279,
+        "size_bytes": 16777,
+        "loc": 343,
         "todo_count": 0
       }
     },
@@ -277,8 +291,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 13645,
-        "loc": 260,
+        "size_bytes": 14016,
+        "loc": 268,
         "todo_count": 0
       }
     },
@@ -291,8 +305,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 20423,
-        "loc": 422,
+        "size_bytes": 22511,
+        "loc": 466,
         "todo_count": 0
       }
     },
@@ -417,8 +431,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 9386,
-        "loc": 199,
+        "size_bytes": 10755,
+        "loc": 217,
         "todo_count": 0
       }
     },
@@ -473,8 +487,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 28709,
-        "loc": 547,
+        "size_bytes": 29172,
+        "loc": 554,
         "todo_count": 0
       }
     }
