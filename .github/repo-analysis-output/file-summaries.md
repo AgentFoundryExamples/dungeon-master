@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 31
+Total files: 33
 
 ## app/__init__.py
 **Language:** Python  
@@ -83,8 +83,8 @@ Total files: 31
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 19.92 KB  
-**LOC:** 474  
+**Size:** 27.41 KB  
+**LOC:** 614  
 **TODOs/FIXMEs:** 0  
 
 ## app/prompting/__init__.py
@@ -119,8 +119,8 @@ Total files: 31
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for journey log client  
-**Size:** 11.24 KB  
-**LOC:** 259  
+**Size:** 18.57 KB  
+**LOC:** 388  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/llm_client.py
@@ -249,6 +249,15 @@ Total files: 31
 **LOC:** 268  
 **TODOs/FIXMEs:** 0  
 
+## tests/test_policy_context_integration.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 6.56 KB  
+**LOC:** 103  
+**TODOs/FIXMEs:** 0  
+
 ## tests/test_policy_engine.py
 **Language:** Python  
 **Role:** test  
@@ -265,6 +274,15 @@ Total files: 31
 **Summary:** Python test file (role: test)  
 **Size:** 5.57 KB  
 **LOC:** 141  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_policy_state_extraction.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 16.53 KB  
+**LOC:** 348  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_prompt_builder.py

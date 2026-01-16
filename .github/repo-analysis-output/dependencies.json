@@ -127,6 +127,9 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "datetime.datetime",
+          "typing.Any",
+          "typing.Dict",
           "typing.List",
           "typing.Literal",
           "typing.Optional",
@@ -175,7 +178,9 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "datetime.datetime",
           "time",
+          "typing.Any",
           "typing.Optional"
         ],
         "third-party": [
@@ -409,6 +414,17 @@
       }
     },
     {
+      "id": "tests/test_policy_context_integration.py",
+      "path": "tests/test_policy_context_integration.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_policy_engine.py",
       "path": "tests/test_policy_engine.py",
       "type": "file",
@@ -427,6 +443,21 @@
         "stdlib": [],
         "third-party": [
           "pydantic.ValidationError",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_policy_state_extraction.py",
+      "path": "tests/test_policy_state_extraction.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "unittest.mock.AsyncMock"
+        ],
+        "third-party": [
+          "httpx.AsyncClient",
+          "httpx.Response",
           "pytest"
         ]
       }
@@ -713,6 +744,14 @@
       "target": "app/models.py"
     },
     {
+      "source": "tests/test_policy_context_integration.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_policy_context_integration.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
       "source": "tests/test_policy_engine.py",
       "target": "app/services/policy_engine.py"
     },
@@ -722,6 +761,14 @@
     },
     {
       "source": "tests/test_policy_models.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_policy_state_extraction.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_policy_state_extraction.py",
       "target": "app/models.py"
     },
     {
@@ -744,6 +791,7 @@
       "contextlib.asynccontextmanager",
       "contextvars.ContextVar",
       "dataclasses.dataclass",
+      "datetime.datetime",
       "functools.lru_cache",
       "hashlib",
       "json",
@@ -794,7 +842,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 26,
+    "stdlib_count": 27,
     "third-party_count": 26
   }
 }

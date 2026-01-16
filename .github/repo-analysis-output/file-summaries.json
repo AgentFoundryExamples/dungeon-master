@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 31,
+  "total_files": 33,
   "files": [
     {
       "schema_version": "2.0",
@@ -123,8 +123,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 20402,
-        "loc": 474,
+        "size_bytes": 28070,
+        "loc": 614,
         "todo_count": 0
       }
     },
@@ -179,8 +179,8 @@
       "summary": "Python module for journey log client",
       "summary_text": "Python module for journey log client",
       "metrics": {
-        "size_bytes": 11510,
-        "loc": 259,
+        "size_bytes": 19018,
+        "loc": 388,
         "todo_count": 0
       }
     },
@@ -382,6 +382,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "tests/test_policy_context_integration.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 6718,
+        "loc": 103,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "tests/test_policy_engine.py",
       "language": "Python",
       "role": "test",
@@ -405,6 +419,20 @@
       "metrics": {
         "size_bytes": 5699,
         "loc": 141,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_policy_state_extraction.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 16924,
+        "loc": 348,
         "todo_count": 0
       }
     },

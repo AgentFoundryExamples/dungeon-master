@@ -8,22 +8,23 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 31
-- **Intra-repo dependencies**: 68
-- **External stdlib dependencies**: 26
+- **Total files**: 33
+- **Intra-repo dependencies**: 72
+- **External stdlib dependencies**: 27
 - **External third-party dependencies**: 26
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 26 unique modules
+Total: 27 unique modules
 
 - `asyncio`
 - `collections.defaultdict`
 - `contextlib.asynccontextmanager`
 - `contextvars.ContextVar`
 - `dataclasses.dataclass`
+- `datetime.datetime`
 - `functools.lru_cache`
 - `hashlib`
 - `json`
@@ -38,8 +39,7 @@ Total: 26 unique modules
 - `typing.Dict`
 - `typing.List`
 - `typing.Literal`
-- `typing.Optional`
-- ... and 6 more (see JSON for full list)
+- ... and 7 more (see JSON for full list)
 
 ### Third-Party Packages
 
@@ -69,16 +69,16 @@ Total: 26 unique packages
 
 ## Most Depended Upon Files (Intra-Repo)
 
-- `app/models.py` (14 dependents)
+- `app/models.py` (16 dependents)
 - `app/services/llm_client.py` (8 dependents)
 - `app/config.py` (7 dependents)
+- `app/services/journey_log_client.py` (7 dependents)
 - `app/logging.py` (7 dependents)
-- `app/services/journey_log_client.py` (6 dependents)
 - `app/services/outcome_parser.py` (6 dependents)
 - `app/metrics.py` (6 dependents)
 - `app/api/routes.py` (4 dependents)
 - `app/main.py` (3 dependents)
-- `app/prompting/prompt_builder.py` (2 dependents)
+- `app/services/policy_engine.py` (3 dependents)
 
 ## Files with Most Dependencies (Intra-Repo)
 
