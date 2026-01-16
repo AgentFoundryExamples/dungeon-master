@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager.
     
     Handles startup and shutdown logic:
-    - Startup: Initialize HTTP client, validate config
+    - Startup: Initialize HTTP client, validate config, create service clients
     - Shutdown: Close HTTP client gracefully
     
     Args:
@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info("Starting Dungeon Master service...")
-    
+
     # Validate configuration at startup
     try:
         settings = get_settings()
@@ -61,13 +61,33 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Configuration validation failed: {e}")
         raise
-    
+
     # Initialize HTTP client and store in app state
     app.state.http_client = AsyncClient()
     logger.info("HTTP client initialized")
-    
+
+    # Initialize shared service clients and store in app state
+    from app.services.llm_client import LLMClient
+    from app.services.journey_log_client import JourneyLogClient
+
+    app.state.llm_client = LLMClient(
+        api_key=settings.openai_api_key,
+        model=settings.openai_model,
+        timeout=settings.openai_timeout,
+        stub_mode=settings.openai_stub_mode
+    )
+    logger.info(f"LLM client initialized (model={settings.openai_model}, stub_mode={settings.openai_stub_mode})")
+
+    app.state.journey_log_client = JourneyLogClient(
+        base_url=settings.journey_log_base_url,
+        http_client=app.state.http_client,
+        timeout=settings.journey_log_timeout,
+        recent_n_default=settings.journey_log_recent_n
+    )
+    logger.info(f"Journey-log client initialized (base_url={settings.journey_log_base_url})")
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down Dungeon Master service...")
     if hasattr(app.state, 'http_client'):
@@ -128,19 +148,57 @@ def get_http_client_override() -> AsyncClient:
     return app.state.http_client
 
 
+def get_journey_log_client_override():
+    """Dependency override that provides the JourneyLogClient from app state.
+    
+    Returns:
+        JourneyLogClient instance from app state
+        
+    Raises:
+        RuntimeError: If journey_log_client is not initialized in app state
+    """
+    from app.services.journey_log_client import JourneyLogClient
+    if not hasattr(app.state, 'journey_log_client'):
+        raise RuntimeError(
+            "Journey-log client not initialized. "
+            "Ensure the application lifespan has started."
+        )
+    return app.state.journey_log_client
+
+
+def get_llm_client_override():
+    """Dependency override that provides the LLMClient from app state.
+    
+    Returns:
+        LLMClient instance from app state
+        
+    Raises:
+        RuntimeError: If llm_client is not initialized in app state
+    """
+    from app.services.llm_client import LLMClient
+    if not hasattr(app.state, 'llm_client'):
+        raise RuntimeError(
+            "LLM client not initialized. "
+            "Ensure the application lifespan has started."
+        )
+    return app.state.llm_client
+
+
 # Use FastAPI's dependency_overrides instead of monkey-patching
-from app.api.routes import get_http_client
+from app.api.routes import get_http_client, get_journey_log_client, get_llm_client
 app.dependency_overrides[get_http_client] = get_http_client_override
+app.dependency_overrides[get_journey_log_client] = get_journey_log_client_override
+app.dependency_overrides[get_llm_client] = get_llm_client_override
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     settings = get_settings()
-    
+
     # Configure log level from settings
     logging.getLogger().setLevel(settings.log_level)
-    
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

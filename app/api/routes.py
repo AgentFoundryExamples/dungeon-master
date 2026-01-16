@@ -27,6 +27,19 @@ import re
 
 from app.models import TurnRequest, TurnResponse, HealthResponse
 from app.config import get_settings, Settings
+from app.services.journey_log_client import (
+    JourneyLogClient,
+    JourneyLogNotFoundError,
+    JourneyLogTimeoutError,
+    JourneyLogClientError
+)
+from app.services.llm_client import (
+    LLMClient,
+    LLMTimeoutError,
+    LLMResponseError,
+    LLMClientError
+)
+from app.prompting.prompt_builder import PromptBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +83,36 @@ async def get_http_client() -> AsyncClient:
     )
 
 
+def get_journey_log_client():
+    """Dependency that provides a JourneyLogClient for journey-log requests.
+    
+    This is a placeholder that must be overridden by the application.
+    The application lifespan in main.py provides the actual implementation.
+    
+    Raises:
+        NotImplementedError: If not overridden by the application
+    """
+    raise NotImplementedError(
+        "get_journey_log_client dependency must be overridden. "
+        "This should be configured in app.main module."
+    )
+
+
+def get_llm_client():
+    """Dependency that provides an LLMClient for LLM requests.
+    
+    This is a placeholder that must be overridden by the application.
+    The application lifespan in main.py provides the actual implementation.
+    
+    Raises:
+        NotImplementedError: If not overridden by the application
+    """
+    raise NotImplementedError(
+        "get_llm_client dependency must be overridden. "
+        "This should be configured in app.main module."
+    )
+
+
 @router.post(
     "/turn",
     response_model=TurnResponse,
@@ -98,18 +141,24 @@ async def get_http_client() -> AsyncClient:
 )
 async def process_turn(
     request: TurnRequest,
-    http_client: AsyncClient = Depends(get_http_client),
+    journey_log_client: JourneyLogClient = Depends(get_journey_log_client),
+    llm_client: LLMClient = Depends(get_llm_client),
     settings: Settings = Depends(get_settings)
 ) -> TurnResponse:
     """Process a player turn and generate narrative response.
     
-    STUB: This endpoint is currently stubbed and returns a placeholder response.
-    Full orchestration logic (journey-log context fetch + LLM generation) will be
-    implemented in a future issue.
+    Full orchestration flow:
+    1. Validate request
+    2. Fetch context from journey-log
+    3. Build prompt using PromptBuilder
+    4. Call LLM for narrative generation
+    5. Persist user_action + narrative to journey-log
+    6. Return TurnResponse
     
     Args:
         request: Turn request with character_id and user_action
-        http_client: HTTP client for external requests (injected)
+        journey_log_client: JourneyLogClient for journey-log communication (injected)
+        llm_client: LLMClient for LLM communication (injected)
         settings: Application settings (injected)
         
     Returns:
@@ -121,19 +170,96 @@ async def process_turn(
     # Sanitize inputs for logging to prevent log injection
     safe_character_id = sanitize_for_log(request.character_id, 36)
     safe_action = sanitize_for_log(request.user_action, 50)
-    
+
     logger.info(
-        f"Processing turn for character {safe_character_id}: {safe_action}..."
+        f"Processing turn for character {safe_character_id}: {safe_action}... "
+        f"(trace_id={request.trace_id})"
     )
-    
-    # STUB: Return placeholder response
-    # TODO: Implement journey-log context fetch and LLM orchestration
-    return TurnResponse(
-        narrative=(
-            f"[STUB] Received action: {request.user_action[:100]}. "
-            "Full orchestration will be implemented in next issue."
+
+    try:
+        prompt_builder = PromptBuilder()
+
+        # Step 1: Fetch context from journey-log
+        logger.debug(f"Fetching context for character {safe_character_id}")
+        context = await journey_log_client.get_context(
+            character_id=request.character_id,
+            trace_id=request.trace_id
         )
-    )
+
+        # Step 2: Build prompt
+        logger.debug("Building prompt from context and user action")
+        system_instructions, user_prompt = prompt_builder.build_prompt(
+            context=context,
+            user_action=request.user_action
+        )
+
+        # Step 3: Call LLM for narrative generation
+        logger.debug("Generating narrative with LLM")
+        narrative = await llm_client.generate_narrative(
+            system_instructions=system_instructions,
+            user_prompt=user_prompt,
+            trace_id=request.trace_id
+        )
+
+        # Step 4: Persist to journey-log
+        logger.debug("Persisting narrative to journey-log")
+        await journey_log_client.persist_narrative(
+            character_id=request.character_id,
+            user_action=request.user_action,
+            narrative=narrative,
+            trace_id=request.trace_id
+        )
+
+        # Step 5: Return response
+        logger.info(
+            f"Successfully processed turn for {safe_character_id}: "
+            f"generated {len(narrative)} character narrative"
+        )
+        return TurnResponse(narrative=narrative)
+
+    except JourneyLogNotFoundError as e:
+        logger.error(f"Character not found: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Character {request.character_id} not found in journey-log"
+        ) from e
+    except JourneyLogTimeoutError as e:
+        logger.error(f"Journey-log timeout: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Journey-log service timed out. Please try again."
+        ) from e
+    except JourneyLogClientError as e:
+        logger.error(f"Journey-log error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to communicate with journey-log: {str(e)}"
+        ) from e
+    except LLMTimeoutError as e:
+        logger.error(f"LLM timeout: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="LLM service timed out. Please try again."
+        ) from e
+    except LLMResponseError as e:
+        logger.error(f"LLM response error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"LLM returned invalid response: {str(e)}"
+        ) from e
+    except LLMClientError as e:
+        logger.error(f"LLM client error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to generate narrative: {str(e)}"
+        ) from e
+    except Exception as e:
+        # Catch-all for unexpected errors
+        logger.exception(f"Unexpected error processing turn: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while processing your turn"
+        ) from e
 
 
 @router.get(
@@ -192,10 +318,10 @@ async def health_check(
         HealthResponse with status and optional journey-log accessibility
     """
     logger.debug("Health check requested")
-    
+
     journey_log_accessible = None
     service_status = "healthy"
-    
+
     # Optionally check journey-log service accessibility
     if settings.health_check_journey_log:
         try:
@@ -205,7 +331,7 @@ async def health_check(
                 timeout=5.0  # Short timeout for health checks
             )
             journey_log_accessible = response.status_code == 200
-            
+
             if not journey_log_accessible:
                 logger.warning(
                     f"Journey-log health check returned status {response.status_code}"
@@ -215,7 +341,7 @@ async def health_check(
             logger.warning(f"Journey-log health check failed: {e}")
             journey_log_accessible = False
             service_status = "degraded"
-    
+
     return HealthResponse(
         status=service_status,
         service=settings.service_name,
