@@ -41,7 +41,8 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "functools.lru_cache"
+          "functools.lru_cache",
+          "typing.Optional"
         ],
         "third-party": [
           "pydantic.Field",
@@ -220,6 +221,21 @@
       }
     },
     {
+      "id": "app/services/policy_engine.py",
+      "path": "app/services/policy_engine.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "hashlib",
+          "random",
+          "typing.Any",
+          "typing.Dict",
+          "typing.Optional"
+        ],
+        "third-party": []
+      }
+    },
+    {
       "id": "example_openai_usage.py",
       "path": "example_openai_usage.py",
       "type": "file",
@@ -300,6 +316,21 @@
       }
     },
     {
+      "id": "tests/test_config.py",
+      "path": "tests/test_config.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "os",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "pydantic.ValidationError",
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_journey_log_client.py",
       "path": "tests/test_journey_log_client.py",
       "type": "file",
@@ -372,6 +403,29 @@
         "third-party": [
           "pydantic.BaseModel",
           "pydantic.Field",
+          "pydantic.ValidationError",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_policy_engine.py",
+      "path": "tests/test_policy_engine.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_policy_models.py",
+      "path": "tests/test_policy_models.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": [
           "pydantic.ValidationError",
           "pytest"
         ]
@@ -515,6 +569,14 @@
       "target": "app/logging.py"
     },
     {
+      "source": "app/services/policy_engine.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "app/services/policy_engine.py",
+      "target": "app/logging.py"
+    },
+    {
       "source": "example_openai_usage.py",
       "target": "app/services/llm_client.py"
     },
@@ -603,6 +665,14 @@
       "target": "app/services/outcome_parser.py"
     },
     {
+      "source": "tests/test_config.py",
+      "target": "app/config.py"
+    },
+    {
+      "source": "tests/test_config.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
       "source": "tests/test_journey_log_client.py",
       "target": "app/services/journey_log_client.py"
     },
@@ -643,6 +713,18 @@
       "target": "app/models.py"
     },
     {
+      "source": "tests/test_policy_engine.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "tests/test_policy_engine.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_policy_models.py",
+      "target": "app/models.py"
+    },
+    {
       "source": "tests/test_prompt_builder.py",
       "target": "app/prompting/prompt_builder.py"
     },
@@ -663,9 +745,11 @@
       "contextvars.ContextVar",
       "dataclasses.dataclass",
       "functools.lru_cache",
+      "hashlib",
       "json",
       "logging",
       "os",
+      "random",
       "re",
       "threading.Lock",
       "time",
@@ -710,7 +794,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 24,
+    "stdlib_count": 26,
     "third-party_count": 26
   }
 }

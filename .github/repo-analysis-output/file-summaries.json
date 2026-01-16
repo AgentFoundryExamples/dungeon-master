@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 27,
+  "total_files": 31,
   "files": [
     {
       "schema_version": "2.0",
@@ -53,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 5420,
-        "loc": 125,
+        "size_bytes": 6317,
+        "loc": 150,
         "todo_count": 0
       }
     },
@@ -123,8 +123,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 18407,
-        "loc": 428,
+        "size_bytes": 20402,
+        "loc": 474,
         "todo_count": 0
       }
     },
@@ -214,6 +214,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "app/services/policy_engine.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for policy engine",
+      "summary_text": "Python module for policy engine",
+      "metrics": {
+        "size_bytes": 11083,
+        "loc": 195,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "example_openai_usage.py",
       "language": "Python",
       "role": "implementation",
@@ -284,6 +298,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "tests/test_config.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 5869,
+        "loc": 127,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "tests/test_journey_log_client.py",
       "language": "Python",
       "role": "test",
@@ -349,6 +377,34 @@
       "metrics": {
         "size_bytes": 13006,
         "loc": 268,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_policy_engine.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 12162,
+        "loc": 281,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_policy_models.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 5699,
+        "loc": 141,
         "todo_count": 0
       }
     },

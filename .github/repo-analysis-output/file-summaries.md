@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 27
+Total files: 31
 
 ## app/__init__.py
 **Language:** Python  
@@ -38,8 +38,8 @@ Total files: 27
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 5.29 KB  
-**LOC:** 125  
+**Size:** 6.17 KB  
+**LOC:** 150  
 **TODOs/FIXMEs:** 0  
 
 ## app/logging.py
@@ -83,8 +83,8 @@ Total files: 27
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 17.98 KB  
-**LOC:** 428  
+**Size:** 19.92 KB  
+**LOC:** 474  
 **TODOs/FIXMEs:** 0  
 
 ## app/prompting/__init__.py
@@ -141,6 +141,15 @@ Total files: 27
 **LOC:** 212  
 **TODOs/FIXMEs:** 0  
 
+## app/services/policy_engine.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for policy engine  
+**Size:** 10.82 KB  
+**LOC:** 195  
+**TODOs/FIXMEs:** 0  
+
 ## example_openai_usage.py
 **Language:** Python  
 **Role:** implementation  
@@ -186,6 +195,15 @@ Total files: 27
 **LOC:** 413  
 **TODOs/FIXMEs:** 0  
 
+## tests/test_config.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 5.73 KB  
+**LOC:** 127  
+**TODOs/FIXMEs:** 0  
+
 ## tests/test_journey_log_client.py
 **Language:** Python  
 **Role:** test  
@@ -229,6 +247,24 @@ Total files: 27
 **Summary:** Python test file (role: test)  
 **Size:** 12.70 KB  
 **LOC:** 268  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_policy_engine.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 11.88 KB  
+**LOC:** 281  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_policy_models.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 5.57 KB  
+**LOC:** 141  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_prompt_builder.py

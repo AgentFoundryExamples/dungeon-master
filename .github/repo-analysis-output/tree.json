@@ -121,6 +121,10 @@
             {
               "type": "file",
               "name": "outcome_parser.py"
+            },
+            {
+              "type": "file",
+              "name": "policy_engine.py"
             }
           ]
         },
@@ -176,6 +180,10 @@
         },
         {
           "type": "file",
+          "name": "test_config.py"
+        },
+        {
+          "type": "file",
           "name": "test_journey_log_client.py"
         },
         {
@@ -193,6 +201,14 @@
         {
           "type": "file",
           "name": "test_outcome_parser.py"
+        },
+        {
+          "type": "file",
+          "name": "test_policy_engine.py"
+        },
+        {
+          "type": "file",
+          "name": "test_policy_models.py"
         },
         {
           "type": "file",

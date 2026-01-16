@@ -8,16 +8,16 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 27
-- **Intra-repo dependencies**: 61
-- **External stdlib dependencies**: 24
+- **Total files**: 31
+- **Intra-repo dependencies**: 68
+- **External stdlib dependencies**: 26
 - **External third-party dependencies**: 26
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 24 unique modules
+Total: 26 unique modules
 
 - `asyncio`
 - `collections.defaultdict`
@@ -25,9 +25,11 @@ Total: 24 unique modules
 - `contextvars.ContextVar`
 - `dataclasses.dataclass`
 - `functools.lru_cache`
+- `hashlib`
 - `json`
 - `logging`
 - `os`
+- `random`
 - `re`
 - `threading.Lock`
 - `time`
@@ -37,9 +39,7 @@ Total: 24 unique modules
 - `typing.List`
 - `typing.Literal`
 - `typing.Optional`
-- `typing.Tuple`
-- `unittest.mock.AsyncMock`
-- ... and 4 more (see JSON for full list)
+- ... and 6 more (see JSON for full list)
 
 ### Third-Party Packages
 
@@ -69,12 +69,12 @@ Total: 26 unique packages
 
 ## Most Depended Upon Files (Intra-Repo)
 
-- `app/models.py` (11 dependents)
+- `app/models.py` (14 dependents)
 - `app/services/llm_client.py` (8 dependents)
-- `app/config.py` (6 dependents)
+- `app/config.py` (7 dependents)
+- `app/logging.py` (7 dependents)
 - `app/services/journey_log_client.py` (6 dependents)
 - `app/services/outcome_parser.py` (6 dependents)
-- `app/logging.py` (6 dependents)
 - `app/metrics.py` (6 dependents)
 - `app/api/routes.py` (4 dependents)
 - `app/main.py` (3 dependents)
