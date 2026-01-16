@@ -250,6 +250,7 @@ class TurnOrchestrator:
                 await self._execute_combat_action(
                     character_id=character_id,
                     action=actions["combat"],
+                    context=context,
                     summary=summary,
                     trace_id=trace_id
                 )
@@ -606,6 +607,7 @@ class TurnOrchestrator:
         self,
         character_id: str,
         action: SubsystemAction,
+        context: "JourneyLogContext",
         summary: TurnSubsystemSummary,
         trace_id: Optional[str]
     ) -> None:
@@ -616,7 +618,7 @@ class TurnOrchestrator:
         
         Combat Action Details:
         - start: Creates new combat_state with enemies, sets turn=1
-        - continue: Updates existing combat_state (statuses, turn counter)
+        - continue: Updates existing combat_state from context (increments turn counter)
         - end: Sends combat_state=null to terminate combat
         
         Error Handling:
@@ -627,6 +629,7 @@ class TurnOrchestrator:
         Args:
             character_id: Character UUID
             action: SubsystemAction to execute
+            context: Character context with current combat_state
             summary: TurnSubsystemSummary to update
             trace_id: Optional trace ID
         """
@@ -687,17 +690,19 @@ class TurnOrchestrator:
                     
                     enemies_list.append(enemy_state)
                 
-                # If no enemies were extracted, create minimal payload
+                # If no enemies were extracted, log error and skip combat start
                 if not enemies_list:
-                    logger.warning("Combat start with no valid enemies - using minimal payload")
-                    enemies_list = [{
-                        "enemy_id": str(uuid.uuid4()),
-                        "name": "Unknown Enemy",
-                        "status": "Healthy",
-                        "weapon": None,
-                        "traits": [],
-                        "metadata": None
-                    }]
+                    logger.error(
+                        "Combat start failed - no valid enemies provided in CombatIntent",
+                        character_id=character_id,
+                        intent_enemies=action.intent_data.get("enemies") if action.intent_data else None
+                    )
+                    summary.combat_change = SubsystemActionType(
+                        action="start",
+                        success=False,
+                        error="No valid enemies provided in CombatIntent"
+                    )
+                    return
                 
                 # Build CombatState payload
                 combat_payload = {
@@ -716,20 +721,31 @@ class TurnOrchestrator:
                 )
             
             elif action.action_type == "continue":
-                # For continue, we need to update the existing combat_state
-                # The intent_data may contain updated enemy statuses
-                # For now, we'll just increment the turn counter
-                # A more sophisticated implementation would parse status updates from intents
+                # For continue, use the existing combat_state from context and increment turn
+                # Context is the single source of truth - no GET calls
+                if not context.combat_state:
+                    logger.error(
+                        "Combat continue failed - no combat_state in context",
+                        character_id=character_id
+                    )
+                    summary.combat_change = SubsystemActionType(
+                        action="continue",
+                        success=False,
+                        error="No combat_state in context for continue action"
+                    )
+                    return
                 
-                # Note: To properly update combat state, we would need the current combat_state
-                # from context, but we're avoiding GET calls. For now, we'll pass minimal data
-                # and let journey-log handle the update logic.
-                combat_payload = {
-                    "update_type": "continue"
-                    # Additional fields could include enemy status updates, player conditions, etc.
-                }
+                # Copy existing combat_state and increment turn counter
+                from copy import deepcopy
+                combat_payload = deepcopy(context.combat_state)
+                current_turn = combat_payload.get("turn", 1)
+                combat_payload["turn"] = current_turn + 1
                 
-                logger.debug("Built combat continue payload")
+                logger.debug(
+                    "Built combat continue payload",
+                    previous_turn=current_turn,
+                    new_turn=combat_payload["turn"]
+                )
             
             elif action.action_type == "end":
                 # For end, send null to clear combat_state

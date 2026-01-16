@@ -242,14 +242,26 @@ async def test_combat_start_skipped_when_already_in_combat(orchestrator, mock_ll
 
 @pytest.mark.asyncio
 async def test_combat_continue_updates_state(orchestrator, mock_llm_client, mock_journey_log_client):
-    """Test that combat continue action updates combat state."""
-    # Setup context - in combat
+    """Test that combat continue action updates combat state with incremented turn."""
+    # Setup context - in combat with turn 3
     context = JourneyLogContext(
         character_id="test-char-id",
         status="Healthy",
         location={"id": "origin:nexus", "display_name": "The Nexus"},
         active_quest=None,
-        combat_state={"combat_id": "existing-combat", "turn": 3},
+        combat_state={
+            "combat_id": "existing-combat",
+            "turn": 3,
+            "started_at": "2026-01-16T20:00:00Z",
+            "enemies": [
+                {
+                    "enemy_id": "enemy-1",
+                    "name": "Goblin",
+                    "status": "Wounded"
+                }
+            ],
+            "player_conditions": None
+        },
         recent_history=[],
         policy_state=PolicyState(
             combat_active=True,  # In combat
@@ -288,6 +300,14 @@ async def test_combat_continue_updates_state(orchestrator, mock_llm_client, mock
     
     # Verify put_combat was called
     mock_journey_log_client.put_combat.assert_called_once()
+    call_args = mock_journey_log_client.put_combat.call_args
+    
+    # Verify payload has incremented turn counter
+    combat_data = call_args.kwargs["combat_data"]
+    assert combat_data is not None
+    assert combat_data["turn"] == 4  # Incremented from 3
+    assert combat_data["combat_id"] == "existing-combat"
+    assert len(combat_data["enemies"]) == 1
     
     # Verify summary
     assert summary.combat_change.action == "continued"
@@ -355,7 +375,7 @@ async def test_combat_end_sends_null(orchestrator, mock_llm_client, mock_journey
 
 @pytest.mark.asyncio
 async def test_combat_start_with_no_enemies(orchestrator, mock_llm_client, mock_journey_log_client):
-    """Test that combat start with no valid enemies creates minimal payload."""
+    """Test that combat start with no valid enemies fails with error in summary."""
     # Setup context - not in combat
     context = JourneyLogContext(
         character_id="test-char-id",
@@ -400,19 +420,13 @@ async def test_combat_start_with_no_enemies(orchestrator, mock_llm_client, mock_
         dry_run=False
     )
     
-    # Verify put_combat was called
-    mock_journey_log_client.put_combat.assert_called_once()
-    call_args = mock_journey_log_client.put_combat.call_args
+    # Verify put_combat was NOT called (failed validation)
+    mock_journey_log_client.put_combat.assert_not_called()
     
-    # Verify minimal payload with at least one enemy
-    combat_data = call_args.kwargs["combat_data"]
-    assert combat_data is not None
-    assert len(combat_data["enemies"]) == 1
-    assert combat_data["enemies"][0]["name"] == "Unknown Enemy"
-    
-    # Verify summary
-    assert summary.combat_change.action == "started"
-    assert summary.combat_change.success is True
+    # Verify summary shows failed combat start with error
+    assert summary.combat_change.action == "start"
+    assert summary.combat_change.success is False
+    assert "No valid enemies" in summary.combat_change.error
 
 
 @pytest.mark.asyncio
