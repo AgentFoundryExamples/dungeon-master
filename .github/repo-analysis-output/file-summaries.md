@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 35
+Total files: 37
 
 ## app/__init__.py
 **Language:** Python  
@@ -119,8 +119,8 @@ Total files: 35
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for journey log client  
-**Size:** 31.85 KB  
-**LOC:** 717  
+**Size:** 32.41 KB  
+**LOC:** 728  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/llm_client.py
@@ -137,8 +137,8 @@ Total files: 35
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for outcome parser  
-**Size:** 10.85 KB  
-**LOC:** 212  
+**Size:** 16.27 KB  
+**LOC:** 298  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/policy_engine.py
@@ -155,8 +155,8 @@ Total files: 35
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for turn orchestrator  
-**Size:** 25.30 KB  
-**LOC:** 530  
+**Size:** 29.77 KB  
+**LOC:** 594  
 **TODOs/FIXMEs:** 0  
 
 ## example_openai_usage.py
@@ -310,6 +310,24 @@ Total files: 35
 **Summary:** Python test file (role: test)  
 **Size:** 14.89 KB  
 **LOC:** 326  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_quest_integration.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 16.93 KB  
+**LOC:** 377  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_quest_normalization.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 6.35 KB  
+**LOC:** 140  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_turn_integration.py

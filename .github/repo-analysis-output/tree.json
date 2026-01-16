@@ -232,6 +232,14 @@
         },
         {
           "type": "file",
+          "name": "test_quest_integration.py"
+        },
+        {
+          "type": "file",
+          "name": "test_quest_normalization.py"
+        },
+        {
+          "type": "file",
           "name": "test_turn_integration.py"
         }
       ]

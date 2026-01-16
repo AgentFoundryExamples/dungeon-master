@@ -8,16 +8,16 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 35
-- **Intra-repo dependencies**: 101
-- **External stdlib dependencies**: 28
+- **Total files**: 37
+- **Intra-repo dependencies**: 110
+- **External stdlib dependencies**: 29
 - **External third-party dependencies**: 26
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 28 unique modules
+Total: 29 unique modules
 
 - `asyncio`
 - `collections.defaultdict`
@@ -25,6 +25,7 @@ Total: 28 unique modules
 - `contextvars.ContextVar`
 - `dataclasses.dataclass`
 - `datetime.datetime`
+- `datetime.timezone`
 - `enum.Enum`
 - `functools.lru_cache`
 - `hashlib`
@@ -38,8 +39,7 @@ Total: 28 unique modules
 - `typing.Any`
 - `typing.Callable`
 - `typing.Dict`
-- `typing.List`
-- ... and 8 more (see JSON for full list)
+- ... and 9 more (see JSON for full list)
 
 ### Third-Party Packages
 
@@ -69,15 +69,15 @@ Total: 26 unique packages
 
 ## Most Depended Upon Files (Intra-Repo)
 
-- `app/models.py` (18 dependents)
-- `app/services/llm_client.py` (10 dependents)
-- `app/services/policy_engine.py` (10 dependents)
-- `app/services/journey_log_client.py` (9 dependents)
+- `app/models.py` (20 dependents)
+- `app/services/llm_client.py` (11 dependents)
+- `app/services/policy_engine.py` (11 dependents)
+- `app/services/journey_log_client.py` (10 dependents)
+- `app/services/outcome_parser.py` (9 dependents)
+- `app/prompting/prompt_builder.py` (9 dependents)
 - `app/config.py` (8 dependents)
-- `app/prompting/prompt_builder.py` (8 dependents)
 - `app/logging.py` (8 dependents)
-- `app/services/outcome_parser.py` (7 dependents)
-- `app/services/turn_orchestrator.py` (6 dependents)
+- `app/services/turn_orchestrator.py` (7 dependents)
 - `app/metrics.py` (6 dependents)
 
 ## Files with Most Dependencies (Intra-Repo)
@@ -89,6 +89,6 @@ Total: 26 unique packages
 - `tests/conftest.py` (8 dependencies)
 - `tests/test_policy_integration.py` (8 dependencies)
 - `app/services/turn_orchestrator.py` (7 dependencies)
+- `tests/test_quest_integration.py` (7 dependencies)
 - `app/services/llm_client.py` (4 dependencies)
 - `example_openai_usage.py` (3 dependencies)
-- `tests/test_llm_client.py` (3 dependencies)

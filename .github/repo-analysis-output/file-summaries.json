@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 35,
+  "total_files": 37,
   "files": [
     {
       "schema_version": "2.0",
@@ -179,8 +179,8 @@
       "summary": "Python module for journey log client",
       "summary_text": "Python module for journey log client",
       "metrics": {
-        "size_bytes": 32618,
-        "loc": 717,
+        "size_bytes": 33184,
+        "loc": 728,
         "todo_count": 0
       }
     },
@@ -207,8 +207,8 @@
       "summary": "Python module for outcome parser",
       "summary_text": "Python module for outcome parser",
       "metrics": {
-        "size_bytes": 11113,
-        "loc": 212,
+        "size_bytes": 16661,
+        "loc": 298,
         "todo_count": 0
       }
     },
@@ -235,8 +235,8 @@
       "summary": "Python module for turn orchestrator",
       "summary_text": "Python module for turn orchestrator",
       "metrics": {
-        "size_bytes": 25909,
-        "loc": 530,
+        "size_bytes": 30489,
+        "loc": 594,
         "todo_count": 0
       }
     },
@@ -475,6 +475,34 @@
       "metrics": {
         "size_bytes": 15248,
         "loc": 326,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_quest_integration.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 17332,
+        "loc": 377,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_quest_normalization.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 6500,
+        "loc": 140,
         "todo_count": 0
       }
     },

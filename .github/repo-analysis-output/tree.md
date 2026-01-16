@@ -53,6 +53,8 @@
   ├── test_policy_models.py
   ├── test_policy_state_extraction.py
   ├── test_prompt_builder.py
+  ├── test_quest_integration.py
+  ├── test_quest_normalization.py
   └── test_turn_integration.py
 ├── .env.example
 ├── .gitignore
