@@ -229,7 +229,8 @@ class LLMClient:
                     "This may indicate API compatibility issues or fallback behavior."
                 )
                 raise LLMResponseError(
-                    f"Failed to parse LLM response as JSON. Strict schema enforcement should prevent this: {e}"
+                    f"Failed to parse LLM response as JSON. "
+                    f"Strict schema enforcement should prevent this: {e}"
                 ) from e
             except Exception as e:
                 logger.error(f"Failed to validate LLM response against DungeonMasterOutcome schema: {e}")

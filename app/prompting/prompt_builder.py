@@ -248,9 +248,9 @@ Output ONLY the JSON object, no other text."""
         for the LLM while keeping token usage reasonable. Long text is
         truncated to prevent excessive prompt length.
         
-        The number of turns shown matches the JOURNEY_LOG_RECENT_N default (20)
-        configured in the journey-log service fetches. This ensures consistency
-        between what's fetched and what's displayed.
+        Note: The history list is provided by the journey-log service and may
+        contain up to 20 turns (configurable via JOURNEY_LOG_RECENT_N in config).
+        This method displays all provided turns.
         
         Args:
             history: List of recent turn dicts from context
@@ -261,7 +261,7 @@ Output ONLY the JSON object, no other text."""
         if not history:
             return "  (No recent history)"
 
-        # Show last 20 turns for context (matches journey-log fetch default)
+        # Display all provided history turns (typically last 20)
         # This provides sufficient story continuity while managing token usage
         recent_turns = history[-20:]
 
