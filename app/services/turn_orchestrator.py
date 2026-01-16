@@ -290,8 +290,8 @@ class TurnOrchestrator:
         self,
         context: JourneyLogContext,
         intents: Optional[IntentsBlock],
-        quest_decision,
-        poi_decision
+        quest_decision: "QuestTriggerDecision",
+        poi_decision: "POITriggerDecision"
     ) -> dict[str, SubsystemAction]:
         """Derive subsystem actions from policy decisions and LLM intents.
         

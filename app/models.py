@@ -24,6 +24,7 @@ strict JSON contracts for narrative and intents.
 from typing import List, Optional, Literal, Dict, Any
 from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
+from enum import Enum
 
 # Internal version constant for outcome schema evolution
 # Do NOT include this in LLM outputs; it's for internal tracking only
@@ -819,7 +820,7 @@ class SubsystemActionType(BaseModel):
     )
 
 
-class QuestChangeType(str):
+class QuestChangeType(str, Enum):
     """Quest change type constants."""
     NONE = "none"
     OFFERED = "offered"
@@ -827,7 +828,7 @@ class QuestChangeType(str):
     ABANDONED = "abandoned"
 
 
-class CombatChangeType(str):
+class CombatChangeType(str, Enum):
     """Combat change type constants."""
     NONE = "none"
     STARTED = "started"
@@ -835,7 +836,7 @@ class CombatChangeType(str):
     ENDED = "ended"
 
 
-class POIChangeType(str):
+class POIChangeType(str, Enum):
     """POI change type constants."""
     NONE = "none"
     CREATED = "created"
