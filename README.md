@@ -122,13 +122,118 @@ POI_MEMORY_SPARK_COUNT=5
 **How it works:**
 1. At the start of each turn, before building the prompt, the orchestrator fetches N random POIs from journey-log
 2. These POIs are stored in `context.memory_sparks` for prompt injection
-3. The prompt builder can include these in the LLM context (implementation dependent)
+3. The prompt builder includes these in a "MEMORY SPARKS" section of the LLM context
 4. Errors are non-fatal - if the fetch fails, memory_sparks will be empty and the turn continues
 
 **Performance considerations:**
 - Memory spark retrieval adds ~50-100ms to turn latency
 - The journey-log `/pois/random` endpoint is optimized for fast sampling
 - Non-fatal errors ensure turn processing is never blocked
+
+## Prompt Structure
+
+The DungeonMaster service constructs prompts for the LLM with deterministic sections that provide complete game context while maintaining consistent token usage. Understanding the prompt structure is crucial for debugging LLM responses and verifying context completeness.
+
+### Prompt Sections
+
+The prompt is built from two parts: system instructions and user prompt.
+
+**System Instructions:**
+- Role definition (narrative engine for text adventure)
+- JSON schema for DungeonMasterOutcome (structured output)
+- Example JSON output
+- Guidelines for narrative and intents
+- Clarification that subsystem eligibility is deterministic (handled by game logic, not LLM)
+
+**User Prompt Sections (deterministic order):**
+
+1. **CHARACTER STATUS** (always present)
+   - Current health status (e.g., "Healthy", "Wounded", "Dead")
+
+2. **CURRENT LOCATION** (always present)
+   - Location display name and ID
+   - Example: "The Nexus (origin:nexus)"
+
+3. **ACTIVE QUEST** (conditional)
+   - Quest name, description, completion state
+   - Requirements list if present
+   - Only shown when character has an active quest
+
+4. **COMBAT STATE** (conditional)
+   - Current turn number
+   - Enemy list with name, status, weapon
+   - Only shown when combat is active
+
+5. **MEMORY SPARKS (Previously Discovered Locations)** (conditional)
+   - List of random POIs from character's history
+   - Sorted by timestamp descending (newest first) for determinism
+   - Each POI shows: name, truncated description (200 chars max), tags (5 max)
+   - Only shown when POI_MEMORY_SPARK_ENABLED=true and POIs exist
+   - Helps LLM recall and reference previously discovered locations
+
+6. **POLICY HINTS** (conditional)
+   - Quest trigger status (ALLOWED/NOT ALLOWED)
+   - POI creation status (ALLOWED/NOT ALLOWED)
+   - Eligibility reasons when not allowed
+   - Only shown after PolicyEngine evaluation (during turn processing)
+   - Guides LLM to respect deterministic policy decisions
+
+7. **RECENT NARRATIVE HISTORY** (conditional)
+   - Last 20 turns (configurable via JOURNEY_LOG_RECENT_N)
+   - Player action and GM response per turn
+   - Long text truncated (200 chars action, 300 chars response)
+   - Empty label shown if no history available
+
+8. **PLAYER ACTION** (always present)
+   - The current player action to respond to
+
+### Section Hiding Behavior
+
+Sections are hidden cleanly when data is absent:
+- No active quest → ACTIVE QUEST section omitted
+- No combat → COMBAT STATE section omitted
+- No memory sparks → MEMORY SPARKS section omitted
+- No policy hints → POLICY HINTS section omitted (only in orchestrated turns)
+- No history → Section shows "(No recent history)"
+
+This ensures:
+- Token usage is optimized (don't send empty data)
+- LLM doesn't see confusing empty sections
+- Prompt structure remains stable and predictable
+
+### Token Management
+
+Estimated token usage by section:
+- **System instructions + schema**: ~9KB (~2,250 tokens)
+- **Character status + location**: ~50 tokens
+- **Active quest**: ~100-200 tokens (if present)
+- **Combat state**: ~50-150 tokens per enemy
+- **Memory sparks**: ~100-300 tokens per POI (description truncated)
+- **Policy hints**: ~100 tokens (if present)
+- **History**: ~50-100 tokens per turn × 20 turns = ~1,000-2,000 tokens
+
+**Total typical prompt**: 4,000-6,000 tokens (well within GPT-5.1's 128K context window)
+
+**Managing token growth:**
+- Reduce JOURNEY_LOG_RECENT_N (default 20) to show fewer history turns
+- Reduce POI_MEMORY_SPARK_COUNT (default 3) to fetch fewer POIs
+- Memory sparks truncate descriptions to 200 chars automatically
+- History truncates long actions/responses automatically
+
+### Debugging Prompts
+
+To see the exact prompt sent to the LLM:
+
+1. Enable DEBUG logging:
+```bash
+LOG_LEVEL=DEBUG
+```
+
+2. Look for log entries containing "Building LLM prompt" or "Calling LLM" with prompt details
+
+3. Use the `/debug/parse_llm` endpoint (if ENABLE_DEBUG_ENDPOINTS=true) to test LLM response parsing
+
+**Important**: Debug endpoints are for local development only and should never be enabled in production.
 
 ## Policy Engine Debugging
 
