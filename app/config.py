@@ -18,6 +18,7 @@ All settings are validated at startup to fail fast if configuration is invalid.
 """
 
 from functools import lru_cache
+from typing import Optional
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -98,6 +99,34 @@ class Settings(BaseSettings):
     enable_debug_endpoints: bool = Field(
         default=False,
         description="Enable debug endpoints like /debug/parse_llm (for local development only)"
+    )
+
+    # PolicyEngine Configuration
+    quest_trigger_prob: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Probability of quest trigger (0.0-1.0)"
+    )
+    quest_cooldown_turns: int = Field(
+        default=5,
+        ge=0,
+        description="Number of turns between quest triggers (0 or greater)"
+    )
+    poi_trigger_prob: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=1.0,
+        description="Probability of POI trigger (0.0-1.0)"
+    )
+    poi_cooldown_turns: int = Field(
+        default=3,
+        ge=0,
+        description="Number of turns between POI triggers (0 or greater)"
+    )
+    rng_seed: Optional[int] = Field(
+        default=None,
+        description="Optional RNG seed for deterministic debugging (leave unset for secure randomness)"
     )
 
     @field_validator('journey_log_base_url')
