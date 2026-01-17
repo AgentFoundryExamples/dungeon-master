@@ -82,6 +82,381 @@ sequenceDiagram
 
 ---
 
+## Turn Lifecycle: Detailed Stages and Guarantees
+
+This section documents the complete lifecycle of a turn, including all stages from request ingestion through response delivery. Understanding this lifecycle is critical for debugging, testing, and extending the system.
+
+### Turn Lifecycle Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API Routes
+    participant RateLimiter
+    participant TurnOrchestrator
+    participant PolicyEngine
+    participant PromptBuilder
+    participant LLMClient
+    participant OutcomeParser
+    participant IntentNormalizer
+    participant JourneyLogClient
+    participant MetricsCollector
+
+    Note over Client,MetricsCollector: STAGE 1: Request Ingestion & Validation
+    Client->>API Routes: POST /turn {character_id, user_action}
+    API Routes->>API Routes: validate_request()
+    API Routes->>RateLimiter: check_rate_limit(character_id)
+    alt Rate limit exceeded
+        RateLimiter-->>API Routes: rate_limit_exceeded
+        API Routes-->>Client: 429 Too Many Requests (with Retry-After)
+    end
+    RateLimiter-->>API Routes: allowed
+    API Routes->>MetricsCollector: record_turn_start()
+
+    Note over API Routes,JourneyLogClient: STAGE 2: Context Retrieval
+    API Routes->>JourneyLogClient: get_context(character_id, recent_n=20)
+    JourneyLogClient->>JourneyLogClient: HTTP GET /characters/{id}/context
+    alt Context retrieval fails (404/timeout)
+        JourneyLogClient-->>API Routes: error (404/504)
+        API Routes->>MetricsCollector: record_turn_error()
+        API Routes-->>Client: 404 Not Found / 504 Gateway Timeout
+    end
+    JourneyLogClient-->>API Routes: JourneyLogContext
+    API Routes->>API Routes: extract_policy_state()
+
+    Note over TurnOrchestrator,PromptBuilder: STAGE 3: Policy Evaluation (Pre-LLM)
+    API Routes->>TurnOrchestrator: orchestrate_turn(character_id, user_action, context)
+    TurnOrchestrator->>PolicyEngine: evaluate_triggers(character_id, policy_state)
+    PolicyEngine->>PolicyEngine: check_quest_eligibility()
+    PolicyEngine->>PolicyEngine: roll_quest_trigger() [probabilistic]
+    PolicyEngine->>PolicyEngine: check_poi_eligibility()
+    PolicyEngine->>PolicyEngine: roll_poi_trigger() [probabilistic]
+    PolicyEngine-->>TurnOrchestrator: PolicyHints {quest_decision, poi_decision}
+    TurnOrchestrator->>MetricsCollector: record_policy_decisions()
+
+    Note over PromptBuilder,LLMClient: STAGE 4: Prompt Construction & LLM Call
+    TurnOrchestrator->>PromptBuilder: build_prompt(context, user_action, policy_hints)
+    PromptBuilder->>PromptBuilder: inject_policy_hints()
+    PromptBuilder->>PromptBuilder: inject_memory_sparks() [optional]
+    PromptBuilder-->>TurnOrchestrator: (system_instructions, user_prompt)
+    TurnOrchestrator->>LLMClient: generate_narrative(system_instructions, user_prompt)
+    LLMClient->>LLMClient: call_openai_responses_api()
+    alt LLM call fails (timeout/rate limit/auth)
+        LLMClient->>LLMClient: retry_with_backoff() [up to 3 attempts]
+        alt All retries exhausted
+            LLMClient-->>TurnOrchestrator: LLMResponseError
+            TurnOrchestrator->>MetricsCollector: record_llm_error()
+            TurnOrchestrator-->>API Routes: error
+            API Routes-->>Client: 503 Service Unavailable
+        end
+    end
+    LLMClient-->>TurnOrchestrator: raw_llm_response (JSON string)
+
+    Note over OutcomeParser,IntentNormalizer: STAGE 5: Parsing & Validation
+    TurnOrchestrator->>OutcomeParser: parse(raw_llm_response)
+    OutcomeParser->>OutcomeParser: json_decode()
+    OutcomeParser->>OutcomeParser: validate_against_schema()
+    alt Validation fails
+        OutcomeParser->>OutcomeParser: extract_fallback_narrative()
+        OutcomeParser-->>TurnOrchestrator: ParsedOutcome {is_valid=false, narrative=fallback}
+        Note over TurnOrchestrator: Continue with fallback narrative
+    end
+    OutcomeParser-->>TurnOrchestrator: ParsedOutcome {outcome, narrative, is_valid=true}
+    TurnOrchestrator->>IntentNormalizer: normalize_intents(outcome.intents, policy_hints)
+    IntentNormalizer->>IntentNormalizer: apply_policy_gating()
+    IntentNormalizer->>IntentNormalizer: apply_fallback_values()
+    IntentNormalizer-->>TurnOrchestrator: normalized_intents
+
+    Note over TurnOrchestrator,JourneyLogClient: STAGE 6: Subsystem Writes (Deterministic Order)
+    TurnOrchestrator->>TurnOrchestrator: derive_subsystem_actions(intents, policy_hints, context)
+    
+    rect rgb(200, 230, 255)
+        Note over TurnOrchestrator,JourneyLogClient: Write Order: Quest → Combat → POI → Narrative
+        
+        alt Quest action required
+            TurnOrchestrator->>JourneyLogClient: put_quest() or delete_quest()
+            alt Quest write fails (409/500)
+                JourneyLogClient-->>TurnOrchestrator: error
+                TurnOrchestrator->>TurnOrchestrator: log_error_continue()
+                Note over TurnOrchestrator: NO RETRY - continue to next subsystem
+            end
+            JourneyLogClient-->>TurnOrchestrator: success
+        end
+        
+        alt Combat action required
+            TurnOrchestrator->>JourneyLogClient: put_combat() or delete_combat()
+            alt Combat write fails
+                JourneyLogClient-->>TurnOrchestrator: error
+                TurnOrchestrator->>TurnOrchestrator: log_error_continue()
+            end
+            JourneyLogClient-->>TurnOrchestrator: success
+        end
+        
+        alt POI action required
+            TurnOrchestrator->>JourneyLogClient: post_poi()
+            alt POI write fails
+                JourneyLogClient-->>TurnOrchestrator: error
+                TurnOrchestrator->>TurnOrchestrator: log_error_continue()
+            end
+            JourneyLogClient-->>TurnOrchestrator: success
+        end
+        
+        TurnOrchestrator->>JourneyLogClient: persist_narrative(user_action, ai_response)
+        alt Narrative write fails
+            JourneyLogClient-->>TurnOrchestrator: error
+            TurnOrchestrator->>TurnOrchestrator: log_error_continue()
+            Note over TurnOrchestrator: Mark narrative_persisted=false in summary
+        end
+        JourneyLogClient-->>TurnOrchestrator: success
+    end
+
+    Note over TurnOrchestrator,MetricsCollector: STAGE 7: Response Assembly & Metrics
+    TurnOrchestrator->>TurnOrchestrator: build_subsystem_summary()
+    TurnOrchestrator->>MetricsCollector: record_turn_complete()
+    TurnOrchestrator-->>API Routes: (narrative, intents, subsystem_summary)
+    API Routes->>API Routes: assemble_turn_response()
+    API Routes->>MetricsCollector: record_response_sent()
+    API Routes-->>Client: TurnResponse {narrative, intents, subsystem_summary}
+```
+
+### Stage-by-Stage Breakdown
+
+#### Stage 1: Request Ingestion & Validation
+**Purpose**: Accept and validate incoming turn request
+
+**Steps**:
+1. Validate request schema (`character_id` and `user_action` required)
+2. Check per-character rate limit (default: 2 requests/second)
+3. Generate or accept trace ID for request correlation
+4. Record turn start metrics
+
+**Error Paths**:
+- Invalid request → 422 Unprocessable Entity
+- Rate limit exceeded → 429 Too Many Requests (with `Retry-After` header)
+
+**Guarantees**:
+- ✅ Rate limiting enforced per character
+- ✅ Trace IDs propagated through all service calls
+- ✅ Request validation happens before any external calls
+
+#### Stage 2: Context Retrieval
+**Purpose**: Fetch current character state from journey-log
+
+**Steps**:
+1. Call `GET /characters/{character_id}/context?recent_n=20&include_pois=false`
+2. Extract policy state from response (`turns_since_last_quest`, `turns_since_last_poi`, etc.)
+3. Build `JourneyLogContext` object
+
+**Error Paths**:
+- Character not found → 404 Not Found
+- Journey-log timeout → 504 Gateway Timeout (after retries)
+- Journey-log unavailable → 503 Service Unavailable
+
+**Guarantees**:
+- ✅ Retries GET requests up to 3 times with exponential backoff
+- ✅ Never retries POST/PUT/DELETE (idempotency protection)
+- ✅ Timeout errors return immediately after final retry
+
+#### Stage 3: Policy Evaluation (Pre-LLM)
+**Purpose**: Determine quest/POI eligibility and trigger decisions before LLM call
+
+**Steps**:
+1. Check quest eligibility (no active quest, cooldown satisfied)
+2. Roll quest trigger (probabilistic, based on `quest_trigger_prob`)
+3. Check POI eligibility (cooldown satisfied)
+4. Roll POI trigger (probabilistic, based on `poi_trigger_prob`)
+5. Build `PolicyHints` with decisions
+
+**Error Paths**:
+- None - policy evaluation is deterministic given inputs
+
+**Guarantees**:
+- ✅ Policy decisions made **before** LLM call
+- ✅ Deterministic with optional seeded RNG (for testing)
+- ✅ Cooldowns enforced based on policy state
+- ✅ Eligibility rules prevent invalid states (e.g., offering quest when one is active)
+
+**Ordering Guarantee**: Policy evaluation **must** occur before prompt building to ensure LLM receives correct hints.
+
+#### Stage 4: Prompt Construction & LLM Call
+**Purpose**: Build prompt with policy hints and call LLM for narrative generation
+
+**Steps**:
+1. Build system instructions (character sheet, game rules)
+2. Build user prompt (user action, recent history, policy hints)
+3. Optionally inject memory sparks (random POIs from history)
+4. Call OpenAI Responses API with structured output schema
+5. Receive raw JSON response from LLM
+
+**Error Paths**:
+- LLM timeout → Retry up to 3 times with exponential backoff
+- Rate limit (429) → Retry with backoff
+- Auth error (401) → Immediate failure (no retry)
+- Bad request (400) → Immediate failure (no retry)
+
+**Guarantees**:
+- ✅ Policy hints injected into prompt
+- ✅ LLM instructed on when quest/POI creation is allowed
+- ✅ Retries handle transient errors (timeout, rate limit, 5xx)
+- ✅ Non-retryable errors fail immediately
+
+**Idempotency Note**: LLM calls are **not idempotent** - each retry may produce different narrative. This is acceptable as the narrative is not yet persisted.
+
+#### Stage 5: Parsing & Validation
+**Purpose**: Parse LLM response and validate against schema
+
+**Steps**:
+1. Decode JSON from LLM response
+2. Validate against `DungeonMasterOutcome` Pydantic schema
+3. If validation fails, extract fallback narrative
+4. Normalize intents (apply policy gating, fill missing fields)
+
+**Error Paths**:
+- JSON decode error → Use raw text as fallback narrative
+- Schema validation error → Extract narrative field if present, otherwise use fallback
+- Missing required fields → Use fallback values
+
+**Guarantees**:
+- ✅ Turn **always** produces a narrative (fallback if needed)
+- ✅ Invalid intents replaced with safe defaults
+- ✅ Policy gating applied during normalization (block quest offers if policy roll failed)
+
+**Ordering Guarantee**: Parsing **must** complete before subsystem writes to ensure valid intents.
+
+#### Stage 6: Subsystem Writes (Deterministic Order)
+**Purpose**: Execute writes to journey-log subsystems in deterministic order
+
+**Write Order (Strict)**:
+1. **Quest** (PUT or DELETE)
+2. **Combat** (PUT or DELETE)
+3. **POI** (POST)
+4. **Narrative** (POST)
+
+**Error Handling**:
+- Subsystem write failures **do not** block subsequent writes
+- Failures logged and recorded in `subsystem_summary`
+- Narrative write **always** attempted, even if previous writes failed
+
+**Guarantees**:
+- ✅ Writes execute in strict order: Quest → Combat → POI → Narrative
+- ✅ No retries for POST/PUT/DELETE (prevents duplicates)
+- ✅ Failures do not cascade - each write attempted independently
+- ✅ Turn completes with best-effort writes
+
+**Idempotency Considerations**:
+- **Quest PUT**: Journey-log may return 409 if quest already exists - logged as skipped
+- **Combat/POI POST**: Non-idempotent - no retry to prevent duplicates
+- **Narrative POST**: Non-idempotent - no retry to prevent duplicate history entries
+
+**Ordering Rationale**: Quest/Combat writes happen first because they represent major state changes. POI creation is independent. Narrative written last as it records the turn's complete outcome.
+
+#### Stage 7: Response Assembly & Metrics
+**Purpose**: Build final response and record metrics
+
+**Steps**:
+1. Build `TurnSubsystemSummary` with write results
+2. Record turn completion metrics (duration, success/failure)
+3. Assemble `TurnResponse` with narrative, intents, and summary
+4. Return to client
+
+**Error Paths**:
+- None at this stage - response is best-effort based on previous stages
+
+**Guarantees**:
+- ✅ Response **always** includes narrative
+- ✅ Subsystem summary accurately reflects write results
+- ✅ Metrics recorded for observability
+
+### Ordering Guarantees Summary
+
+| Guarantee | Description | Enforcement |
+|-----------|-------------|-------------|
+| **Policy before LLM** | Policy evaluation occurs before LLM prompt construction | Enforced by `TurnOrchestrator.orchestrate_turn()` method sequence |
+| **Parse before writes** | LLM response parsing/validation completes before any journey-log writes | Enforced by `TurnOrchestrator.orchestrate_turn()` method sequence |
+| **Deterministic write order** | Quest → Combat → POI → Narrative | Enforced by sequential `await` calls in `TurnOrchestrator._execute_subsystem_writes()` |
+| **No write retries** | POST/PUT/DELETE never retried | Enforced by `JourneyLogClient` - only GET methods have retry logic |
+| **Failure isolation** | Subsystem write failures do not block subsequent writes | Enforced by try/except blocks around each write |
+
+### Idempotency Considerations
+
+#### Operations That Are Idempotent
+- **GET requests**: Context retrieval can be safely retried
+- **Policy evaluation**: Deterministic given same inputs (with optional seed)
+- **Prompt building**: Pure function, no side effects
+
+#### Operations That Are NOT Idempotent
+- **LLM calls**: Each call may produce different narrative (acceptable - narrative not yet persisted)
+- **Quest PUT**: May return 409 if quest exists (handled gracefully)
+- **Combat PUT/DELETE**: State changes not safe to retry
+- **POI POST**: Creates new POI record (no retry to prevent duplicates)
+- **Narrative POST**: Creates new history entry (no retry to prevent duplicates)
+
+**Design Decision**: We prioritize **correctness** (no duplicates) over **completeness** (failed writes are logged but not retried). Operators can inspect `subsystem_summary` to identify failed writes and manually resolve if needed.
+
+### Error Paths and Recovery
+
+#### LLM Failure
+- **Scenario**: OpenAI API timeout or rate limit
+- **Recovery**: Retry up to 3 times with exponential backoff
+- **Fallback**: If all retries fail, return 503 Service Unavailable
+- **State**: No writes have occurred yet - turn can be safely retried by client
+
+#### Parse Failure
+- **Scenario**: LLM returns invalid JSON or malformed schema
+- **Recovery**: Extract fallback narrative from raw response
+- **Fallback**: Use safe default intents (all actions set to "none")
+- **State**: Turn continues with fallback narrative - subsystem writes skipped or use defaults
+
+#### Journey-Log Write Failure
+- **Scenario**: Journey-log returns 500 or times out during write
+- **Recovery**: Log error and continue to next write
+- **Fallback**: Mark write as failed in `subsystem_summary`
+- **State**: Turn completes with partial writes - client sees narrative and knows which writes failed
+
+### Policy and LLM Interaction
+
+The PolicyEngine and LLM have a **cooperative** relationship:
+
+1. **Policy decides eligibility**: Before LLM call, policy determines if quest/POI triggers are **allowed**
+2. **Policy hints injected**: LLM prompt includes policy decisions (e.g., "Quest Trigger: ALLOWED")
+3. **LLM generates content**: LLM produces narrative and intents **informed by** policy hints
+4. **Policy gates execution**: Even if LLM suggests a quest offer, it's only executed if policy roll passed
+
+**Key Principle**: Policy provides **guardrails**, LLM provides **content**. Policy decisions are binding.
+
+#### Example Flow
+
+```
+Turn N:
+- Policy: turns_since_last_quest = 10 (eligible), roll = 0.25 (< 0.3 threshold) → PASS
+- Prompt includes: "Quest Trigger: ALLOWED (p=0.30, rolled=0.25)"
+- LLM: "A quest giver approaches you..." + quest_intent: {action: "offer", ...}
+- Orchestrator: Policy passed + LLM offered quest → Execute PUT quest
+- Result: Quest offered and persisted
+
+Turn N+1:
+- Policy: turns_since_last_quest = 0 (within cooldown), roll = 0.15 → FAIL (cooldown)
+- Prompt includes: "Quest Trigger: NOT ALLOWED (cooldown: 0/5 turns)"
+- LLM: "You continue your journey..." + quest_intent: {action: "none"}
+- Orchestrator: Policy failed → Skip quest write even if LLM suggested one
+- Result: No quest action
+```
+
+### Testing Guarantees
+
+The test suite (`tests/test_turn_integration.py`, `tests/test_policy_integration.py`, etc.) validates:
+
+1. **Probabilistic triggers**: Multi-turn tests verify quest/POI trigger frequencies stay within statistical bounds
+2. **Cooldown enforcement**: Tests verify cooldowns prevent triggers within configured window
+3. **Deterministic ordering**: Tests verify write order is Quest → Combat → POI → Narrative
+4. **Failure isolation**: Tests verify subsystem write failures don't block narrative completion
+5. **State consistency**: Tests verify policy state updates correctly across turns
+6. **Rate limiting**: Tests verify per-character rate limits are enforced
+
+See test documentation in README.md for how to run these tests.
+
+---
+
 ## Proposed Streaming Architecture
 
 ### Design Goals

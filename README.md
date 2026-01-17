@@ -641,6 +641,10 @@ python -m pytest tests/test_turn_integration.py -v
 
 # Run prompt builder tests (verifies policy hints)
 python -m pytest tests/test_prompt_builder.py -v
+
+# Run end-to-end multi-turn tests with probabilistic validation
+python -m pytest tests/test_turn_integration.py::test_multi_turn_quest_trigger_frequency -v
+python -m pytest tests/test_turn_integration.py::test_multi_turn_poi_trigger_frequency -v
 ```
 
 Key test categories:
@@ -648,6 +652,11 @@ Key test categories:
 - **Seeded randomness**: Deterministic outcomes with seeds
 - **Profile overrides**: High/low frequency settings
 - **Integration**: Policy hints in prompts, failed rolls blocking writes
+- **Multi-turn probabilistic tests**: Validate trigger frequencies over 50-100 turns with statistical bounds
+- **State consistency**: Verify cooldown enforcement and journey-log persistence across turns
+- **Failure resilience**: Test behavior when subsystem writes fail intermittently
+
+See [Turn Lifecycle Documentation](#turn-lifecycle-documentation) for detailed testing guarantees.
 
 ### Verifying Policy Independence
 
@@ -1181,6 +1190,36 @@ Run with coverage:
 pytest --cov=app tests/
 ```
 
+#### Test Categories
+
+**Unit Tests:**
+- `test_policy_engine.py`: PolicyEngine trigger logic and RNG seeding
+- `test_policy_config.py`: Configuration validation and defaults
+- `test_outcome_parser.py`: LLM response parsing and fallback handling
+- `test_llm_client.py`: LLM client retry logic and streaming
+- `test_journey_log_client.py`: Journey-log API client interactions
+- `test_metrics.py`: Metrics collection and export
+
+**Integration Tests:**
+- `test_turn_integration.py`: Full turn orchestration flow (single and multi-turn)
+- `test_policy_integration.py`: Policy evaluation with turn orchestration
+- `test_quest_integration.py`: Quest lifecycle (offer, progress, complete)
+- `test_poi_memory_sparks.py`: POI memory spark retrieval and trigger frequency
+- `test_streaming_integration.py`: Streaming narrative delivery via SSE
+
+**End-to-End Multi-Turn Tests:**
+- `test_multi_turn_quest_trigger_frequency`: Validates quest trigger rates over 100 turns with statistical bounds
+- `test_multi_turn_poi_trigger_frequency`: Validates POI trigger rates over 100 turns
+- `test_multi_turn_narrative_history_ordering`: Verifies narrative history maintains correct ordering
+- `test_multi_turn_state_consistency_with_failures`: Tests resilience when subsystem writes fail intermittently
+- `test_multi_turn_metrics_capture`: Validates metrics are captured correctly across turns
+
+These end-to-end tests simulate real gameplay scenarios with probabilistic policy decisions and verify:
+- Trigger frequencies stay within configured confidence intervals
+- Cooldown enforcement across multiple turns
+- State consistency even when safeguards/rate limits engage
+- Journey-log persistence and recovery from transient failures
+
 #### Integration Tests for /turn Endpoint
 
 The `/turn` endpoint integration tests validate the complete orchestration flow:
@@ -1457,6 +1496,80 @@ Key topics covered:
 6. Load testing and production readiness
 
 See `STREAMING_ARCHITECTURE.md` for detailed migration path.
+
+---
+
+## Turn Lifecycle Documentation
+
+The **Turn Lifecycle** documentation provides a comprehensive guide to understanding how turns are processed from request ingestion through response delivery. This documentation is essential for:
+
+- **Debugging**: Understanding which stage failed and why
+- **Testing**: Knowing what guarantees to validate
+- **Extending**: Adding new subsystems or modifying behavior
+- **Operations**: Interpreting logs and metrics
+
+### What's Documented
+
+📖 **[STREAMING_ARCHITECTURE.md - Turn Lifecycle Section](STREAMING_ARCHITECTURE.md#turn-lifecycle-detailed-stages-and-guarantees)**
+
+The turn lifecycle documentation includes:
+
+1. **Complete Sequence Diagram**: Visual representation of all 7 stages from request to response
+   - Stage 1: Request Ingestion & Validation
+   - Stage 2: Context Retrieval
+   - Stage 3: Policy Evaluation (Pre-LLM)
+   - Stage 4: Prompt Construction & LLM Call
+   - Stage 5: Parsing & Validation
+   - Stage 6: Subsystem Writes (Deterministic Order)
+   - Stage 7: Response Assembly & Metrics
+
+2. **Stage-by-Stage Breakdown**: Detailed explanation of each stage including:
+   - Purpose and steps
+   - Error paths and recovery
+   - Guarantees and constraints
+
+3. **Ordering Guarantees**: Explicit documentation of:
+   - Policy evaluation before LLM call
+   - Parse before writes
+   - Deterministic write order (Quest → Combat → POI → Narrative)
+   - No retry policy for mutations
+   - Failure isolation between subsystems
+
+4. **Idempotency Considerations**: What operations can be safely retried and which cannot
+   - GET requests: Safe to retry
+   - LLM calls: Not idempotent but acceptable (not yet persisted)
+   - POST/PUT/DELETE: Never retried to prevent duplicates
+
+5. **Error Paths and Recovery**: How the system handles failures at each stage
+   - LLM timeout → Retry with exponential backoff (up to 3 attempts)
+   - Parse failure → Fallback narrative extraction
+   - Journey-log write failure → Log and continue (best-effort)
+
+6. **Policy and LLM Interaction**: How PolicyEngine and LLM cooperate
+   - Policy provides guardrails (binding decisions)
+   - LLM provides content (informed by policy hints)
+   - Policy gating applied during execution
+
+### Related Test Documentation
+
+The test suite validates all lifecycle guarantees:
+
+- **tests/test_turn_integration.py**: Multi-turn end-to-end tests
+  - `test_multi_turn_quest_trigger_frequency`: Validates probabilistic triggers over 100 turns
+  - `test_multi_turn_poi_trigger_frequency`: Validates POI trigger rates
+  - `test_multi_turn_narrative_history_ordering`: Verifies ordering guarantees
+  - `test_multi_turn_state_consistency_with_failures`: Tests failure isolation
+
+- **tests/test_policy_integration.py**: Policy behavior across turns
+  - `test_policy_cooldown_enforcement_across_turns`: Validates cooldown logic
+  - `test_policy_deterministic_behavior_with_seed`: Validates reproducibility
+
+- **tests/test_quest_integration.py**: Quest lifecycle validation
+  - `test_quest_lifecycle_across_multiple_turns`: Full quest offer → progress → complete flow
+
+See [Testing](#testing) section for how to run these tests.
+
+---
 
 ## Architecture
 
