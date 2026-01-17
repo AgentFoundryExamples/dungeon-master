@@ -6,10 +6,30 @@ AI-powered narrative generation service for dungeon crawling adventures. The Dun
 
 This service provides a FastAPI backend that:
 - Accepts player turn actions via POST /turn endpoint (synchronous)
-- **Planned**: POST /turn/stream endpoint for streaming narrative delivery (see [Streaming Architecture](#streaming-architecture))
+- Accepts player turn actions via POST /turn/stream endpoint (streaming narrative delivery)
 - Fetches character context from the journey-log service
 - Generates AI narrative responses using OpenAI GPT models
 - Provides health check endpoint with optional journey-log connectivity verification
+
+### Streaming vs Synchronous Endpoints
+
+The service offers two ways to process player turns:
+
+**Synchronous (/turn)**: Traditional request-response flow
+- Client waits for complete narrative (~1-3 seconds)
+- Returns narrative, intents, and subsystem summary in single JSON response
+- Simple integration for clients
+
+**Streaming (/turn/stream)**: Progressive narrative delivery via Server-Sent Events (SSE)
+- Client receives narrative tokens as they're generated (~50-200ms to first token)
+- Improved perceived latency through progressive display
+- Two-phase architecture:
+  - **Phase 1**: Stream tokens to client in real-time
+  - **Phase 2**: Validate complete narrative, execute subsystem writes, send completion event
+- Same validation guarantees and write ordering as synchronous endpoint
+- Requires SSE-capable client (EventSource API, etc.)
+
+See [Streaming Architecture](#streaming-architecture) for detailed design.
 
 ## Quick Start
 
@@ -130,6 +150,155 @@ POI_MEMORY_SPARK_COUNT=5
 - Memory spark retrieval adds ~50-100ms to turn latency
 - The journey-log `/pois/random` endpoint is optimized for fast sampling
 - Non-fatal errors ensure turn processing is never blocked
+
+## API Usage
+
+### Synchronous Turn Processing
+
+Traditional request-response flow for processing player turns:
+
+```bash
+curl -X POST http://localhost:8080/turn \
+  -H "Content-Type: application/json" \
+  -d '{
+    "character_id": "550e8400-e29b-41d4-a716-446655440000",
+    "user_action": "I search the ancient temple for clues"
+  }'
+```
+
+**Response** (application/json):
+```json
+{
+  "narrative": "You carefully search the temple's walls and discover ancient runes...",
+  "intents": {
+    "quest_intent": {"action": "none"},
+    "combat_intent": {"action": "none"},
+    "poi_intent": {
+      "action": "create",
+      "name": "Ancient Temple",
+      "description": "A mysterious temple with glowing runes"
+    }
+  },
+  "subsystem_summary": {
+    "quest_change": {"action": "none", "success": null, "error": null},
+    "combat_change": {"action": "none", "success": null, "error": null},
+    "poi_created": {"action": "created", "success": true, "error": null},
+    "narrative_persisted": true
+  }
+}
+```
+
+### Streaming Turn Processing (SSE)
+
+Progressive narrative delivery with Server-Sent Events:
+
+```javascript
+// Client-side JavaScript example
+const eventSource = new EventSource('http://localhost:8080/turn/stream', {
+  method: 'POST',
+  body: JSON.stringify({
+    character_id: '550e8400-e29b-41d4-a716-446655440000',
+    user_action: 'I search the ancient temple'
+  })
+});
+
+let narrative = '';
+
+eventSource.addEventListener('message', (event) => {
+  const data = JSON.parse(event.data);
+  
+  switch (data.type) {
+    case 'token':
+      // Append token to narrative display in real-time
+      narrative += data.content;
+      document.getElementById('narrative').textContent = narrative;
+      break;
+      
+    case 'complete':
+      // Show final intents and subsystem summary
+      console.log('Intents:', data.intents);
+      console.log('Subsystem Summary:', data.subsystem_summary);
+      eventSource.close();
+      break;
+      
+    case 'error':
+      // Handle error
+      console.error('Error:', data.message);
+      eventSource.close();
+      break;
+  }
+});
+```
+
+**SSE Event Stream**:
+```
+data: {"type": "token", "content": "You ", "timestamp": "2026-01-17T05:30:00.000Z"}
+
+data: {"type": "token", "content": "carefully ", "timestamp": "2026-01-17T05:30:00.123Z"}
+
+data: {"type": "token", "content": "search...", "timestamp": "2026-01-17T05:30:00.456Z"}
+
+data: {"type": "complete", "intents": {...}, "subsystem_summary": {...}, "timestamp": "2026-01-17T05:30:02.789Z"}
+
+data: [DONE]
+```
+
+**Event Types**:
+- `token`: Individual narrative token (sent continuously during generation)
+- `complete`: Final event with validated intents and subsystem summary (sent once)
+- `error`: Error event with type, message, and recoverability flag (sent on failure)
+
+**Key Differences**:
+- **Perceived Latency**: ~50-200ms to first token (streaming) vs ~1-3s to complete response (synchronous)
+- **Total Latency**: Same (~1.5-3s) for both endpoints
+- **Client Complexity**: Streaming requires SSE handling; synchronous uses standard fetch
+- **Validation**: Same - both validate DungeonMasterOutcome schema before subsystem writes
+- **Write Ordering**: Same - both execute quest → combat → POI → narrative deterministically
+
+### Python Client Example (Streaming)
+
+```python
+import httpx
+import json
+
+async def stream_turn(character_id: str, user_action: str):
+    """Process a turn with streaming narrative delivery."""
+    url = "http://localhost:8080/turn/stream"
+    payload = {
+        "character_id": character_id,
+        "user_action": user_action
+    }
+    
+    async with httpx.AsyncClient() as client:
+        async with client.stream(
+            "POST",
+            url,
+            json=payload,
+            headers={"Accept": "text/event-stream"}
+        ) as response:
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data_str = line[6:]  # Remove 'data: ' prefix
+                    
+                    if data_str == "[DONE]":
+                        break
+                    
+                    event = json.loads(data_str)
+                    
+                    if event["type"] == "token":
+                        print(event["content"], end='', flush=True)
+                    elif event["type"] == "complete":
+                        print("\n\nIntents:", event["intents"])
+                        print("Subsystem Summary:", event["subsystem_summary"])
+                    elif event["type"] == "error":
+                        print(f"\nError: {event['message']}")
+
+# Usage
+await stream_turn(
+    character_id="550e8400-e29b-41d4-a716-446655440000",
+    user_action="I search the ancient temple"
+)
+```
 
 ## Prompt Structure
 
