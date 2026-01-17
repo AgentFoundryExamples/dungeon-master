@@ -675,3 +675,45 @@ def test_deterministic_seed_reproducibility():
     # Verify we got a mix (not all True or all False)
     assert True in results1
     assert False in results1
+
+
+def test_policy_engine_update_config():
+    """Test PolicyEngine config update at runtime."""
+    engine = PolicyEngine(
+        quest_trigger_prob=0.3,
+        quest_cooldown_turns=5,
+        poi_trigger_prob=0.2,
+        poi_cooldown_turns=3
+    )
+    
+    # Update quest probability
+    engine.update_config(quest_trigger_prob=0.7)
+    assert engine.quest_trigger_prob == 0.7
+    assert engine.quest_cooldown_turns == 5  # Unchanged
+    
+    # Update multiple params
+    engine.update_config(
+        quest_cooldown_turns=10,
+        poi_trigger_prob=0.5
+    )
+    assert engine.quest_trigger_prob == 0.7  # Still 0.7
+    assert engine.quest_cooldown_turns == 10  # Updated
+    assert engine.poi_trigger_prob == 0.5  # Updated
+
+
+def test_policy_engine_update_config_validation():
+    """Test PolicyEngine config update validation."""
+    import pytest
+    
+    engine = PolicyEngine()
+    
+    # Invalid probability should raise ValueError
+    with pytest.raises(ValueError, match="quest_trigger_prob must be between 0.0 and 1.0"):
+        engine.update_config(quest_trigger_prob=1.5)
+    
+    # Config should remain unchanged after failed update
+    assert engine.quest_trigger_prob == 0.3  # Default value
+    
+    # Invalid cooldown should raise ValueError
+    with pytest.raises(ValueError, match="quest_cooldown_turns must be >= 0"):
+        engine.update_config(quest_cooldown_turns=-5)
