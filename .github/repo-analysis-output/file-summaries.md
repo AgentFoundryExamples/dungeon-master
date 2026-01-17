@@ -29,8 +29,8 @@ Total files: 47
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 36.86 KB  
-**LOC:** 792  
+**Size:** 39.74 KB  
+**LOC:** 836  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -47,8 +47,8 @@ Total files: 47
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for logging  
-**Size:** 9.36 KB  
-**LOC:** 213  
+**Size:** 14.75 KB  
+**LOC:** 347  
 **TODOs/FIXMEs:** 0  
 
 ## app/main.py
@@ -65,8 +65,8 @@ Total files: 47
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for metrics  
-**Size:** 7.26 KB  
-**LOC:** 169  
+**Size:** 10.62 KB  
+**LOC:** 241  
 **TODOs/FIXMEs:** 0  
 
 ## app/middleware.py
@@ -272,8 +272,8 @@ Total files: 47
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 6.49 KB  
-**LOC:** 135  
+**Size:** 9.15 KB  
+**LOC:** 184  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_narrative_buffer.py
@@ -407,8 +407,8 @@ Total files: 47
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 10.93 KB  
-**LOC:** 215  
+**Size:** 19.04 KB  
+**LOC:** 376  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_turn_integration.py

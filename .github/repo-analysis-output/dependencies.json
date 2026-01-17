@@ -26,7 +26,8 @@
         "stdlib": [
           "asyncio",
           "json",
-          "re"
+          "re",
+          "time"
         ],
         "third-party": [
           "fastapi.APIRouter",
@@ -451,6 +452,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "logging",
           "os",
           "time",
           "unittest.mock.patch"
@@ -1047,6 +1049,10 @@
       "target": "app/main.py"
     },
     {
+      "source": "tests/test_metrics.py",
+      "target": "app/logging.py"
+    },
+    {
       "source": "tests/test_narrative_buffer.py",
       "target": "app/streaming/buffer.py"
     },
@@ -1177,6 +1183,18 @@
     {
       "source": "tests/test_stream_transport.py",
       "target": "app/streaming/transport.py"
+    },
+    {
+      "source": "tests/test_streaming_integration.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_streaming_integration.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_streaming_integration.py",
+      "target": "app/metrics.py"
     },
     {
       "source": "tests/test_turn_integration.py",
