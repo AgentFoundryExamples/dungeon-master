@@ -788,6 +788,7 @@ async def test_multi_turn_quest_trigger_frequency():
     # For p=0.3 and cooldown=5, on average a trigger occurs every ~20 turns
     # (1/(p * (1 + cooldown/2))), giving ~5 triggers over 100 turns.
     # Using 3-sigma bounds for 99.7% confidence: 3-15 triggers
+    # Note: This is an approximation; actual distribution depends on cooldown implementation
     min_expected_triggers = 3
     max_expected_triggers = 15
     
@@ -912,6 +913,7 @@ async def test_multi_turn_poi_trigger_frequency():
     # Statistical bounds: With p=0.4 and cooldown=3, triggers occur roughly
     # every ~12.5 turns on average, giving ~8 triggers over 100 turns.
     # Using 3-sigma bounds for 99.7% confidence: 5-20 triggers
+    # Note: This is an approximation; actual distribution is complex with cooldown interactions
     min_expected_triggers = 5
     max_expected_triggers = 20
     
@@ -1166,7 +1168,7 @@ async def test_multi_turn_state_consistency_with_failures():
     quest_failures = 0
     poi_failures = 0
     
-    # Failure pattern: every Nth call fails
+    # Every 3rd call will fail to simulate intermittent journey-log failures
     FAILURE_INTERVAL = 3
     
     for turn_num in range(num_turns):
