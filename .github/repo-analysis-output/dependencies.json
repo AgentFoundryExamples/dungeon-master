@@ -25,6 +25,8 @@
       "external_dependencies": {
         "stdlib": [
           "asyncio",
+          "datetime.datetime",
+          "datetime.timezone",
           "json",
           "math",
           "re",
@@ -151,6 +153,29 @@
       }
     },
     {
+      "id": "app/policy_config.py",
+      "path": "app/policy_config.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone",
+          "json",
+          "pathlib.Path",
+          "threading",
+          "time",
+          "typing.Any",
+          "typing.Dict",
+          "typing.Optional"
+        ],
+        "third-party": [
+          "pydantic.BaseModel",
+          "pydantic.Field",
+          "pydantic.field_validator"
+        ]
+      }
+    },
+    {
       "id": "app/prompting/__init__.py",
       "path": "app/prompting/__init__.py",
       "type": "file",
@@ -261,6 +286,7 @@
         "stdlib": [
           "hashlib",
           "random",
+          "threading",
           "typing.Any",
           "typing.Dict",
           "typing.Optional"
@@ -322,6 +348,26 @@
           "json",
           "typing.Any",
           "typing.Dict",
+          "typing.Optional"
+        ],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/turn_storage.py",
+      "path": "app/turn_storage.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "collections.OrderedDict",
+          "datetime.datetime",
+          "datetime.timezone",
+          "re",
+          "threading",
+          "time",
+          "typing.Any",
+          "typing.Dict",
+          "typing.List",
           "typing.Optional"
         ],
         "third-party": []
@@ -554,6 +600,22 @@
       }
     },
     {
+      "id": "tests/test_policy_config.py",
+      "path": "tests/test_policy_config.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json",
+          "pathlib.Path",
+          "tempfile"
+        ],
+        "third-party": [
+          "pydantic.ValidationError",
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_policy_context_integration.py",
       "path": "tests/test_policy_context_integration.py",
       "type": "file",
@@ -718,6 +780,19 @@
       }
     },
     {
+      "id": "tests/test_turn_storage.py",
+      "path": "tests/test_turn_storage.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone",
+          "time"
+        ],
+        "third-party": []
+      }
+    },
+    {
       "id": "verify_poi_features.py",
       "path": "verify_poi_features.py",
       "type": "file",
@@ -769,6 +844,14 @@
       "target": "app/resilience.py"
     },
     {
+      "source": "app/api/routes.py",
+      "target": "app/turn_storage.py"
+    },
+    {
+      "source": "app/api/routes.py",
+      "target": "app/main.py"
+    },
+    {
       "source": "app/main.py",
       "target": "app/api/routes.py"
     },
@@ -810,6 +893,14 @@
     },
     {
       "source": "app/main.py",
+      "target": "app/policy_config.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/turn_storage.py"
+    },
+    {
+      "source": "app/main.py",
       "target": "app/resilience.py"
     },
     {
@@ -819,6 +910,10 @@
     {
       "source": "app/middleware.py",
       "target": "app/metrics.py"
+    },
+    {
+      "source": "app/policy_config.py",
+      "target": "app/logging.py"
     },
     {
       "source": "app/prompting/prompt_builder.py",
@@ -918,6 +1013,10 @@
     },
     {
       "source": "app/streaming/transport.py",
+      "target": "app/logging.py"
+    },
+    {
+      "source": "app/turn_storage.py",
       "target": "app/logging.py"
     },
     {
@@ -1145,6 +1244,10 @@
       "target": "app/models.py"
     },
     {
+      "source": "tests/test_policy_config.py",
+      "target": "app/policy_config.py"
+    },
+    {
       "source": "tests/test_policy_context_integration.py",
       "target": "app/models.py"
     },
@@ -1269,6 +1372,10 @@
       "target": "app/services/llm_client.py"
     },
     {
+      "source": "tests/test_turn_storage.py",
+      "target": "app/turn_storage.py"
+    },
+    {
       "source": "verify_poi_features.py",
       "target": "app/services/outcome_parser.py"
     },
@@ -1282,6 +1389,7 @@
       "abc.ABC",
       "abc.abstractmethod",
       "asyncio",
+      "collections.OrderedDict",
       "collections.defaultdict",
       "contextlib.asynccontextmanager",
       "contextvars.ContextVar",
@@ -1297,8 +1405,11 @@
       "logging",
       "math",
       "os",
+      "pathlib.Path",
       "random",
       "re",
+      "tempfile",
+      "threading",
       "threading.Lock",
       "time",
       "typing.Any",
@@ -1348,7 +1459,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 39,
+    "stdlib_count": 43,
     "third-party_count": 27
   }
 }

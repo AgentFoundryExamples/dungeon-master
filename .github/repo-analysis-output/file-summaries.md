@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 49
+Total files: 53
 
 ## app/__init__.py
 **Language:** Python  
@@ -29,8 +29,8 @@ Total files: 49
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 49.98 KB  
-**LOC:** 1049  
+**Size:** 65.55 KB  
+**LOC:** 1417  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -38,8 +38,8 @@ Total files: 49
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 8.58 KB  
-**LOC:** 218  
+**Size:** 9.33 KB  
+**LOC:** 238  
 **TODOs/FIXMEs:** 0  
 
 ## app/logging.py
@@ -56,8 +56,8 @@ Total files: 49
 **Role:** entry-point  
 **Role Justification:** common entry point name 'main'  
 **Summary:** Python main entry point (role: entry-point)  
-**Size:** 11.84 KB  
-**LOC:** 259  
+**Size:** 14.38 KB  
+**LOC:** 315  
 **TODOs/FIXMEs:** 0  
 
 ## app/metrics.py
@@ -83,8 +83,17 @@ Total files: 49
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 32.37 KB  
-**LOC:** 731  
+**Size:** 38.42 KB  
+**LOC:** 894  
+**TODOs/FIXMEs:** 0  
+
+## app/policy_config.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for policy config  
+**Size:** 13.31 KB  
+**LOC:** 292  
 **TODOs/FIXMEs:** 0  
 
 ## app/prompting/__init__.py
@@ -155,8 +164,8 @@ Total files: 49
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for policy engine  
-**Size:** 11.70 KB  
-**LOC:** 214  
+**Size:** 15.50 KB  
+**LOC:** 278  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/turn_orchestrator.py
@@ -193,6 +202,15 @@ Total files: 49
 **Summary:** Python module for transport  
 **Size:** 5.30 KB  
 **LOC:** 117  
+**TODOs/FIXMEs:** 0  
+
+## app/turn_storage.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for turn storage  
+**Size:** 12.65 KB  
+**LOC:** 245  
 **TODOs/FIXMEs:** 0  
 
 ## example_openai_usage.py
@@ -330,6 +348,15 @@ Total files: 49
 **LOC:** 248  
 **TODOs/FIXMEs:** 0  
 
+## tests/test_policy_config.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 7.55 KB  
+**LOC:** 169  
+**TODOs/FIXMEs:** 0  
+
 ## tests/test_policy_context_integration.py
 **Language:** Python  
 **Role:** test  
@@ -344,8 +371,8 @@ Total files: 49
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 21.11 KB  
-**LOC:** 492  
+**Size:** 22.46 KB  
+**LOC:** 519  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_policy_integration.py
@@ -436,6 +463,15 @@ Total files: 49
 **Summary:** Python test file (role: test)  
 **Size:** 28.49 KB  
 **LOC:** 554  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_turn_storage.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 9.00 KB  
+**LOC:** 192  
 **TODOs/FIXMEs:** 0  
 
 ## verify_poi_features.py

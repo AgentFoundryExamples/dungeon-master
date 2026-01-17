@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 49,
+  "total_files": 53,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 51178,
-        "loc": 1049,
+        "size_bytes": 67127,
+        "loc": 1417,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 8783,
-        "loc": 218,
+        "size_bytes": 9552,
+        "loc": 238,
         "todo_count": 0
       }
     },
@@ -81,8 +81,8 @@
       "summary": "Python main entry point (role: entry-point)",
       "summary_text": "Python main entry point (role: entry-point)",
       "metrics": {
-        "size_bytes": 12125,
-        "loc": 259,
+        "size_bytes": 14725,
+        "loc": 315,
         "todo_count": 0
       }
     },
@@ -123,8 +123,22 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 33150,
-        "loc": 731,
+        "size_bytes": 39339,
+        "loc": 894,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/policy_config.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for policy config",
+      "summary_text": "Python module for policy config",
+      "metrics": {
+        "size_bytes": 13631,
+        "loc": 292,
         "todo_count": 0
       }
     },
@@ -235,8 +249,8 @@
       "summary": "Python module for policy engine",
       "summary_text": "Python module for policy engine",
       "metrics": {
-        "size_bytes": 11978,
-        "loc": 214,
+        "size_bytes": 15869,
+        "loc": 278,
         "todo_count": 0
       }
     },
@@ -293,6 +307,20 @@
       "metrics": {
         "size_bytes": 5432,
         "loc": 117,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/turn_storage.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for turn storage",
+      "summary_text": "Python module for turn storage",
+      "metrics": {
+        "size_bytes": 12954,
+        "loc": 245,
         "todo_count": 0
       }
     },
@@ -508,6 +536,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "tests/test_policy_config.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 7735,
+        "loc": 169,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "tests/test_policy_context_integration.py",
       "language": "Python",
       "role": "test",
@@ -529,8 +571,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 21615,
-        "loc": 492,
+        "size_bytes": 23004,
+        "loc": 519,
         "todo_count": 0
       }
     },
@@ -671,6 +713,20 @@
       "metrics": {
         "size_bytes": 29172,
         "loc": 554,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_turn_storage.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 9213,
+        "loc": 192,
         "todo_count": 0
       }
     },
