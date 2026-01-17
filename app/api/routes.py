@@ -312,7 +312,7 @@ async def process_turn(
     # Initialize turn logger
     turn_logger = TurnLogger(
         logger=logger,
-        sampling_rate=1.0,  # Log all turns by default
+        sampling_rate=settings.turn_log_sampling_rate,
         redact_narrative=True
     )
     
@@ -330,6 +330,13 @@ async def process_turn(
     # Track latencies for turn logging
     latencies = {}
     turn_start_time = time.time()
+    outcome = "unknown"
+    errors = []
+    
+    # Initialize these variables for error paths
+    subsystem_summary = None
+    intents = None
+    policy_decisions = {}
 
     try:
         # Step 1: Fetch context from journey-log
@@ -356,6 +363,30 @@ async def process_turn(
         latencies['orchestration_ms'] = (time.time() - orchestration_start) * 1000
         latencies['total_ms'] = (time.time() - turn_start_time) * 1000
         
+        # Build policy decisions for logging
+        policy_decisions = {
+            "quest_eligible": (
+                context.policy_hints.quest_trigger_decision.eligible 
+                if context.policy_hints and context.policy_hints.quest_trigger_decision 
+                else False
+            ),
+            "quest_triggered": (
+                context.policy_hints.quest_trigger_decision.roll_passed 
+                if context.policy_hints and context.policy_hints.quest_trigger_decision 
+                else False
+            ),
+            "poi_eligible": (
+                context.policy_hints.poi_trigger_decision.eligible 
+                if context.policy_hints and context.policy_hints.poi_trigger_decision 
+                else False
+            ),
+            "poi_triggered": (
+                context.policy_hints.poi_trigger_decision.roll_passed 
+                if context.policy_hints and context.policy_hints.poi_trigger_decision 
+                else False
+            )
+        }
+        
         # Log orchestration results
         logger.info(
             "Successfully processed turn",
@@ -377,43 +408,8 @@ async def process_turn(
                 outcome="success"
             )
         
-        # Emit structured turn log
-        turn_logger.log_turn(
-            turn_id=turn_id,
-            character_id=request.character_id,
-            subsystem_actions={
-                "quest": subsystem_summary.quest_change.action,
-                "combat": subsystem_summary.combat_change.action,
-                "poi": subsystem_summary.poi_created.action,
-                "narrative": "persisted" if subsystem_summary.narrative_persisted else "failed"
-            },
-            policy_decisions={
-                "quest_eligible": (
-                    context.policy_hints.quest_trigger_decision.eligible 
-                    if context.policy_hints and context.policy_hints.quest_trigger_decision 
-                    else False
-                ),
-                "quest_triggered": (
-                    context.policy_hints.quest_trigger_decision.roll_passed 
-                    if context.policy_hints and context.policy_hints.quest_trigger_decision 
-                    else False
-                ),
-                "poi_eligible": (
-                    context.policy_hints.poi_trigger_decision.eligible 
-                    if context.policy_hints and context.policy_hints.poi_trigger_decision 
-                    else False
-                ),
-                "poi_triggered": (
-                    context.policy_hints.poi_trigger_decision.roll_passed 
-                    if context.policy_hints and context.policy_hints.poi_trigger_decision 
-                    else False
-                )
-            },
-            intent_summary=turn_logger.create_intent_summary(intents),
-            latencies=latencies,
-            errors=None,
-            outcome="success"
-        )
+        # Mark as success for finally block
+        outcome = "success"
         
         return TurnResponse(
             narrative=narrative,
@@ -422,84 +418,66 @@ async def process_turn(
         )
 
     except JourneyLogNotFoundError as e:
+        outcome = "error"
+        errors.append({"type": "character_not_found", "message": str(e)})
         logger.error("Character not found", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("character_not_found")
-            collector.record_turn_processed(
-                environment=settings.environment,
-                character_id=request.character_id,
-                outcome="error"
-            )
         raise create_error_response(
             error_type="character_not_found",
             message=f"Character {request.character_id} not found in journey-log",
             status_code=status.HTTP_404_NOT_FOUND
         ) from e
     except JourneyLogTimeoutError as e:
+        outcome = "error"
+        errors.append({"type": "journey_log_timeout", "message": str(e)})
         logger.error("Journey-log timeout", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("journey_log_timeout")
-            collector.record_turn_processed(
-                environment=settings.environment,
-                character_id=request.character_id,
-                outcome="error"
-            )
         raise create_error_response(
             error_type="journey_log_timeout",
             message="Journey-log service timed out. Please try again.",
             status_code=status.HTTP_504_GATEWAY_TIMEOUT
         ) from e
     except JourneyLogClientError as e:
+        outcome = "error"
+        errors.append({"type": "journey_log_error", "message": str(e)})
         logger.error("Journey-log client error", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("journey_log_error")
-            collector.record_turn_processed(
-                environment=settings.environment,
-                character_id=request.character_id,
-                outcome="error"
-            )
         raise create_error_response(
             error_type="journey_log_error",
             message=f"Failed to communicate with journey-log: {str(e)}",
             status_code=status.HTTP_502_BAD_GATEWAY
         ) from e
     except LLMTimeoutError as e:
+        outcome = "error"
+        errors.append({"type": "llm_timeout", "message": str(e)})
         logger.error("LLM timeout", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("llm_timeout")
-            collector.record_turn_processed(
-                environment=settings.environment,
-                character_id=request.character_id,
-                outcome="error"
-            )
         raise create_error_response(
             error_type="llm_timeout",
             message="LLM service timed out. Please try again.",
             status_code=status.HTTP_504_GATEWAY_TIMEOUT
         ) from e
     except LLMResponseError as e:
+        outcome = "error"
+        errors.append({"type": "llm_response_error", "message": str(e)})
         logger.error("LLM response error", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("llm_response_error")
-            collector.record_turn_processed(
-                environment=settings.environment,
-                character_id=request.character_id,
-                outcome="error"
-            )
         raise create_error_response(
             error_type="llm_response_error",
             message=f"LLM returned invalid response: {str(e)}",
             status_code=status.HTTP_502_BAD_GATEWAY
         ) from e
     except LLMClientError as e:
+        outcome = "error"
+        errors.append({"type": "llm_error", "message": str(e)})
         logger.error("LLM client error", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("llm_error")
-            collector.record_turn_processed(
-                environment=settings.environment,
-                character_id=request.character_id,
-                outcome="error"
-            )
         raise create_error_response(
             error_type="llm_error",
             message=f"Failed to generate narrative: {str(e)}",
@@ -507,6 +485,8 @@ async def process_turn(
         ) from e
     except Exception as e:
         # Catch-all for unexpected errors
+        outcome = "error"
+        errors.append({"type": "internal_error", "message": str(e)})
         logger.error(
             "Unexpected error processing turn",
             turn_id=turn_id,
@@ -516,16 +496,38 @@ async def process_turn(
         )
         if (collector := get_metrics_collector()):
             collector.record_error("internal_error")
-            collector.record_turn_processed(
-                environment=settings.environment,
-                character_id=request.character_id,
-                outcome="error"
-            )
         raise create_error_response(
             error_type="internal_error",
             message="An unexpected error occurred while processing your turn",
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         ) from e
+    finally:
+        # Always emit structured turn log and record metrics, even on errors
+        if outcome != "success":
+            latencies['total_ms'] = (time.time() - turn_start_time) * 1000
+            if (collector := get_metrics_collector()):
+                collector.record_turn_processed(
+                    environment=settings.environment,
+                    character_id=request.character_id,
+                    outcome="error"
+                )
+        
+        # Emit structured turn log
+        turn_logger.log_turn(
+            turn_id=turn_id,
+            character_id=request.character_id,
+            subsystem_actions={
+                "quest": subsystem_summary.quest_change.action if subsystem_summary else "none",
+                "combat": subsystem_summary.combat_change.action if subsystem_summary else "none",
+                "poi": subsystem_summary.poi_created.action if subsystem_summary else "none",
+                "narrative": "persisted" if subsystem_summary and subsystem_summary.narrative_persisted else "failed"
+            },
+            policy_decisions=policy_decisions,
+            intent_summary=turn_logger.create_intent_summary(intents) if intents else None,
+            latencies=latencies,
+            errors=errors if errors else None,
+            outcome=outcome
+        )
 
 
 @router.post(

@@ -98,6 +98,12 @@ class Settings(BaseSettings):
         default=False,
         description="Enable metrics collection and /metrics endpoint"
     )
+    turn_log_sampling_rate: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Sampling rate for turn logs (0.0-1.0, where 1.0 logs all turns)"
+    )
     
     # Debug Configuration
     enable_debug_endpoints: bool = Field(

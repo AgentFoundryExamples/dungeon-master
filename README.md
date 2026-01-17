@@ -108,6 +108,7 @@ All configuration is managed through environment variables. Copy `.env.example` 
 | `LOG_LEVEL` | `INFO` | Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL) |
 | `LOG_JSON_FORMAT` | `false` | Enable JSON structured logging output |
 | `ENABLE_METRICS` | `false` | Enable metrics collection and /metrics endpoint |
+| `TURN_LOG_SAMPLING_RATE` | `1.0` | Turn log sampling rate (0.0-1.0, where 1.0 logs all turns) |
 | `ENABLE_DEBUG_ENDPOINTS` | `false` | Enable debug endpoints (local development only) |
 
 ### PolicyEngine Configuration
