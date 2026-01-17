@@ -391,6 +391,242 @@ class TurnOrchestrator:
         
         return narrative, intents, summary
     
+    async def orchestrate_turn_stream(
+        self,
+        character_id: str,
+        user_action: str,
+        context: JourneyLogContext,
+        callback,
+        trace_id: Optional[str] = None,
+        dry_run: bool = False
+    ) -> tuple[str, Optional[IntentsBlock], TurnSubsystemSummary]:
+        """Orchestrate a complete turn with streaming narrative delivery.
+        
+        This method extends the synchronous orchestrate_turn() with streaming support:
+        - Phase 1: Stream narrative tokens via callback while buffering
+        - Phase 2: Validate complete narrative and execute subsystem writes
+        
+        The callback receives individual tokens as they're generated. After streaming
+        completes, this method validates the complete narrative against DungeonMasterOutcome
+        schema and executes subsystem writes in deterministic order (same as synchronous flow).
+        
+        Args:
+            character_id: Character UUID
+            user_action: Player's action text
+            context: Character context from journey-log
+            callback: Async callback function that receives tokens (str) for streaming
+            trace_id: Optional trace ID for correlation
+            dry_run: If True, skip actual writes but produce summary
+            
+        Returns:
+            Tuple of (narrative, intents, subsystem_summary)
+        """
+        logger.info(
+            "Starting streaming turn orchestration",
+            character_id=character_id,
+            dry_run=dry_run,
+            has_callback=callback is not None
+        )
+        
+        summary = TurnSubsystemSummary()
+        
+        # Step 0: Fetch memory sparks (random POIs) if enabled
+        if self.poi_memory_spark_enabled and not dry_run:
+            logger.debug("Step 0: Fetching memory sparks (random POIs)")
+            memory_sparks = await self.journey_log_client.get_random_pois(
+                character_id=character_id,
+                n=self.poi_memory_spark_count,
+                trace_id=trace_id
+            )
+            context.memory_sparks = memory_sparks
+            logger.info(
+                "Memory sparks fetched",
+                count=len(memory_sparks),
+                enabled=self.poi_memory_spark_enabled
+            )
+        else:
+            logger.debug(
+                "Memory sparks skipped",
+                enabled=self.poi_memory_spark_enabled,
+                dry_run=dry_run
+            )
+        
+        # Step 1: Compute policy decisions (same as synchronous)
+        logger.debug("Step 1: Computing policy decisions")
+        quest_decision = self.policy_engine.evaluate_quest_trigger(
+            character_id=character_id,
+            turns_since_last_quest=context.policy_state.turns_since_last_quest,
+            has_active_quest=context.policy_state.has_active_quest
+        )
+        
+        poi_decision = self.policy_engine.evaluate_poi_trigger(
+            character_id=character_id,
+            turns_since_last_poi=context.policy_state.turns_since_last_poi
+        )
+        
+        policy_hints = PolicyHints(
+            quest_trigger_decision=quest_decision,
+            poi_trigger_decision=poi_decision
+        )
+        
+        # Inject policy hints into context
+        context.policy_hints = policy_hints
+        
+        logger.info(
+            "Policy decisions evaluated",
+            quest_eligible=quest_decision.eligible,
+            quest_roll_passed=quest_decision.roll_passed,
+            poi_eligible=poi_decision.eligible,
+            poi_roll_passed=poi_decision.roll_passed
+        )
+        
+        # Step 2: Build prompt and call LLM with streaming
+        logger.debug("Step 2: Building prompt and calling LLM with streaming")
+        system_instructions, user_prompt = self.prompt_builder.build_prompt(
+            context=context,
+            user_action=user_action
+        )
+        
+        # Phase 1: Stream narrative tokens via LLM client
+        parsed_outcome = await self.llm_client.generate_narrative_stream(
+            system_instructions=system_instructions,
+            user_prompt=user_prompt,
+            callback=callback,
+            trace_id=trace_id
+        )
+        
+        narrative = parsed_outcome.narrative
+        intents = None
+        if parsed_outcome.is_valid and parsed_outcome.outcome:
+            intents = parsed_outcome.outcome.intents
+        
+        logger.info(
+            "LLM streaming generation complete",
+            narrative_length=len(narrative),
+            intents_valid=intents is not None
+        )
+        
+        # Step 2b: Normalize quest and POI intents with fallbacks (same as synchronous)
+        if intents:
+            normalized_quest = self.outcome_parser.normalize_quest_intent(
+                quest_intent=intents.quest_intent,
+                policy_triggered=quest_decision.roll_passed
+            )
+            if normalized_quest != intents.quest_intent:
+                logger.info(
+                    "Quest intent normalized",
+                    original_action=intents.quest_intent.action if intents.quest_intent else "none",
+                    normalized_action=normalized_quest.action if normalized_quest else "none"
+                )
+                intents.quest_intent = normalized_quest
+            
+            # Normalize POI intent with fallbacks (use location from context)
+            location_name = None
+            if context.location:
+                location_name = context.location.get("display_name") or context.location.get("id")
+            
+            normalized_poi = self.outcome_parser.normalize_poi_intent(
+                poi_intent=intents.poi_intent,
+                policy_triggered=poi_decision.roll_passed,
+                location_name=location_name
+            )
+            if normalized_poi != intents.poi_intent:
+                logger.info(
+                    "POI intent normalized",
+                    original_action=intents.poi_intent.action if intents.poi_intent else "none",
+                    normalized_action=normalized_poi.action if normalized_poi else "none"
+                )
+                intents.poi_intent = normalized_poi
+        
+        # Step 3: Derive subsystem actions (same as synchronous)
+        logger.debug("Step 3: Deriving subsystem actions from policy and intents")
+        actions = self._derive_subsystem_actions(
+            context=context,
+            intents=intents,
+            quest_decision=quest_decision,
+            poi_decision=poi_decision
+        )
+        
+        logger.info(
+            "Subsystem actions derived",
+            quest_action=actions["quest"].action_type if actions["quest"].should_execute else "none",
+            combat_action=actions["combat"].action_type if actions["combat"].should_execute else "none",
+            poi_action=actions["poi"].action_type if actions["poi"].should_execute else "none"
+        )
+        
+        # Phase 2: Execute writes in deterministic order (same as synchronous)
+        logger.debug("Phase 2: Executing subsystem writes after streaming validation")
+        
+        if not dry_run:
+            # Quest writes (PUT/DELETE)
+            if actions["quest"].should_execute:
+                await self._execute_quest_action(
+                    character_id=character_id,
+                    action=actions["quest"],
+                    summary=summary,
+                    trace_id=trace_id
+                )
+            
+            # Combat writes (PUT)
+            if actions["combat"].should_execute:
+                await self._execute_combat_action(
+                    character_id=character_id,
+                    action=actions["combat"],
+                    context=context,
+                    summary=summary,
+                    trace_id=trace_id
+                )
+            
+            # POI writes (POST)
+            if actions["poi"].should_execute:
+                await self._execute_poi_action(
+                    character_id=character_id,
+                    action=actions["poi"],
+                    summary=summary,
+                    trace_id=trace_id
+                )
+            
+            # Narrative write (POST) - always attempt
+            await self._persist_narrative(
+                character_id=character_id,
+                user_action=user_action,
+                narrative=narrative,
+                summary=summary,
+                trace_id=trace_id
+            )
+        else:
+            # Dry-run mode: populate summary without executing
+            logger.info("Dry-run mode: skipping actual writes")
+            if actions["quest"].should_execute:
+                summary.quest_change = SubsystemActionType(
+                    action=actions["quest"].action_type,
+                    success=True,
+                    error=None
+                )
+            if actions["combat"].should_execute:
+                summary.combat_change = SubsystemActionType(
+                    action=actions["combat"].action_type,
+                    success=True,
+                    error=None
+                )
+            if actions["poi"].should_execute:
+                summary.poi_created = SubsystemActionType(
+                    action=actions["poi"].action_type,
+                    success=True,
+                    error=None
+                )
+            summary.narrative_persisted = True
+        
+        logger.info(
+            "Streaming turn orchestration complete",
+            quest_change=summary.quest_change.action,
+            combat_change=summary.combat_change.action,
+            poi_change=summary.poi_created.action,
+            narrative_persisted=summary.narrative_persisted
+        )
+        
+        return narrative, intents, summary
+    
     def _derive_subsystem_actions(
         self,
         context: JourneyLogContext,
