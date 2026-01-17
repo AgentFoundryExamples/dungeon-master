@@ -149,6 +149,59 @@ class Settings(BaseSettings):
         description="Number of random POIs to fetch as memory sparks (1-20)"
     )
 
+    # Rate Limiting Configuration
+    max_turns_per_character_per_second: float = Field(
+        default=2.0,
+        ge=0.1,
+        le=100.0,
+        description="Maximum turns per character per second (0.1-100.0). Conservative default to prevent abuse."
+    )
+    max_concurrent_llm_calls: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        description="Maximum concurrent LLM calls across all characters (1-100). Prevents API rate limit exhaustion."
+    )
+    
+    # Retry and Backoff Configuration
+    llm_max_retries: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Maximum retry attempts for transient LLM errors (0-10). 0 disables retries."
+    )
+    llm_retry_delay_base: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Base delay in seconds for LLM retry exponential backoff (0.1-10.0)"
+    )
+    llm_retry_delay_max: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=300.0,
+        description="Maximum delay in seconds for LLM retry exponential backoff (1.0-300.0)"
+    )
+    
+    journey_log_max_retries: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Maximum retry attempts for transient journey-log errors on GET requests (0-10). POST/PUT/DELETE are not retried."
+    )
+    journey_log_retry_delay_base: float = Field(
+        default=0.5,
+        ge=0.1,
+        le=10.0,
+        description="Base delay in seconds for journey-log retry exponential backoff (0.1-10.0)"
+    )
+    journey_log_retry_delay_max: float = Field(
+        default=10.0,
+        ge=1.0,
+        le=300.0,
+        description="Maximum delay in seconds for journey-log retry exponential backoff (1.0-300.0)"
+    )
+
     @field_validator('journey_log_base_url')
     @classmethod
     def validate_journey_log_url(cls, v: str) -> str:

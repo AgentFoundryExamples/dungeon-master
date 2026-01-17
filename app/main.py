@@ -93,17 +93,29 @@ async def lifespan(app: FastAPI):
         api_key=settings.openai_api_key,
         model=settings.openai_model,
         timeout=settings.openai_timeout,
-        stub_mode=settings.openai_stub_mode
+        stub_mode=settings.openai_stub_mode,
+        max_retries=settings.llm_max_retries,
+        retry_delay_base=settings.llm_retry_delay_base,
+        retry_delay_max=settings.llm_retry_delay_max
     )
-    logger.info(f"LLM client initialized (model={settings.openai_model}, stub_mode={settings.openai_stub_mode})")
+    logger.info(
+        f"LLM client initialized (model={settings.openai_model}, stub_mode={settings.openai_stub_mode}, "
+        f"max_retries={settings.llm_max_retries})"
+    )
 
     app.state.journey_log_client = JourneyLogClient(
         base_url=settings.journey_log_base_url,
         http_client=app.state.http_client,
         timeout=settings.journey_log_timeout,
-        recent_n_default=settings.journey_log_recent_n
+        recent_n_default=settings.journey_log_recent_n,
+        max_retries=settings.journey_log_max_retries,
+        retry_delay_base=settings.journey_log_retry_delay_base,
+        retry_delay_max=settings.journey_log_retry_delay_max
     )
-    logger.info(f"Journey-log client initialized (base_url={settings.journey_log_base_url})")
+    logger.info(
+        f"Journey-log client initialized (base_url={settings.journey_log_base_url}, "
+        f"max_retries={settings.journey_log_max_retries})"
+    )
 
     app.state.policy_engine = PolicyEngine(
         quest_trigger_prob=settings.quest_trigger_prob,
@@ -113,6 +125,19 @@ async def lifespan(app: FastAPI):
         rng_seed=settings.rng_seed
     )
     logger.info(f"Policy engine initialized (quest_prob={settings.quest_trigger_prob}, poi_prob={settings.poi_trigger_prob})")
+    
+    # Initialize rate limiters
+    from app.resilience import RateLimiter, Semaphore
+    app.state.character_rate_limiter = RateLimiter(
+        max_rate=settings.max_turns_per_character_per_second
+    )
+    app.state.llm_semaphore = Semaphore(
+        max_concurrent=settings.max_concurrent_llm_calls
+    )
+    logger.info(
+        f"Rate limiters initialized (max_turns_per_char_per_sec={settings.max_turns_per_character_per_second}, "
+        f"max_concurrent_llm={settings.max_concurrent_llm_calls})"
+    )
     
     app.state.prompt_builder = PromptBuilder()
     logger.info("Prompt builder initialized")
@@ -260,19 +285,57 @@ def get_turn_orchestrator_override():
     return app.state.turn_orchestrator
 
 
+def get_character_rate_limiter_override():
+    """Dependency override that provides the character RateLimiter from app state.
+    
+    Returns:
+        RateLimiter instance from app state
+        
+    Raises:
+        RuntimeError: If character_rate_limiter is not initialized in app state
+    """
+    if not hasattr(app.state, 'character_rate_limiter'):
+        raise RuntimeError(
+            "Character rate limiter not initialized. "
+            "Ensure the application lifespan has started."
+        )
+    return app.state.character_rate_limiter
+
+
+def get_llm_semaphore_override():
+    """Dependency override that provides the LLM Semaphore from app state.
+    
+    Returns:
+        Semaphore instance from app state
+        
+    Raises:
+        RuntimeError: If llm_semaphore is not initialized in app state
+    """
+    if not hasattr(app.state, 'llm_semaphore'):
+        raise RuntimeError(
+            "LLM semaphore not initialized. "
+            "Ensure the application lifespan has started."
+        )
+    return app.state.llm_semaphore
+
+
 # Use FastAPI's dependency_overrides instead of monkey-patching
 from app.api.routes import (
     get_http_client,
     get_journey_log_client,
     get_llm_client,
     get_policy_engine,
-    get_turn_orchestrator
+    get_turn_orchestrator,
+    get_character_rate_limiter,
+    get_llm_semaphore
 )  # noqa: E402
 app.dependency_overrides[get_http_client] = get_http_client_override
 app.dependency_overrides[get_journey_log_client] = get_journey_log_client_override
 app.dependency_overrides[get_llm_client] = get_llm_client_override
 app.dependency_overrides[get_policy_engine] = get_policy_engine_override
 app.dependency_overrides[get_turn_orchestrator] = get_turn_orchestrator_override
+app.dependency_overrides[get_character_rate_limiter] = get_character_rate_limiter_override
+app.dependency_overrides[get_llm_semaphore] = get_llm_semaphore_override
 
 
 if __name__ == "__main__":
