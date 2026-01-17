@@ -108,6 +108,10 @@ class PolicyEngine:
         # Character-specific RNG instances (for deterministic debugging)
         self._character_rngs: Dict[str, random.Random] = {}
         
+        # Import lock for thread-safe config updates
+        import threading
+        self._config_lock = threading.Lock()
+        
         logger.info(
             f"Initialized PolicyEngine with quest_prob={self.quest_trigger_prob}, "
             f"quest_cooldown={self.quest_cooldown_turns}, "
@@ -115,6 +119,72 @@ class PolicyEngine:
             f"poi_cooldown={self.poi_cooldown_turns}, "
             f"rng_seed={'<set>' if rng_seed is not None else '<none>'}"
         )
+    
+    def update_config(
+        self,
+        quest_trigger_prob: Optional[float] = None,
+        quest_cooldown_turns: Optional[int] = None,
+        poi_trigger_prob: Optional[float] = None,
+        poi_cooldown_turns: Optional[int] = None
+    ) -> None:
+        """Update policy configuration at runtime.
+        
+        This method allows hot-reloading policy parameters without restart.
+        All parameters are optional - only provided values are updated.
+        Validation is performed before applying changes.
+        
+        Args:
+            quest_trigger_prob: Optional new quest trigger probability
+            quest_cooldown_turns: Optional new quest cooldown turns
+            poi_trigger_prob: Optional new POI trigger probability
+            poi_cooldown_turns: Optional new POI cooldown turns
+            
+        Raises:
+            ValueError: If any provided parameter fails validation
+        """
+        with self._config_lock:
+            # Validate probabilities if provided
+            if quest_trigger_prob is not None and not (0.0 <= quest_trigger_prob <= 1.0):
+                raise ValueError(
+                    f"quest_trigger_prob must be between 0.0 and 1.0, got: {quest_trigger_prob}"
+                )
+            if poi_trigger_prob is not None and not (0.0 <= poi_trigger_prob <= 1.0):
+                raise ValueError(
+                    f"poi_trigger_prob must be between 0.0 and 1.0, got: {poi_trigger_prob}"
+                )
+            
+            # Validate cooldowns if provided (must be non-negative)
+            if quest_cooldown_turns is not None and quest_cooldown_turns < 0:
+                raise ValueError(
+                    f"quest_cooldown_turns must be >= 0, got: {quest_cooldown_turns}"
+                )
+            if poi_cooldown_turns is not None and poi_cooldown_turns < 0:
+                raise ValueError(
+                    f"poi_cooldown_turns must be >= 0, got: {poi_cooldown_turns}"
+                )
+            
+            # Build change summary for logging
+            changes = []
+            if quest_trigger_prob is not None and quest_trigger_prob != self.quest_trigger_prob:
+                changes.append(f"quest_prob: {self.quest_trigger_prob} -> {quest_trigger_prob}")
+                self.quest_trigger_prob = quest_trigger_prob
+            if quest_cooldown_turns is not None and quest_cooldown_turns != self.quest_cooldown_turns:
+                changes.append(f"quest_cooldown: {self.quest_cooldown_turns} -> {quest_cooldown_turns}")
+                self.quest_cooldown_turns = quest_cooldown_turns
+            if poi_trigger_prob is not None and poi_trigger_prob != self.poi_trigger_prob:
+                changes.append(f"poi_prob: {self.poi_trigger_prob} -> {poi_trigger_prob}")
+                self.poi_trigger_prob = poi_trigger_prob
+            if poi_cooldown_turns is not None and poi_cooldown_turns != self.poi_cooldown_turns:
+                changes.append(f"poi_cooldown: {self.poi_cooldown_turns} -> {poi_cooldown_turns}")
+                self.poi_cooldown_turns = poi_cooldown_turns
+            
+            if changes:
+                logger.info(
+                    "PolicyEngine config updated",
+                    changes=", ".join(changes)
+                )
+            else:
+                logger.debug("PolicyEngine config update called with no changes")
 
     def _get_rng(self, character_id: Optional[str] = None, seed_override: Optional[int] = None) -> random.Random:
         """Get RNG instance for the given character or global RNG.
@@ -184,6 +254,11 @@ class PolicyEngine:
         Returns:
             QuestTriggerDecision with eligibility, probability, and roll result
         """
+        # Read config values under lock for thread-safety
+        with self._config_lock:
+            quest_trigger_prob = self.quest_trigger_prob
+            quest_cooldown_turns = self.quest_cooldown_turns
+        
         # Check eligibility
         eligible = True
         reasons = []
@@ -192,18 +267,18 @@ class PolicyEngine:
             eligible = False
             reasons.append("already_has_active_quest")
         
-        if turns_since_last_quest < self.quest_cooldown_turns:
+        if turns_since_last_quest < quest_cooldown_turns:
             eligible = False
-            reasons.append(f"cooldown_not_met (turns={turns_since_last_quest}, required={self.quest_cooldown_turns})")
+            reasons.append(f"cooldown_not_met (turns={turns_since_last_quest}, required={quest_cooldown_turns})")
         
         # Perform roll if eligible
         roll_passed = False
         if eligible:
-            roll_passed = self._roll(self.quest_trigger_prob, character_id, seed_override)
+            roll_passed = self._roll(quest_trigger_prob, character_id, seed_override)
         
         decision = QuestTriggerDecision(
             eligible=eligible,
-            probability=self.quest_trigger_prob,
+            probability=quest_trigger_prob,
             roll_passed=roll_passed
         )
         
@@ -242,22 +317,27 @@ class PolicyEngine:
         Returns:
             POITriggerDecision with eligibility, probability, and roll result
         """
+        # Read config values under lock for thread-safety
+        with self._config_lock:
+            poi_trigger_prob = self.poi_trigger_prob
+            poi_cooldown_turns = self.poi_cooldown_turns
+        
         # Check eligibility
         eligible = True
         reasons = []
         
-        if turns_since_last_poi < self.poi_cooldown_turns:
+        if turns_since_last_poi < poi_cooldown_turns:
             eligible = False
-            reasons.append(f"cooldown_not_met (turns={turns_since_last_poi}, required={self.poi_cooldown_turns})")
+            reasons.append(f"cooldown_not_met (turns={turns_since_last_poi}, required={poi_cooldown_turns})")
         
         # Perform roll if eligible
         roll_passed = False
         if eligible:
-            roll_passed = self._roll(self.poi_trigger_prob, character_id, seed_override)
+            roll_passed = self._roll(poi_trigger_prob, character_id, seed_override)
         
         decision = POITriggerDecision(
             eligible=eligible,
-            probability=self.poi_trigger_prob,
+            probability=poi_trigger_prob,
             roll_passed=roll_passed
         )
         

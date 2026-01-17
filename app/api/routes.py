@@ -428,6 +428,8 @@ async def process_turn(
     subsystem_summary = None
     intents = None
     policy_decisions = {}
+    context = None
+    narrative = None
 
     try:
         # Step 1: Fetch context from journey-log
@@ -627,6 +629,79 @@ async def process_turn(
             errors=errors if errors else None,
             outcome=outcome
         )
+        
+        # Store turn detail for admin introspection (if admin endpoints enabled)
+        if settings.admin_endpoints_enabled and outcome == "success":
+            try:
+                from app.turn_storage import TurnDetail
+                from datetime import datetime, timezone
+                
+                # Get turn storage
+                from app.main import get_turn_storage
+                turn_storage = get_turn_storage()
+                
+                # Build context snapshot (redacted)
+                context_snapshot = {}
+                if context:
+                    context_snapshot = {
+                        "status": context.status,
+                        "location": context.location,
+                        "has_active_quest": context.policy_state.has_active_quest if context.policy_state else False,
+                        "combat_active": context.policy_state.combat_active if context.policy_state else False,
+                        "turns_since_last_quest": context.policy_state.turns_since_last_quest if context.policy_state else 0,
+                        "turns_since_last_poi": context.policy_state.turns_since_last_poi if context.policy_state else 0
+                    }
+                
+                # Build journey-log writes summary
+                journey_log_writes = {}
+                if subsystem_summary:
+                    journey_log_writes = {
+                        "quest": {
+                            "action": subsystem_summary.quest_change.action,
+                            "success": subsystem_summary.quest_change.success
+                        },
+                        "combat": {
+                            "action": subsystem_summary.combat_change.action,
+                            "success": subsystem_summary.combat_change.success
+                        },
+                        "poi": {
+                            "action": subsystem_summary.poi_created.action,
+                            "success": subsystem_summary.poi_created.success
+                        },
+                        "narrative": {
+                            "persisted": subsystem_summary.narrative_persisted
+                        }
+                    }
+                
+                # Create and store turn detail
+                turn_detail = TurnDetail(
+                    turn_id=turn_id,
+                    character_id=request.character_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    user_action=request.user_action,
+                    context_snapshot=context_snapshot,
+                    policy_decisions=policy_decisions,
+                    llm_narrative=narrative,
+                    llm_intents=intents.model_dump() if intents else None,
+                    journey_log_writes=journey_log_writes,
+                    errors=errors if errors else [],
+                    latency_ms=latencies.get('total_ms')
+                )
+                
+                turn_storage.store_turn(turn_detail)
+                
+                logger.debug(
+                    "Turn detail stored for admin introspection",
+                    turn_id=turn_id,
+                    character_id=request.character_id
+                )
+            except Exception as e:
+                # Don't fail the request if turn storage fails
+                logger.warning(
+                    "Failed to store turn detail for admin introspection",
+                    turn_id=turn_id,
+                    error=str(e)
+                )
 
 
 @router.post(
@@ -1014,6 +1089,383 @@ async def process_turn_stream(
 
 
 @router.get(
+    "/admin/turns/{turn_id}",
+    response_model=None,  # We'll return AdminTurnDetail from models
+    status_code=status.HTTP_200_OK,
+    summary="Get turn details for introspection",
+    description=(
+        "Admin endpoint to inspect specific turn state for debugging. "
+        "Returns comprehensive turn details including input, context snapshot, "
+        "policy decisions, LLM output, and journey-log writes. "
+        "Requires ADMIN_ENDPOINTS_ENABLED=true. "
+        "Relies on Cloud IAM/service-to-service auth (no custom auth)."
+    ),
+    responses={
+        200: {
+            "description": "Turn details retrieved successfully",
+            "model": "AdminTurnDetail"
+        },
+        404: {
+            "description": "Turn not found or admin endpoints disabled",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "type": "turn_not_found",
+                            "message": "Turn not found or has expired",
+                            "request_id": None
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
+async def get_turn_details(
+    turn_id: str,
+    settings: Settings = Depends(get_settings)
+):
+    """Get turn details for admin introspection.
+    
+    Retrieves comprehensive turn state for debugging including:
+    - User action input
+    - Context snapshot at turn time
+    - Policy engine decisions
+    - LLM narrative and intents
+    - Journey-log writes summary
+    - Errors and latency metrics
+    
+    Args:
+        turn_id: Unique turn identifier
+        settings: Application settings (injected)
+        
+    Returns:
+        AdminTurnDetail with comprehensive turn state
+        
+    Raises:
+        HTTPException: If admin endpoints disabled or turn not found
+    """
+    if not settings.admin_endpoints_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Admin endpoints are disabled. Set ADMIN_ENDPOINTS_ENABLED=true to enable."
+        )
+    
+    # Get turn storage from app state (will be injected via dependency)
+    from app.main import get_turn_storage
+    turn_storage = get_turn_storage()
+    
+    # Retrieve turn detail
+    turn_detail = turn_storage.get_turn(turn_id)
+    
+    if turn_detail is None:
+        logger.warning(
+            "Admin turn lookup failed - not found",
+            turn_id=turn_id
+        )
+        raise create_error_response(
+            error_type="turn_not_found",
+            message="Turn not found or has expired",
+            status_code=status.HTTP_404_NOT_FOUND
+        )
+    
+    logger.info(
+        "Admin turn introspection",
+        turn_id=turn_id,
+        character_id=turn_detail.character_id
+    )
+    
+    # Import AdminTurnDetail here to avoid circular imports
+    from app.models import AdminTurnDetail
+    
+    # Convert to response model with redaction
+    turn_dict = turn_detail.to_dict(redact_sensitive=True)
+    return AdminTurnDetail(**turn_dict)
+
+
+@router.get(
+    "/admin/characters/{character_id}/recent_turns",
+    response_model=None,
+    status_code=status.HTTP_200_OK,
+    summary="Get recent turns for a character",
+    description=(
+        "Admin endpoint to list recent turns for a specific character. "
+        "Returns turns in reverse chronological order with comprehensive state. "
+        "Requires ADMIN_ENDPOINTS_ENABLED=true. "
+        "Relies on Cloud IAM/service-to-service auth (no custom auth)."
+    ),
+    responses={
+        200: {
+            "description": "Recent turns retrieved successfully",
+            "model": "AdminRecentTurnsResponse"
+        },
+        404: {
+            "description": "Admin endpoints disabled"
+        }
+    }
+)
+async def get_character_recent_turns(
+    character_id: str,
+    limit: int = 20,
+    settings: Settings = Depends(get_settings)
+):
+    """Get recent turns for a character.
+    
+    Retrieves recent turn history for debugging and analysis.
+    
+    Args:
+        character_id: Character UUID
+        limit: Maximum number of turns to return (default: 20, max: 100)
+        settings: Application settings (injected)
+        
+    Returns:
+        AdminRecentTurnsResponse with list of recent turns
+        
+    Raises:
+        HTTPException: If admin endpoints disabled
+    """
+    if not settings.admin_endpoints_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Admin endpoints are disabled. Set ADMIN_ENDPOINTS_ENABLED=true to enable."
+        )
+    
+    # Validate limit
+    if limit < 1 or limit > 100:
+        raise create_error_response(
+            error_type="invalid_limit",
+            message="Limit must be between 1 and 100",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Get turn storage from app state
+    from app.main import get_turn_storage
+    turn_storage = get_turn_storage()
+    
+    # Retrieve recent turns
+    turn_details = turn_storage.get_character_recent_turns(
+        character_id=character_id,
+        limit=limit
+    )
+    
+    logger.info(
+        "Admin character recent turns lookup",
+        character_id=character_id,
+        limit=limit,
+        found_count=len(turn_details)
+    )
+    
+    # Import models
+    from app.models import AdminTurnDetail, AdminRecentTurnsResponse
+    
+    # Convert to response models with redaction
+    turns_list = [
+        AdminTurnDetail(**turn.to_dict(redact_sensitive=True))
+        for turn in turn_details
+    ]
+    
+    return AdminRecentTurnsResponse(
+        character_id=character_id,
+        turns=turns_list,
+        total_count=len(turns_list),
+        limit=limit
+    )
+
+
+@router.get(
+    "/admin/policy/config",
+    response_model=None,
+    status_code=status.HTTP_200_OK,
+    summary="Get current policy configuration",
+    description=(
+        "Admin endpoint to inspect current policy configuration. "
+        "Returns quest/POI probabilities and cooldowns. "
+        "Requires ADMIN_ENDPOINTS_ENABLED=true."
+    ),
+    responses={
+        200: {
+            "description": "Policy config retrieved successfully",
+            "model": "PolicyConfigResponse"
+        },
+        404: {"description": "Admin endpoints disabled"}
+    }
+)
+async def get_policy_config(
+    settings: Settings = Depends(get_settings)
+):
+    """Get current policy configuration.
+    
+    Returns current policy parameters for inspection.
+    
+    Args:
+        settings: Application settings (injected)
+        
+    Returns:
+        PolicyConfigResponse with current config
+        
+    Raises:
+        HTTPException: If admin endpoints disabled
+    """
+    if not settings.admin_endpoints_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Admin endpoints are disabled. Set ADMIN_ENDPOINTS_ENABLED=true to enable."
+        )
+    
+    # Get policy config manager from app state
+    from app.main import get_policy_config_manager
+    config_manager = get_policy_config_manager()
+    
+    current_config = config_manager.get_current_config()
+    
+    # Import model
+    from app.models import PolicyConfigResponse
+    
+    if current_config is None:
+        # No config loaded yet - return defaults from settings
+        return PolicyConfigResponse(
+            quest_trigger_prob=settings.quest_trigger_prob,
+            quest_cooldown_turns=settings.quest_cooldown_turns,
+            poi_trigger_prob=settings.poi_trigger_prob,
+            poi_cooldown_turns=settings.poi_cooldown_turns,
+            last_updated=None
+        )
+    
+    # Get last audit log for timestamp
+    audit_logs = config_manager.get_audit_logs(limit=1)
+    last_updated = audit_logs[0].timestamp if audit_logs else None
+    
+    return PolicyConfigResponse(
+        quest_trigger_prob=current_config.quest_trigger_prob,
+        quest_cooldown_turns=current_config.quest_cooldown_turns,
+        poi_trigger_prob=current_config.poi_trigger_prob,
+        poi_cooldown_turns=current_config.poi_cooldown_turns,
+        last_updated=last_updated
+    )
+
+
+@router.post(
+    "/admin/policy/reload",
+    response_model=None,
+    status_code=status.HTTP_200_OK,
+    summary="Reload policy configuration",
+    description=(
+        "Admin endpoint to manually reload policy configuration from file "
+        "or provided values. Validates config before applying and rolls back "
+        "on errors. Requires ADMIN_ENDPOINTS_ENABLED=true."
+    ),
+    responses={
+        200: {
+            "description": "Policy config reloaded successfully",
+            "model": "PolicyConfigReloadResponse"
+        },
+        400: {
+            "description": "Invalid config values",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "type": "config_validation_failed",
+                            "message": "Validation error details...",
+                            "request_id": None
+                        }
+                    }
+                }
+            }
+        },
+        404: {"description": "Admin endpoints disabled"}
+    }
+)
+async def reload_policy_config(
+    request_body: "PolicyConfigReloadRequest",
+    settings: Settings = Depends(get_settings)
+):
+    """Reload policy configuration from file or provided values.
+    
+    Triggers runtime config reload with validation and rollback on errors.
+    Updates PolicyEngine with new values if successful.
+    
+    Args:
+        request_body: Request with optional config values and actor identity
+        settings: Application settings (injected)
+        
+    Returns:
+        PolicyConfigReloadResponse with success status and current config
+        
+    Raises:
+        HTTPException: If admin endpoints disabled or validation fails
+    """
+    if not settings.admin_endpoints_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Admin endpoints are disabled. Set ADMIN_ENDPOINTS_ENABLED=true to enable."
+        )
+    
+    # Import models
+    from app.models import PolicyConfigReloadRequest, PolicyConfigReloadResponse, PolicyConfigResponse
+    
+    # Get managers from app state
+    from app.main import get_policy_config_manager, get_policy_engine
+    config_manager = get_policy_config_manager()
+    policy_engine = get_policy_engine()
+    
+    # Determine actor (use provided or default)
+    actor = request_body.actor or "admin_api"
+    
+    # Load config (from dict or file)
+    success, error = config_manager.load_config(
+        actor=actor,
+        config_dict=request_body.config
+    )
+    
+    if not success:
+        logger.error(
+            "Policy config reload failed",
+            actor=actor,
+            error=error
+        )
+        raise create_error_response(
+            error_type="config_validation_failed",
+            message=error or "Config validation failed",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Update PolicyEngine with new config
+    current_config = config_manager.get_current_config()
+    if current_config:
+        policy_engine.update_config(
+            quest_trigger_prob=current_config.quest_trigger_prob,
+            quest_cooldown_turns=current_config.quest_cooldown_turns,
+            poi_trigger_prob=current_config.poi_trigger_prob,
+            poi_cooldown_turns=current_config.poi_cooldown_turns
+        )
+    
+    logger.info(
+        "Policy config reloaded successfully",
+        actor=actor
+    )
+    
+    # Get last audit log for timestamp
+    audit_logs = config_manager.get_audit_logs(limit=1)
+    last_updated = audit_logs[0].timestamp if audit_logs else None
+    
+    # Build response
+    config_response = None
+    if current_config:
+        config_response = PolicyConfigResponse(
+            quest_trigger_prob=current_config.quest_trigger_prob,
+            quest_cooldown_turns=current_config.quest_cooldown_turns,
+            poi_trigger_prob=current_config.poi_trigger_prob,
+            poi_cooldown_turns=current_config.poi_cooldown_turns,
+            last_updated=last_updated
+        )
+    
+    return PolicyConfigReloadResponse(
+        success=True,
+        message="Policy configuration reloaded successfully",
+        error=None,
+        config=config_response
+    )
     "/health",
     response_model=HealthResponse,
     status_code=status.HTTP_200_OK,

@@ -1274,6 +1274,117 @@ gcloud run deploy dungeon-master \
 
 See `gcp_deployment_reference.md` for detailed deployment instructions.
 
+## Admin Operations
+
+### Dynamic Policy Configuration
+
+The service supports runtime policy configuration changes without restart through the PolicyConfigManager. This enables live tuning of quest and POI trigger probabilities and cooldowns.
+
+#### Configuration File Format
+
+Create a JSON file with policy parameters (see `policy_config.json.example`):
+
+```json
+{
+  "quest_trigger_prob": 0.5,
+  "quest_cooldown_turns": 10,
+  "poi_trigger_prob": 0.3,
+  "poi_cooldown_turns": 5
+}
+```
+
+#### Operational Playbook: Live Policy Tuning
+
+**Method 1: File-based reload**
+
+1. Set `POLICY_CONFIG_FILE` environment variable to config file path
+2. Start service (loads config on startup)
+3. Modify config file when needed
+4. Call `POST /admin/policy/reload` to reload (omit config in request body)
+
+**Method 2: API-based reload**
+
+1. Enable admin endpoints: `ADMIN_ENDPOINTS_ENABLED=true`
+2. Call `POST /admin/policy/reload` with config in request body
+
+**Example: Increase quest trigger rate**
+
+```bash
+curl -X POST http://localhost:8080/admin/policy/reload \
+  -H "Content-Type: application/json" \
+  -d '{
+    "config": {
+      "quest_trigger_prob": 0.7,
+      "quest_cooldown_turns": 3,
+      "poi_trigger_prob": 0.2,
+      "poi_cooldown_turns": 3
+    },
+    "actor": "admin@example.com"
+  }'
+```
+
+**Config Validation and Rollback**
+
+- All configs are validated before application
+- Invalid configs are rejected with actionable error messages
+- Service automatically rolls back to last-known-good config on errors
+- All config changes are audit logged with actor, delta, and timestamp
+
+**Validation Rules:**
+- `quest_trigger_prob`, `poi_trigger_prob`: 0.0-1.0
+- `quest_cooldown_turns`, `poi_cooldown_turns`: >= 0
+
+#### Turn Introspection for Debugging
+
+Admin endpoints provide detailed turn state inspection for debugging gameplay issues.
+
+**View specific turn:**
+```bash
+curl http://localhost:8080/admin/turns/{turn_id}
+```
+
+**View recent turns for character:**
+```bash
+curl "http://localhost:8080/admin/characters/{character_id}/recent_turns?limit=10"
+```
+
+**Turn data includes:**
+- User action input
+- Context snapshot (status, location, policy state)
+- Policy engine decisions (quest/POI eligibility, rolls)
+- LLM narrative and structured intents
+- Journey-log write results (success/failure per subsystem)
+- Errors and latency metrics
+- Automatic redaction of sensitive fields
+
+**Turn Storage:**
+- In-memory storage with configurable TTL (default: 1 hour)
+- LRU eviction when max size reached (default: 10,000 turns)
+- Per-character turn history tracking
+- Automatic cleanup of expired turns
+
+### Security Considerations
+
+**Admin Endpoint Protection:**
+
+Admin endpoints rely on Cloud IAM or service-to-service authentication. Do not expose publicly without proper auth. In production:
+
+1. Deploy behind Cloud Run with IAM authentication
+2. Use service accounts with appropriate permissions
+3. Configure load balancer/API gateway to enforce auth
+4. Monitor admin endpoint access via audit logs
+
+**Sensitive Data Redaction:**
+
+Turn introspection automatically redacts:
+- `additional_fields` from context (may contain arbitrary data)
+- Long narratives truncated to 2000 characters
+- Recent history limited to 5 turns in context snapshot
+
+All admin responses include `redacted: true` flag when data is redacted.
+
+
+
 ## Streaming Architecture
 
 The Dungeon Master service has a defined architecture for streaming narrative text to clients while preserving the existing `DungeonMasterOutcome` contract and deterministic subsystem write ordering.
