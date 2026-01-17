@@ -1,3 +1,192 @@
+# Narrative Streaming Architecture - Design Summary
+
+## Overview
+Defined comprehensive architecture for streaming narrative text to clients while preserving existing DungeonMasterOutcome contract and deterministic subsystem write ordering.
+
+## Status
+**Design Phase Complete** (Implementation not started)
+
+## Key Deliverables
+
+### 1. Streaming Architecture Document (STREAMING_ARCHITECTURE.md)
+Created comprehensive 1,000+ line architecture document covering:
+
+- **Two-Phase Streaming Model**: Token stream (Phase 1) + validation & writes (Phase 2)
+- **StreamTransport Abstraction**: SSE and WebSocket transport interfaces
+- **Streaming Event Contracts**: Token, metadata, preview, complete, error events
+- **Buffering & Replay**: NarrativeBuffer for token accumulation and journey-log persistence
+- **Failure Handling**: Timeout, disconnect, validation error scenarios
+- **Integration Points**: Code comments in llm_client.py, turn_orchestrator.py, routes.py
+- **Performance Analysis**: Latency comparison, resource usage, scalability considerations
+- **Security**: Disconnect handling, timeout protection, buffer limits
+- **Testing Strategy**: Unit, integration, and manual test plans
+- **Migration Path**: Phased implementation roadmap
+
+### 2. README.md Updates
+Added comprehensive Streaming Architecture section covering:
+
+- Overview and status
+- Streaming vs legacy flow comparison table
+- When to use streaming vs synchronous endpoints
+- Link to detailed architecture document
+- Implementation status and next steps
+
+### 3. Code Comments
+Added integration notes to key files (design only, no runtime changes):
+
+- `app/services/llm_client.py`: Streaming extension points
+- `app/services/turn_orchestrator.py`: Phase 1/2 sequencing notes
+- `app/api/routes.py`: New /turn/stream endpoint (planned)
+
+## Architecture Highlights
+
+### Two-Phase Streaming
+```
+Phase 1 (Token Streaming):
+- LLM tokens streamed to client in real-time
+- Tokens buffered internally for replay
+- No schema validation during streaming
+- No subsystem writes during streaming
+
+Phase 2 (Validation & Writes):
+- Complete narrative assembled from buffer
+- DungeonMasterOutcome schema validation
+- Intents normalized (quest/POI fallbacks)
+- Subsystem writes in order (quest → combat → POI → narrative)
+```
+
+### Key Design Principles
+1. **Schema Preservation**: DungeonMasterOutcome remains authoritative
+2. **Deterministic Ordering**: Subsystem writes after validation (Phase 2)
+3. **Backward Compatible**: Existing /turn endpoint unchanged
+4. **Transport Agnostic**: SSE/WebSocket swappable via StreamTransport
+5. **Graceful Degradation**: Client disconnects don't prevent server-side completion
+
+### Performance Impact
+- **Total Latency**: Unchanged (1.3-2.7s)
+- **Perceived Latency**: Reduced from 1.3-2.7s to 50-200ms (time to first token)
+- **Memory Overhead**: ~2-5KB per streaming turn (buffered tokens)
+- **Network Overhead**: ~10-20% increase (JSON framing per token)
+
+## Acceptance Criteria Status
+
+All acceptance criteria from the issue are met:
+
+- ✅ **Streaming architecture document**: Explains two-phase handling (token stream then DungeonMasterOutcome parse) and enumerates responsibilities for clients, orchestrator, and LLM layer
+- ✅ **Buffered narrative replay**: Interfaces/protocol notes describe how buffered narrative will be replayed verbatim to journey log despite partial streaming
+- ✅ **README documentation**: Highlights how to opt into streaming vs legacy /turn behavior
+- ✅ **Schema preservation**: Design explicitly states DungeonMasterOutcome schema in app/models.py stays unchanged and governs Phase 2 validation
+
+## Edge Cases Handled
+
+All edge cases from the issue are documented:
+
+- ✅ **Multiple transports**: SSE/WebSocket swappable behind StreamTransport abstraction without redefining contracts
+- ✅ **Legacy client compatibility**: Legacy clients that ignore streaming receive full responses without timeouts (existing /turn endpoint unchanged)
+- ✅ **Client disconnect**: Documentation covers what happens when clients disconnect mid-stream (server completes turn, narrative persisted)
+
+## Files Created/Modified
+
+### Created
+- `STREAMING_ARCHITECTURE.md`: Comprehensive architecture document
+
+### Modified
+- `README.md`: Added Streaming Architecture section with comparison table
+- `IMPLEMENTATION_SUMMARY.md`: This file (added streaming design summary)
+
+### Design Comments Added (No Runtime Changes)
+- `app/services/llm_client.py`: Streaming integration notes
+- `app/services/turn_orchestrator.py`: Phase 1/2 sequencing notes
+- `app/api/routes.py`: Planned /turn/stream endpoint notes
+
+## Testing Approach
+
+Defined comprehensive testing strategy:
+
+### Unit Tests (Not Implemented)
+- `tests/test_stream_transport.py`: Transport serialization, state tracking
+- `tests/test_narrative_buffer.py`: Token buffering, replay, finalization
+- `tests/test_streaming_llm_client.py`: Token streaming, validation
+
+### Integration Tests (Not Implemented)
+- `tests/test_streaming_turn_integration.py`: Full /turn/stream flow
+- `tests/test_streaming_backwards_compat.py`: Legacy client compatibility
+
+## Open Questions
+
+Documented in STREAMING_ARCHITECTURE.md:
+
+1. **OpenAI Responses API Streaming Support**: Does Responses API support streaming? May require hybrid approach (Chat Completions for streaming + Responses API for validation)
+2. **Preview Events**: Should we send unvalidated intent previews before streaming completes? Decision: Defer to Phase 3
+3. **Multiple Transports**: SSE only in MVP or both SSE and WebSocket? Recommendation: SSE only initially
+
+## Migration Path
+
+Phased implementation plan defined:
+
+- **Phase 1**: Design & Documentation ✅ (This issue - COMPLETE)
+- **Phase 2**: Core Streaming Infrastructure (StreamTransport, NarrativeBuffer, StreamingLLMClient)
+- **Phase 3**: API Integration (/turn/stream endpoint, TurnOrchestrator integration)
+- **Phase 4**: Production Readiness (Load testing, metrics, observability)
+
+## Technical Constraints Followed
+
+All constraints from issue technical context followed:
+
+- ✅ **Python/FastAPI**: Design aligns with existing stack
+- ✅ **AI/LLM**: Follows OpenAI Responses API patterns
+- ✅ **Diagrams**: Used Mermaid.js for sequence diagrams
+- ✅ **No License Headers**: Design docs don't include manual headers
+- ✅ **Large Refactors**: Architecture is additive, not a refactor
+
+## Definition of Done
+
+All DoD items met:
+
+- ✅ **Functionality**: All acceptance criteria met; design is complete and coherent
+- ✅ **Testing**: Testing strategy defined (implementation deferred to future issues)
+- ✅ **Quality**: No runtime changes; design preserves existing behavior
+- ✅ **Docs**: STREAMING_ARCHITECTURE.md and README.md comprehensive and detailed
+- ✅ **Cleanup**: No code changes; documentation only
+
+## Next Steps for Implementation Teams
+
+When ready to implement streaming:
+
+1. Read `STREAMING_ARCHITECTURE.md` in full
+2. Review integration comments in `llm_client.py`, `turn_orchestrator.py`, `routes.py`
+3. Start with Phase 2 (Core Infrastructure):
+   - Implement `StreamTransport` interface
+   - Implement `SSETransport` (WebSocket deferred)
+   - Implement `NarrativeBuffer`
+   - Extend `LLMClient` to `StreamingLLMClient`
+4. Add comprehensive unit tests
+5. Move to Phase 3 (API Integration)
+
+## Risks & Mitigations
+
+Documented in STREAMING_ARCHITECTURE.md:
+
+- **Risk**: OpenAI Responses API may not support streaming
+  - **Mitigation**: Research API docs, test stream parameter, fallback to Chat Completions if needed
+
+- **Risk**: Two execution paths increase complexity
+  - **Mitigation**: Comprehensive test coverage, phased rollout, feature flag for streaming
+
+- **Risk**: Long-lived connections increase server load
+  - **Mitigation**: Load testing, connection limits, horizontal scaling
+
+## References
+
+- `STREAMING_ARCHITECTURE.md`: Full architecture document
+- `README.md`: Streaming overview and comparison table
+- `app/services/llm_client.py`: Current LLM integration
+- `app/services/turn_orchestrator.py`: Current turn sequencing
+- `app/api/routes.py`: Current /turn endpoint
+- `app/models.py`: DungeonMasterOutcome schema
+
+---
+
 # POI Creation and Memory Spark Retrieval - Implementation Summary
 
 ## Overview

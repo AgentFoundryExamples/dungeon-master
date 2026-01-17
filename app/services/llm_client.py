@@ -81,6 +81,33 @@ class LLMClient:
     - Update get_outcome_json_schema() in models.py
     - Test with new model to ensure schema compatibility
     - The schema is automatically used in all API calls
+    
+    STREAMING INTEGRATION NOTES:
+    --------------------------
+    This synchronous client will be extended by StreamingLLMClient to support
+    token streaming while maintaining the existing generate_narrative() interface.
+    
+    Key extension points for streaming:
+    1. generate_narrative_stream(): New async generator yielding tokens as they're generated
+    2. Internal buffer: Accumulate tokens during streaming for replay to journey-log
+    3. Validation deferred: Schema checking happens after all tokens received (Phase 2)
+    4. Backward compatibility: Existing generate_narrative() remains unchanged for /turn endpoint
+    
+    The DungeonMasterOutcome schema remains authoritative and is enforced in
+    Phase 2 (after streaming completes), ensuring no changes to validation logic.
+    
+    Streaming flow:
+    - Phase 1: Stream tokens to client via async generator, buffer internally
+    - Phase 2: Finalize buffer, validate against DungeonMasterOutcome, execute subsystem writes
+    
+    When implementing streaming:
+    - Use OpenAI's streaming API (stream=True parameter if supported by Responses API)
+    - Buffer tokens internally for later validation and journey-log persistence
+    - Preserve existing generate_narrative() for backward compatibility with /turn endpoint
+    - Validate complete outcome only after streaming finishes
+    - Replay buffered tokens verbatim to journey-log POST /characters/{id}/narrative
+    
+    See STREAMING_ARCHITECTURE.md for detailed design and event contracts.
     """
 
     def __init__(

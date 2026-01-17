@@ -5,7 +5,8 @@ AI-powered narrative generation service for dungeon crawling adventures. The Dun
 ## Overview
 
 This service provides a FastAPI backend that:
-- Accepts player turn actions via POST /turn endpoint
+- Accepts player turn actions via POST /turn endpoint (synchronous)
+- **Planned**: POST /turn/stream endpoint for streaming narrative delivery (see [Streaming Architecture](#streaming-architecture))
 - Fetches character context from the journey-log service
 - Generates AI narrative responses using OpenAI GPT models
 - Provides health check endpoint with optional journey-log connectivity verification
@@ -994,6 +995,79 @@ gcloud run deploy dungeon-master \
 ```
 
 See `gcp_deployment_reference.md` for detailed deployment instructions.
+
+## Streaming Architecture
+
+The Dungeon Master service has a defined architecture for streaming narrative text to clients while preserving the existing `DungeonMasterOutcome` contract and deterministic subsystem write ordering.
+
+### Overview
+
+**Status**: Design phase complete (implementation pending)
+
+The streaming architecture enables progressive narrative delivery where clients see tokens in real-time as the LLM generates them, reducing perceived latency from ~1-2 seconds to ~50-200ms (time to first token).
+
+**Key Features**:
+- **Two-Phase Streaming**: Token delivery (Phase 1) + validation & writes (Phase 2)
+- **Schema Preservation**: `DungeonMasterOutcome` remains authoritative, validated after streaming
+- **Backward Compatible**: Existing `/turn` endpoint unchanged; streaming via new `/turn/stream` endpoint
+- **Multiple Transports**: SSE (Server-Sent Events) and WebSocket support
+- **Graceful Degradation**: Legacy clients unaffected; streaming clients can disconnect mid-stream
+
+### Streaming vs Legacy Flow
+
+| Aspect | Legacy `/turn` | Streaming `/turn/stream` |
+|--------|----------------|-------------------------|
+| **Client Experience** | Blocks 1-2 seconds | Sees first token in ~50-200ms |
+| **Total Latency** | 1.3-2.7 seconds | 1.3-2.7 seconds (same) |
+| **Perceived Latency** | 1.3-2.7 seconds | 50-200ms (much faster) |
+| **Response Format** | Single JSON response | Event stream (SSE/WebSocket) |
+| **Schema Validation** | Before response sent | After streaming complete |
+| **Subsystem Writes** | Before response sent | After streaming complete (Phase 2) |
+| **Client Disconnect** | N/A (short-lived) | Server completes turn anyway |
+
+### When to Use Streaming
+
+**Use `/turn/stream` when**:
+- Client supports SSE or WebSocket
+- User experience prioritizes responsiveness
+- Narrative length is substantial (>100 tokens)
+- Real-time feedback is valuable (typing effect, progress bars)
+
+**Use `/turn` when**:
+- Client is simple (fetch/await pattern)
+- User experience tolerates 1-2s wait
+- Implementation complexity must be minimized
+- Debugging is easier with synchronous flow
+
+### Architecture Details
+
+For complete architectural details, event contracts, buffering mechanisms, failure handling, and implementation roadmap, see:
+
+**[STREAMING_ARCHITECTURE.md](STREAMING_ARCHITECTURE.md)**
+
+Key topics covered:
+- Two-phase streaming model (token stream → validation)
+- StreamTransport abstraction (SSE/WebSocket)
+- Streaming event contracts (token, metadata, complete, error)
+- Buffering and replay for journey-log persistence
+- Failure scenarios (timeout, disconnect, validation error)
+- Integration points with existing code
+- Performance and security considerations
+- Testing strategy and migration path
+
+### Implementation Status
+
+**Current Status**: Architecture defined, implementation not started
+
+**Next Steps**:
+1. Implement `StreamTransport` interface and SSE/WebSocket transports
+2. Implement `NarrativeBuffer` for token buffering
+3. Extend `LLMClient` with streaming support
+4. Add `/turn/stream` endpoint with streaming orchestration
+5. Add comprehensive tests for streaming flow
+6. Load testing and production readiness
+
+See `STREAMING_ARCHITECTURE.md` for detailed migration path.
 
 ## Architecture
 
