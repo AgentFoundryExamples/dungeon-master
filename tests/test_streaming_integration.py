@@ -306,3 +306,223 @@ async def test_streaming_endpoint_separate_from_legacy(client):
         # Content types should be different
         assert response_legacy.headers["content-type"] == "application/json"
         assert "text/event-stream" in response_stream.headers["content-type"]
+
+
+@pytest.mark.asyncio
+async def test_streaming_llm_parse_failure(client):
+    """Test streaming endpoint handles LLM parse failures correctly.
+    
+    Verifies that when LLM returns invalid JSON:
+    - Parse failure is logged
+    - Error event is sent to client
+    - No journey-log write occurs
+    """
+    from httpx import Response
+    from app.services.llm_client import LLMResponseError
+    
+    mock_context_response = MagicMock(spec=Response)
+    mock_context_response.json.return_value = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "status": "Alive",
+            "location": {"id": "tavern", "display_name": "The Rusty Tankard"},
+            "additional_fields": {}
+        },
+        "narrative": {"recent_turns": []},
+        "combat": {"active": False},
+        "quest": None
+    }
+    mock_context_response.raise_for_status = MagicMock()
+    
+    with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get, \
+         patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post, \
+         patch('app.services.llm_client.LLMClient.generate_narrative_stream') as mock_stream:
+        
+        mock_get.return_value = mock_context_response
+        
+        # Simulate LLM parse failure
+        mock_stream.side_effect = LLMResponseError("Invalid JSON schema")
+        
+        response = client.post(
+            "/turn/stream",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I search the room"
+            }
+        )
+        
+        assert response.status_code == 200
+        events = parse_sse_events(response.content)
+        
+        # Should have error event
+        error_events = [e for e in events if e.get("type") == "error"]
+        assert len(error_events) >= 1
+        assert error_events[0]["error_type"] == "llm_response_error"
+        assert not error_events[0]["recoverable"]
+        
+        # Verify no narrative write occurred
+        mock_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_streaming_journey_log_timeout(client):
+    """Test streaming endpoint handles journey-log timeouts."""
+    from app.services.journey_log_client import JourneyLogTimeoutError
+    
+    # Mock at the journey_log_client level instead of http client
+    with patch('app.services.journey_log_client.JourneyLogClient.get_context', new_callable=AsyncMock) as mock_get_context:
+        # Simulate timeout
+        mock_get_context.side_effect = JourneyLogTimeoutError("Timeout after 30s")
+        
+        response = client.post(
+            "/turn/stream",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I search the room"
+            }
+        )
+        
+        assert response.status_code == 200
+        events = parse_sse_events(response.content)
+        
+        # Should have error event
+        error_events = [e for e in events if e.get("type") == "error"]
+        assert len(error_events) >= 1
+        assert error_events[0]["error_type"] == "journey_log_timeout"
+        assert error_events[0]["recoverable"]  # Timeout is recoverable
+
+
+@pytest.mark.asyncio
+async def test_streaming_character_not_found(client):
+    """Test streaming endpoint handles missing character."""
+    from app.services.journey_log_client import JourneyLogNotFoundError
+    
+    # Mock at the journey_log_client level instead of http client
+    with patch('app.services.journey_log_client.JourneyLogClient.get_context', new_callable=AsyncMock) as mock_get_context:
+        # Simulate 404
+        mock_get_context.side_effect = JourneyLogNotFoundError("Character not found")
+        
+        response = client.post(
+            "/turn/stream",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I search the room"
+            }
+        )
+        
+        assert response.status_code == 200
+        events = parse_sse_events(response.content)
+        
+        # Should have error event
+        error_events = [e for e in events if e.get("type") == "error"]
+        assert len(error_events) >= 1
+        assert error_events[0]["error_type"] == "character_not_found"
+        assert not error_events[0]["recoverable"]  # Not found is not recoverable
+
+
+@pytest.mark.asyncio
+async def test_streaming_complete_event_includes_timing(client):
+    """Test streaming complete event includes timing information."""
+    from httpx import Response
+    
+    mock_context_response = MagicMock(spec=Response)
+    mock_context_response.json.return_value = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "status": "Alive",
+            "location": {"id": "tavern", "display_name": "The Rusty Tankard"},
+            "additional_fields": {}
+        },
+        "narrative": {"recent_turns": []},
+        "combat": {"active": False},
+        "quest": None
+    }
+    mock_context_response.raise_for_status = MagicMock()
+    
+    mock_persist_response = MagicMock(spec=Response)
+    mock_persist_response.raise_for_status = MagicMock()
+    
+    with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get, \
+         patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+        
+        mock_get.return_value = mock_context_response
+        mock_post.return_value = mock_persist_response
+        
+        response = client.post(
+            "/turn/stream",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I search the room"
+            }
+        )
+        
+        assert response.status_code == 200
+        events = parse_sse_events(response.content)
+        
+        # Find complete event
+        complete_events = [e for e in events if e.get("type") == "complete"]
+        assert len(complete_events) == 1
+        
+        complete_event = complete_events[0]
+        
+        # Verify timing information is present
+        assert "timing" in complete_event
+        timing = complete_event["timing"]
+        assert "total_duration_ms" in timing
+        assert "total_tokens" in timing
+        assert isinstance(timing["total_duration_ms"], (int, float))
+        assert isinstance(timing["total_tokens"], int)
+        assert timing["total_tokens"] > 0
+
+
+@pytest.mark.asyncio
+async def test_streaming_metrics_recorded(client):
+    """Test that streaming metrics are properly recorded."""
+    from httpx import Response
+    from app.metrics import init_metrics_collector, get_metrics_collector
+    
+    # Initialize metrics collector
+    collector = init_metrics_collector()
+    collector.reset()  # Start clean
+    
+    mock_context_response = MagicMock(spec=Response)
+    mock_context_response.json.return_value = {
+        "character_id": "550e8400-e29b-41d4-a716-446655440000",
+        "player_state": {
+            "status": "Alive",
+            "location": {"id": "tavern", "display_name": "The Rusty Tankard"},
+            "additional_fields": {}
+        },
+        "narrative": {"recent_turns": []},
+        "combat": {"active": False},
+        "quest": None
+    }
+    mock_context_response.raise_for_status = MagicMock()
+    
+    mock_persist_response = MagicMock(spec=Response)
+    mock_persist_response.raise_for_status = MagicMock()
+    
+    with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get, \
+         patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+        
+        mock_get.return_value = mock_context_response
+        mock_post.return_value = mock_persist_response
+        
+        response = client.post(
+            "/turn/stream",
+            json={
+                "character_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_action": "I search the room"
+            }
+        )
+        
+        assert response.status_code == 200
+        
+        # Check metrics
+        metrics = collector.get_metrics()
+        assert 'streaming' in metrics
+        streaming_metrics = metrics['streaming']
+        
+        # At least one stream should be recorded
+        assert streaming_metrics['total_streams'] >= 1
+        assert streaming_metrics['completed_streams'] >= 1

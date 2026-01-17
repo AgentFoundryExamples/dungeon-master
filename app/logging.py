@@ -305,7 +305,7 @@ class StreamLifecycleLogger:
             quest_written: Whether quest was written
             combat_written: Whether combat was written
             poi_written: Whether POI was written
-            narrative_written: Whether narrative was written
+            narrative_written: Whether narrative was written (same as narrative_persisted)
         """
         self.logger.info(
             "Subsystem writes completed",

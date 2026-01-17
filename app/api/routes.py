@@ -569,7 +569,7 @@ async def process_turn_stream(
                     quest_written=subsystem_summary.quest_change.action != "none",
                     combat_written=subsystem_summary.combat_change.action != "none",
                     poi_written=subsystem_summary.poi_created.action != "none",
-                    narrative_persisted=subsystem_summary.narrative_persisted
+                    narrative_written=subsystem_summary.narrative_persisted
                 )
                 
                 # Log orchestration results
@@ -675,8 +675,7 @@ async def process_turn_stream(
                 logger.error(
                     "Unexpected error processing streaming turn",
                     error=str(e),
-                    error_type=type(e).__name__,
-                    exc_info=True
+                    error_type=type(e).__name__
                 )
                 if (collector := get_metrics_collector()):
                     collector.record_error("internal_error")
@@ -738,8 +737,7 @@ async def process_turn_stream(
             logger.error(
                 "Error in streaming event generator",
                 error=str(e),
-                error_type=type(e).__name__,
-                exc_info=True
+                error_type=type(e).__name__
             )
             raise
     
