@@ -1,0 +1,6 @@
+{
+  "quest_trigger_prob": 0.3,
+  "quest_cooldown_turns": 5,
+  "poi_trigger_prob": 0.2,
+  "poi_cooldown_turns": 3
+}

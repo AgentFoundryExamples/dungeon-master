@@ -117,14 +117,55 @@ async def lifespan(app: FastAPI):
         f"max_retries={settings.journey_log_max_retries})"
     )
 
-    app.state.policy_engine = PolicyEngine(
+    # Initialize policy config manager
+    from app.policy_config import PolicyConfigManager, PolicyConfigSchema
+    
+    # Create initial config from settings
+    initial_policy_config = PolicyConfigSchema(
         quest_trigger_prob=settings.quest_trigger_prob,
         quest_cooldown_turns=settings.quest_cooldown_turns,
         poi_trigger_prob=settings.poi_trigger_prob,
-        poi_cooldown_turns=settings.poi_cooldown_turns,
+        poi_cooldown_turns=settings.poi_cooldown_turns
+    )
+    
+    app.state.policy_config_manager = PolicyConfigManager(
+        config_file_path=settings.policy_config_file,
+        initial_config=initial_policy_config
+    )
+    
+    # If config file exists, load it to override settings
+    if settings.policy_config_file:
+        success, error = app.state.policy_config_manager.load_config(actor="startup")
+        if success:
+            logger.info(f"Policy config loaded from file: {settings.policy_config_file}")
+        else:
+            logger.warning(f"Failed to load policy config from file, using settings: {error}")
+    
+    # Get final config for PolicyEngine
+    final_config = app.state.policy_config_manager.get_current_config()
+    
+    app.state.policy_engine = PolicyEngine(
+        quest_trigger_prob=final_config.quest_trigger_prob,
+        quest_cooldown_turns=final_config.quest_cooldown_turns,
+        poi_trigger_prob=final_config.poi_trigger_prob,
+        poi_cooldown_turns=final_config.poi_cooldown_turns,
         rng_seed=settings.rng_seed
     )
-    logger.info(f"Policy engine initialized (quest_prob={settings.quest_trigger_prob}, poi_prob={settings.poi_trigger_prob})")
+    logger.info(
+        f"Policy engine initialized (quest_prob={final_config.quest_trigger_prob}, "
+        f"poi_prob={final_config.poi_trigger_prob})"
+    )
+    
+    # Initialize turn storage for admin introspection
+    from app.turn_storage import TurnStorage
+    app.state.turn_storage = TurnStorage(
+        max_size=settings.turn_storage_max_size,
+        ttl_seconds=settings.turn_storage_ttl_seconds
+    )
+    logger.info(
+        f"Turn storage initialized (max_size={settings.turn_storage_max_size}, "
+        f"ttl_seconds={settings.turn_storage_ttl_seconds})"
+    )
     
     # Initialize rate limiters
     from app.resilience import RateLimiter, Semaphore
@@ -317,6 +358,40 @@ def get_llm_semaphore_override():
             "Ensure the application lifespan has started."
         )
     return app.state.llm_semaphore
+
+
+def get_turn_storage():
+    """Dependency provider for TurnStorage from app state.
+    
+    Returns:
+        TurnStorage instance from app state
+        
+    Raises:
+        RuntimeError: If turn_storage is not initialized in app state
+    """
+    if not hasattr(app.state, 'turn_storage'):
+        raise RuntimeError(
+            "Turn storage not initialized. "
+            "Ensure the application lifespan has started."
+        )
+    return app.state.turn_storage
+
+
+def get_policy_config_manager():
+    """Dependency provider for PolicyConfigManager from app state.
+    
+    Returns:
+        PolicyConfigManager instance from app state
+        
+    Raises:
+        RuntimeError: If policy_config_manager is not initialized in app state
+    """
+    if not hasattr(app.state, 'policy_config_manager'):
+        raise RuntimeError(
+            "Policy config manager not initialized. "
+            "Ensure the application lifespan has started."
+        )
+    return app.state.policy_config_manager
 
 
 # Use FastAPI's dependency_overrides instead of monkey-patching

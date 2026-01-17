@@ -428,6 +428,8 @@ async def process_turn(
     subsystem_summary = None
     intents = None
     policy_decisions = {}
+    context = None
+    narrative = None
 
     try:
         # Step 1: Fetch context from journey-log
@@ -627,6 +629,79 @@ async def process_turn(
             errors=errors if errors else None,
             outcome=outcome
         )
+        
+        # Store turn detail for admin introspection (if admin endpoints enabled)
+        if settings.admin_endpoints_enabled and outcome == "success":
+            try:
+                from app.turn_storage import TurnDetail
+                from datetime import datetime, timezone
+                
+                # Get turn storage
+                from app.main import get_turn_storage
+                turn_storage = get_turn_storage()
+                
+                # Build context snapshot (redacted)
+                context_snapshot = {}
+                if context:
+                    context_snapshot = {
+                        "status": context.status,
+                        "location": context.location,
+                        "has_active_quest": context.policy_state.has_active_quest if context.policy_state else False,
+                        "combat_active": context.policy_state.combat_active if context.policy_state else False,
+                        "turns_since_last_quest": context.policy_state.turns_since_last_quest if context.policy_state else 0,
+                        "turns_since_last_poi": context.policy_state.turns_since_last_poi if context.policy_state else 0
+                    }
+                
+                # Build journey-log writes summary
+                journey_log_writes = {}
+                if subsystem_summary:
+                    journey_log_writes = {
+                        "quest": {
+                            "action": subsystem_summary.quest_change.action,
+                            "success": subsystem_summary.quest_change.success
+                        },
+                        "combat": {
+                            "action": subsystem_summary.combat_change.action,
+                            "success": subsystem_summary.combat_change.success
+                        },
+                        "poi": {
+                            "action": subsystem_summary.poi_created.action,
+                            "success": subsystem_summary.poi_created.success
+                        },
+                        "narrative": {
+                            "persisted": subsystem_summary.narrative_persisted
+                        }
+                    }
+                
+                # Create and store turn detail
+                turn_detail = TurnDetail(
+                    turn_id=turn_id,
+                    character_id=request.character_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    user_action=request.user_action,
+                    context_snapshot=context_snapshot,
+                    policy_decisions=policy_decisions,
+                    llm_narrative=narrative,
+                    llm_intents=intents.model_dump() if intents else None,
+                    journey_log_writes=journey_log_writes,
+                    errors=errors if errors else [],
+                    latency_ms=latencies.get('total_ms')
+                )
+                
+                turn_storage.store_turn(turn_detail)
+                
+                logger.debug(
+                    "Turn detail stored for admin introspection",
+                    turn_id=turn_id,
+                    character_id=request.character_id
+                )
+            except Exception as e:
+                # Don't fail the request if turn storage fails
+                logger.warning(
+                    "Failed to store turn detail for admin introspection",
+                    turn_id=turn_id,
+                    error=str(e)
+                )
 
 
 @router.post(
