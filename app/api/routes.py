@@ -93,7 +93,10 @@ from app.logging import (
     StructuredLogger,
     PhaseTimer,
     set_character_id,
+    set_turn_id,
     get_request_id,
+    get_turn_id,
+    TurnLogger,
     StreamLifecycleLogger,
     sanitize_for_log as sanitize_text
 )
@@ -298,8 +301,20 @@ async def process_turn(
     Raises:
         HTTPException: If request validation fails or processing error occurs
     """
+    # Generate unique turn_id for this request
+    import uuid
+    turn_id = str(uuid.uuid4())
+    set_turn_id(turn_id)
+    
     # Set character_id in context for logging correlation
     set_character_id(request.character_id)
+    
+    # Initialize turn logger
+    turn_logger = TurnLogger(
+        logger=logger,
+        sampling_rate=1.0,  # Log all turns by default
+        redact_narrative=True
+    )
     
     # Sanitize inputs for logging to prevent log injection
     safe_character_id = sanitize_for_log(request.character_id, 36)
@@ -307,20 +322,28 @@ async def process_turn(
 
     logger.info(
         "Processing turn request",
+        turn_id=turn_id,
         character_id=safe_character_id,
         action_preview=safe_action
     )
+    
+    # Track latencies for turn logging
+    latencies = {}
+    turn_start_time = time.time()
 
     try:
         # Step 1: Fetch context from journey-log
+        context_start = time.time()
         with PhaseTimer("context_fetch", logger), MetricsTimer("journey_log_fetch"):
             logger.debug("Fetching context from journey-log")
             context = await journey_log_client.get_context(
                 character_id=request.character_id,
                 trace_id=request.trace_id
             )
+        latencies['context_fetch_ms'] = (time.time() - context_start) * 1000
 
         # Step 2-9: Delegate to TurnOrchestrator for deterministic processing
+        orchestration_start = time.time()
         with PhaseTimer("turn_orchestration", logger), MetricsTimer("turn"):
             logger.debug("Orchestrating turn with TurnOrchestrator")
             narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn(
@@ -330,16 +353,50 @@ async def process_turn(
                 trace_id=request.trace_id,
                 dry_run=False
             )
+        latencies['orchestration_ms'] = (time.time() - orchestration_start) * 1000
+        latencies['total_ms'] = (time.time() - turn_start_time) * 1000
         
         # Log orchestration results
         logger.info(
             "Successfully processed turn",
+            turn_id=turn_id,
             narrative_length=len(narrative),
             has_intents=intents is not None,
             quest_change=subsystem_summary.quest_change.action,
             combat_change=subsystem_summary.combat_change.action,
             poi_change=subsystem_summary.poi_created.action,
             narrative_persisted=subsystem_summary.narrative_persisted
+        )
+        
+        # Record turn metrics
+        collector = get_metrics_collector()
+        if collector:
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="success"
+            )
+        
+        # Emit structured turn log
+        turn_logger.log_turn(
+            turn_id=turn_id,
+            character_id=request.character_id,
+            subsystem_actions={
+                "quest": subsystem_summary.quest_change.action,
+                "combat": subsystem_summary.combat_change.action,
+                "poi": subsystem_summary.poi_created.action,
+                "narrative": "persisted" if subsystem_summary.narrative_persisted else "failed"
+            },
+            policy_decisions={
+                "quest_eligible": context.policy_hints.quest_trigger_decision.eligible if context.policy_hints else False,
+                "quest_triggered": context.policy_hints.quest_trigger_decision.roll_passed if context.policy_hints else False,
+                "poi_eligible": context.policy_hints.poi_trigger_decision.eligible if context.policy_hints else False,
+                "poi_triggered": context.policy_hints.poi_trigger_decision.roll_passed if context.policy_hints else False
+            },
+            intent_summary=turn_logger.create_intent_summary(intents),
+            latencies=latencies,
+            errors=None,
+            outcome="success"
         )
         
         return TurnResponse(
@@ -349,54 +406,84 @@ async def process_turn(
         )
 
     except JourneyLogNotFoundError as e:
-        logger.error("Character not found", error=str(e))
+        logger.error("Character not found", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("character_not_found")
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="error"
+            )
         raise create_error_response(
             error_type="character_not_found",
             message=f"Character {request.character_id} not found in journey-log",
             status_code=status.HTTP_404_NOT_FOUND
         ) from e
     except JourneyLogTimeoutError as e:
-        logger.error("Journey-log timeout", error=str(e))
+        logger.error("Journey-log timeout", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("journey_log_timeout")
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="error"
+            )
         raise create_error_response(
             error_type="journey_log_timeout",
             message="Journey-log service timed out. Please try again.",
             status_code=status.HTTP_504_GATEWAY_TIMEOUT
         ) from e
     except JourneyLogClientError as e:
-        logger.error("Journey-log client error", error=str(e))
+        logger.error("Journey-log client error", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("journey_log_error")
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="error"
+            )
         raise create_error_response(
             error_type="journey_log_error",
             message=f"Failed to communicate with journey-log: {str(e)}",
             status_code=status.HTTP_502_BAD_GATEWAY
         ) from e
     except LLMTimeoutError as e:
-        logger.error("LLM timeout", error=str(e))
+        logger.error("LLM timeout", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("llm_timeout")
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="error"
+            )
         raise create_error_response(
             error_type="llm_timeout",
             message="LLM service timed out. Please try again.",
             status_code=status.HTTP_504_GATEWAY_TIMEOUT
         ) from e
     except LLMResponseError as e:
-        logger.error("LLM response error", error=str(e))
+        logger.error("LLM response error", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("llm_response_error")
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="error"
+            )
         raise create_error_response(
             error_type="llm_response_error",
             message=f"LLM returned invalid response: {str(e)}",
             status_code=status.HTTP_502_BAD_GATEWAY
         ) from e
     except LLMClientError as e:
-        logger.error("LLM client error", error=str(e))
+        logger.error("LLM client error", turn_id=turn_id, error=str(e))
         if (collector := get_metrics_collector()):
             collector.record_error("llm_error")
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="error"
+            )
         raise create_error_response(
             error_type="llm_error",
             message=f"Failed to generate narrative: {str(e)}",
@@ -406,12 +493,18 @@ async def process_turn(
         # Catch-all for unexpected errors
         logger.error(
             "Unexpected error processing turn",
+            turn_id=turn_id,
             error=str(e),
             error_type=type(e).__name__,
             exc_info=True
         )
         if (collector := get_metrics_collector()):
             collector.record_error("internal_error")
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="error"
+            )
         raise create_error_response(
             error_type="internal_error",
             message="An unexpected error occurred while processing your turn",

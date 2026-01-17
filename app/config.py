@@ -80,6 +80,10 @@ class Settings(BaseSettings):
         default="dungeon-master",
         description="Service name for logging and identification"
     )
+    environment: str = Field(
+        default="development",
+        description="Environment name for metrics labeling (e.g., production, staging, development)"
+    )
     log_level: str = Field(
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
