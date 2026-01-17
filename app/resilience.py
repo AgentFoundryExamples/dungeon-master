@@ -231,15 +231,15 @@ class RateLimiter:
         
         # Refill tokens based on time elapsed
         elapsed = now - last_update
-        tokens = min(self.max_rate, tokens + (elapsed * self.max_rate))
+        refilled_tokens = min(self.max_rate, tokens + (elapsed * self.max_rate))
         
         # Try to consume a token
-        if tokens >= 1.0:
-            self.buckets[key] = (tokens - 1.0, now)
+        if refilled_tokens >= 1.0:
+            self.buckets[key] = (refilled_tokens - 1.0, now)
             return True
         else:
-            # Update timestamp but don't consume
-            self.buckets[key] = (tokens, now)
+            # Update tokens but preserve last_update timestamp
+            self.buckets[key] = (refilled_tokens, last_update)
             return False
     
     def get_retry_after(self, key: str) -> float:

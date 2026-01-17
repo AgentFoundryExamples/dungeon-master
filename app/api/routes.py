@@ -73,6 +73,7 @@ import re
 import asyncio
 import json
 import time
+import math
 
 from app.models import TurnRequest, TurnResponse, HealthResponse, DebugParseRequest
 from app.config import get_settings, Settings
@@ -407,7 +408,7 @@ async def process_turn(
                 "retry_after_seconds": round(retry_after, 1),
                 "character_id": request.character_id
             },
-            headers={"Retry-After": str(int(retry_after) + 1)}
+            headers={"Retry-After": str(math.ceil(retry_after))}
         )
 
     logger.info(
@@ -742,7 +743,7 @@ async def process_turn_stream(
                 "retry_after_seconds": round(retry_after, 1),
                 "character_id": request.character_id
             },
-            headers={"Retry-After": str(int(retry_after) + 1)}
+            headers={"Retry-After": str(math.ceil(retry_after))}
         )
 
     logger.info(

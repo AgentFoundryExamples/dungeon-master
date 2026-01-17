@@ -111,6 +111,34 @@ class TestRateLimiter:
         
         # Should be close to 1.0 second (with small tolerance for timing)
         assert 0.9 <= retry_after <= 1.1
+    
+    @pytest.mark.asyncio
+    async def test_rate_limiter_preserves_timestamp_on_reject(self):
+        """Test that rate limiter preserves timestamp when rejecting requests.
+        
+        This verifies the fix for the bug where failed acquire() calls
+        would update the timestamp to 'now', preventing proper token refill.
+        """
+        limiter = RateLimiter(max_rate=1.0)
+        
+        # First request succeeds
+        assert await limiter.acquire("user1") is True
+        
+        # Get the timestamp after first acquire
+        _, first_timestamp = limiter.buckets["user1"]
+        
+        # Immediately try again (should fail)
+        assert await limiter.acquire("user1") is False
+        
+        # Check that timestamp is preserved (not updated to 'now')
+        _, second_timestamp = limiter.buckets["user1"]
+        assert second_timestamp == first_timestamp
+        
+        # Wait for token to refill
+        await asyncio.sleep(1.1)
+        
+        # Should succeed now
+        assert await limiter.acquire("user1") is True
 
 
 class TestSemaphore:
