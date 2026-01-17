@@ -232,7 +232,12 @@ class SSETransport(StreamTransport):
         
         import json
         data = json.dumps({"type": event.type, **event.data})
-        await self.response_stream.write(f"data: {data}\n\n")
+        try:
+            await self.response_stream.write(f"data: {data}\n\n")
+        except Exception as e:
+            # Client disconnected or write failed
+            self._connected = False
+            raise TransportError(f"Failed to send SSE event: {e}") from e
     
     async def close(self) -> None:
         """Send SSE [DONE] marker and close stream."""
@@ -273,7 +278,12 @@ class WebSocketTransport(StreamTransport):
             raise TransportError("Transport not connected")
         
         import json
-        await self.websocket.send_json({"type": event.type, **event.data})
+        try:
+            await self.websocket.send_json({"type": event.type, **event.data})
+        except Exception as e:
+            # Connection closed or send failed
+            self._connected = False
+            raise TransportError(f"Failed to send WebSocket event: {e}") from e
     
     async def close(self) -> None:
         """Close WebSocket connection."""
@@ -372,8 +382,37 @@ class StreamingLLMClient(LLMClient):
             Tokens are NOT validated during streaming. Full validation
             occurs in finalize_stream() after all tokens received.
         """
-        # Implementation streams from OpenAI Responses API
-        # Buffers tokens internally for replay
+        # Implementation example (pseudocode):
+        # 
+        # self._buffer = NarrativeBuffer()
+        # 
+        # # Use OpenAI streaming (if Responses API supports it)
+        # response = await self.client.responses.create(
+        #     model=self.model,
+        #     instructions=system_instructions,
+        #     input=user_prompt,
+        #     stream=True,  # Enable streaming
+        #     text={"format": {"type": "json_schema", "schema": schema}}
+        # )
+        # 
+        # async for chunk in response:
+        #     if chunk.output and chunk.output[0].content:
+        #         token = chunk.output[0].content
+        #         self._buffer.append(token)
+        #         yield token
+        # 
+        # # If Responses API doesn't support streaming, use Chat Completions:
+        # # response = await self.client.chat.completions.create(
+        # #     model="gpt-4",
+        # #     messages=[{"role": "system", "content": system_instructions},
+        # #               {"role": "user", "content": user_prompt}],
+        # #     stream=True
+        # # )
+        # # async for chunk in response:
+        # #     if chunk.choices[0].delta.content:
+        # #         token = chunk.choices[0].delta.content
+        # #         self._buffer.append(token)
+        # #         yield token
         pass
     
     async def finalize_stream(self) -> StreamingResult:
@@ -396,6 +435,30 @@ class StreamingLLMClient(LLMClient):
             Validation errors are non-fatal. If schema validation fails,
             narrative is still preserved but parsed_outcome is None.
         """
+        # Implementation example (pseudocode):
+        # 
+        # # Get complete narrative from buffer
+        # complete_narrative = self._buffer.get_complete_narrative()
+        # 
+        # # If using hybrid approach (Chat for streaming, Responses for validation):
+        # # Make a second API call to Responses API for validation
+        # # validation_response = await self.client.responses.create(
+        # #     model="gpt-5.1",
+        # #     instructions="Extract structured intents from narrative",
+        # #     input=complete_narrative,
+        # #     text={"format": {"type": "json_schema", "schema": schema}}
+        # # )
+        # # outcome = self.parser.parse(validation_response.output[0].content)
+        # 
+        # # If Responses API supports streaming, parse buffered JSON directly:
+        # # outcome = self.parser.parse(complete_narrative)
+        # 
+        # return StreamingResult(
+        #     buffered_narrative=complete_narrative,
+        #     parsed_outcome=outcome.outcome if outcome.is_valid else None,
+        #     token_count=self._buffer.get_token_count(),
+        #     duration_ms=self._buffer.get_duration_ms()
+        # )
         pass
 ```
 
@@ -573,7 +636,8 @@ The narrative buffer accumulates streamed tokens and provides replay for journey
 # app/streaming/buffer.py
 
 from typing import List, Optional
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 
 class NarrativeBuffer:
     """
@@ -602,8 +666,11 @@ class NarrativeBuffer:
     def __init__(self):
         self._tokens: List[str] = []
         self._finalized: bool = False
-        self._start_time: Optional[datetime] = None
-        self._end_time: Optional[datetime] = None
+        # Use monotonic clock for duration (not affected by system clock changes)
+        self._start_time_monotonic: float = time.monotonic()
+        self._duration_ms: Optional[float] = None
+        # Use UTC timestamp for logging
+        self._start_time_utc: datetime = datetime.now(timezone.utc)
     
     def append(self, token: str) -> None:
         """
@@ -617,9 +684,6 @@ class NarrativeBuffer:
         """
         if self._finalized:
             raise BufferError("Cannot append to finalized buffer")
-        
-        if not self._start_time:
-            self._start_time = datetime.now()
         
         self._tokens.append(token)
     
@@ -639,10 +703,11 @@ class NarrativeBuffer:
         """
         Mark buffer as finalized (no more tokens).
         
-        Records end time for duration calculation.
+        Records end time for duration calculation using monotonic clock.
         """
-        self._finalized = True
-        self._end_time = datetime.now()
+        if not self._finalized:
+            self._duration_ms = (time.monotonic() - self._start_time_monotonic) * 1000
+            self._finalized = True
     
     def get_token_count(self) -> int:
         """Get number of tokens buffered."""
@@ -655,11 +720,7 @@ class NarrativeBuffer:
         Returns:
             Duration in ms, or None if not finalized
         """
-        if not self._start_time or not self._end_time:
-            return None
-        
-        delta = self._end_time - self._start_time
-        return delta.total_seconds() * 1000
+        return self._duration_ms
 
 class BufferError(Exception):
     """Raised when buffer operations fail."""
@@ -837,7 +898,49 @@ async def process_turn_stream(
     Returns:
         StreamingResponse (SSE) or WebSocket connection
     """
-    # Implementation streams tokens, then validates and writes
+    # Implementation example (pseudocode):
+    # 
+    # # Step 1: Fetch context (same as /turn)
+    # context = await journey_log_client.get_context(request.character_id)
+    # 
+    # # Step 2: Policy decisions (same as /turn)
+    # policy_hints = policy_engine.evaluate_triggers(context)
+    # 
+    # # Step 3: Create streaming components
+    # buffer = NarrativeBuffer()
+    # 
+    # if transport_type == TransportType.SSE:
+    #     async def event_stream():
+    #         transport = SSETransport(response_stream)
+    #         try:
+    #             # Step 4: Stream tokens from LLM
+    #             async for token in llm_client.generate_narrative_stream(...):
+    #                 buffer.append(token)
+    #                 await transport.send_event(StreamEvent("token", {"content": token}))
+    #             
+    #             # Step 5: Finalize and validate
+    #             result = await llm_client.finalize_stream()
+    #             
+    #             # Step 6: Execute subsystem writes (Phase 2)
+    #             summary = await turn_orchestrator.execute_subsystem_writes(
+    #                 character_id=request.character_id,
+    #                 narrative=result.buffered_narrative,
+    #                 intents=result.parsed_outcome.intents if result.parsed_outcome else None
+    #             )
+    #             
+    #             # Step 7: Send complete event
+    #             await transport.send_event(StreamEvent("complete", {
+    #                 "intents": result.parsed_outcome.intents if result.parsed_outcome else None,
+    #                 "subsystem_summary": summary
+    #             }))
+    #         except TransportError as e:
+    #             # Client disconnected - complete turn server-side
+    #             logger.info("Client disconnected, completing turn server-side")
+    #             # Continue with Phase 2 validation and writes...
+    #         finally:
+    #             await transport.close()
+    #     
+    #     return StreamingResponse(event_stream(), media_type="text/event-stream")
     pass
 ```
 
@@ -1068,11 +1171,14 @@ displaySummary(data.subsystem_summary);
 **Risk**: Client disconnects mid-stream, leaving server resources allocated
 
 **Mitigation**:
-- Detect disconnect via `transport.is_connected()`
-- Stop streaming immediately
+- Detect disconnect via `transport.is_connected()` check after each event send
+- Transport implementations raise `TransportError` on disconnect (see SSETransport/WebSocketTransport error handling)
+- Stop streaming immediately on disconnect detection
 - Continue server-side validation and writes (ensure game state consistency)
 - Clean up buffer and transport resources
 - Log disconnect events for observability
+
+**Implementation Note**: Both `SSETransport.send_event()` and `WebSocketTransport.send_event()` now wrap write operations in try-except blocks to detect disconnections and update `_connected` state.
 
 ### 2. Streaming Timeout Protection
 
@@ -1083,6 +1189,7 @@ displaySummary(data.subsystem_summary);
 - Send `error` event if timeout reached
 - Finalize buffer with partial narrative
 - Log timeout events
+- Enforce timeout at LLM client level (OpenAI SDK timeout parameter)
 
 ### 3. Buffer Memory Limits
 
@@ -1093,16 +1200,182 @@ displaySummary(data.subsystem_summary);
 - Truncate if exceeded, send `error` event
 - Log buffer overflow events
 - Same max_output_tokens limit as legacy (4000 tokens)
+- Monitor buffer sizes in production metrics
 
-### 4. Transport Security
+**Implementation Guideline**:
+```python
+class NarrativeBuffer:
+    MAX_BUFFER_SIZE = 50_000  # 50KB max
+    
+    def append(self, token: str) -> None:
+        if self._finalized:
+            raise BufferError("Cannot append to finalized buffer")
+        
+        # Check buffer size limit
+        current_size = sum(len(t) for t in self._tokens)
+        if current_size + len(token) > self.MAX_BUFFER_SIZE:
+            self.finalize()
+            raise BufferError(f"Buffer size limit exceeded: {current_size} bytes")
+        
+        self._tokens.append(token)
+```
+
+### 4. Duplicate Turn Execution Prevention
+
+**Risk**: Client retries or reconnects could cause same turn to execute multiple times, leading to duplicate subsystem writes
+
+**Mitigation**:
+- Use idempotency tokens in `TurnRequest` (add optional `idempotency_key` field)
+- Track recent turn executions in Redis/memory cache (TTL: 5 minutes)
+- Return cached response if duplicate detected (HTTP 200 with cached result)
+- Log duplicate attempts for monitoring
+- journey-log service should also enforce idempotency for writes
+
+**Implementation Guideline**:
+```python
+@router.post("/turn/stream")
+async def process_turn_stream(
+    request: TurnRequest,
+    transport_type: TransportType = TransportType.SSE
+):
+    # Check idempotency key if provided
+    if request.idempotency_key:
+        cached = await idempotency_cache.get(request.idempotency_key)
+        if cached:
+            logger.info("Duplicate turn detected", idempotency_key=request.idempotency_key)
+            return cached  # Return cached response
+    
+    # Process turn...
+    result = await orchestrate_turn_stream(...)
+    
+    # Cache result
+    if request.idempotency_key:
+        await idempotency_cache.set(request.idempotency_key, result, ttl=300)
+    
+    return result
+```
+
+### 5. Connection Exhaustion Protection
+
+**Risk**: Many concurrent streaming connections exhaust server resources (file descriptors, memory)
+
+**Mitigation**:
+- Set max concurrent streaming connections per server (e.g., 1000)
+- Return HTTP 503 (Service Unavailable) when limit reached
+- Use connection pooling and timeouts
+- Monitor active connection count via metrics
+- Scale horizontally with load balancer
+- Consider WebSocket for higher concurrency (lower overhead than SSE)
+
+**Implementation Guideline**:
+```python
+# Global semaphore for connection limiting
+MAX_STREAMING_CONNECTIONS = 1000
+streaming_semaphore = asyncio.Semaphore(MAX_STREAMING_CONNECTIONS)
+
+@router.post("/turn/stream")
+async def process_turn_stream(request: TurnRequest):
+    # Acquire semaphore (blocks if limit reached)
+    if not streaming_semaphore.locked():
+        async with streaming_semaphore:
+            return await _process_turn_stream_internal(request)
+    else:
+        # Limit reached, return 503
+        raise HTTPException(
+            status_code=503,
+            detail="Streaming capacity reached. Please retry in a few seconds."
+        )
+```
+
+### 6. Memory Exhaustion Attack Prevention
+
+**Risk**: Attacker opens many streaming connections and holds them open to exhaust server memory
+
+**Mitigation**:
+- Enforce per-IP rate limiting (e.g., max 5 concurrent streams per IP)
+- Track connection duration and terminate long-lived idle connections (>120s)
+- Monitor memory usage per connection
+- Use authentication/authorization to limit abuse
+- Deploy behind DDoS protection (e.g., Cloudflare, GCP Cloud Armor)
+
+**Implementation Guideline**:
+```python
+# Per-IP connection tracking
+from collections import defaultdict
+ip_connection_count = defaultdict(int)
+
+@router.post("/turn/stream")
+async def process_turn_stream(request: Request):
+    client_ip = request.client.host
+    
+    # Check per-IP limit
+    if ip_connection_count[client_ip] >= 5:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many concurrent streams from your IP. Please wait."
+        )
+    
+    ip_connection_count[client_ip] += 1
+    try:
+        return await _process_turn_stream_internal(request)
+    finally:
+        ip_connection_count[client_ip] -= 1
+```
+
+### 7. Transport Type Injection Prevention
+
+**Risk**: Malicious client supplies invalid transport_type parameter to trigger errors or bypass security checks
+
+**Mitigation**:
+- Use Pydantic enum validation for `transport_type` parameter
+- Only allow whitelisted transport types (`TransportType.SSE`, `TransportType.WEBSOCKET`)
+- Validate transport_type before instantiating transport
+- Log suspicious transport_type values
+
+**Implementation Guideline**:
+```python
+from enum import Enum
+
+class TransportType(str, Enum):
+    SSE = "sse"
+    WEBSOCKET = "websocket"
+
+@router.post("/turn/stream")
+async def process_turn_stream(
+    request: TurnRequest,
+    transport_type: TransportType = TransportType.SSE  # Pydantic validates enum
+):
+    # transport_type is guaranteed to be valid enum value
+    if transport_type == TransportType.SSE:
+        transport = SSETransport(...)
+    elif transport_type == TransportType.WEBSOCKET:
+        transport = WebSocketTransport(...)
+    else:
+        # Should never reach here due to Pydantic validation
+        raise ValueError(f"Invalid transport type: {transport_type}")
+```
+
+### 8. Transport Security
+
+**Risk**: SSE/WebSocket vulnerabilities (injection, DoS)
+
+**Mitigation**:
+- Set max buffer size (e.g., 50KB, ~12K tokens)
+- Truncate if exceeded, send `error` event
+- Log buffer overflow events
+- Same max_output_tokens limit as legacy (4000 tokens)
+
+### 8. Transport Security
 
 **Risk**: SSE/WebSocket vulnerabilities (injection, DoS)
 
 **Mitigation**:
 - Validate all events before sending (JSON serialization escapes control chars)
 - Use same authentication/authorization as legacy `/turn` endpoint
-- Apply rate limiting to `/turn/stream` endpoint
+- Apply rate limiting to `/turn/stream` endpoint (e.g., max 10 requests/minute per user)
 - Log suspicious activity (rapid reconnects, etc.)
+- Use HTTPS/WSS for encrypted transport
+- Set proper CORS headers to prevent cross-origin abuse
 
 ---
 
@@ -1209,9 +1482,51 @@ displaySummary(data.subsystem_summary);
 **Research Needed**:
 - Check OpenAI API docs for Responses API streaming parameter
 - Test with `stream=True` parameter
-- Fallback: Use Chat Completions API for streaming, Responses API for schema validation
 
-**Impact**: May require hybrid approach (stream from Chat, validate with Responses)
+**Fallback Strategy (If Responses API doesn't support streaming)**:
+
+If the OpenAI Responses API does not support streaming, implement a **hybrid approach**:
+
+1. **Phase 1 (Streaming)**: Use Chat Completions API with `stream=True`
+   - Stream tokens to client in real-time
+   - Buffer tokens internally for validation
+   - No JSON schema enforcement during streaming (Chat API limitation)
+
+2. **Phase 2 (Validation)**: Use Responses API for schema validation
+   - Assemble complete narrative from buffered tokens
+   - Make a second API call to Responses API with complete narrative as input
+   - Use strict JSON schema validation to parse DungeonMasterOutcome
+   - Extract intents from validated response
+
+**Hybrid Implementation Pseudocode**:
+```python
+# Phase 1: Stream from Chat Completions API
+async for token in openai.chat.completions.create(
+    model="gpt-4",  # Or similar model
+    messages=[...],
+    stream=True
+):
+    buffer.append(token)
+    yield token
+
+# Phase 2: Validate with Responses API
+complete_narrative = buffer.get_complete_narrative()
+validation_response = await openai.responses.create(
+    model="gpt-5.1",
+    instructions="Extract structured intents from this narrative",
+    input=complete_narrative,
+    text={"format": {"type": "json_schema", "schema": schema}}
+)
+outcome = parse_outcome(validation_response)
+```
+
+**Trade-offs**:
+- **Pro**: Preserves streaming UX and schema validation
+- **Pro**: No changes to DungeonMasterOutcome contract
+- **Con**: Additional API call adds 200-500ms latency to Phase 2
+- **Con**: Increased cost (2 API calls per turn instead of 1)
+
+**Recommendation**: Research Responses API streaming support before finalizing. If unsupported, proceed with hybrid approach and document cost implications.
 
 ### 2. Preview Events Before Validation
 
