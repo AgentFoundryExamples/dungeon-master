@@ -1,5 +1,31 @@
 # Narrative Streaming Architecture
 
+## Implementation Status
+
+**Phase 1 Complete (January 2026)**: ✅ Two-phase streaming LLM client implemented
+
+The LLM client layer now supports streaming narrative generation with the following features:
+
+- **`generate_narrative_stream()` method**: New async method in `LLMClient` that streams tokens progressively
+- **StreamingCallback protocol**: Type-safe callback interface for consuming tokens
+- **Internal buffering**: All tokens buffered internally while streaming to callbacks
+- **Two-phase processing**:
+  - Phase 1: Stream tokens via OpenAI Responses API (`stream=True`)
+  - Phase 2: Parse complete buffer against DungeonMasterOutcome schema
+- **Comprehensive logging**: Stream start, progress (every 50 tokens), completion, errors, parse duration
+- **Error handling**: Callback exceptions logged but don't interrupt streaming; fallback narratives on parse failures
+- **Backward compatibility**: Existing `generate_narrative()` method unchanged
+- **Test coverage**: 12 new tests covering all streaming scenarios and edge cases
+
+**Next Steps**: 
+- Route layer integration (POST /turn/stream endpoint with SSE transport)
+- Turn orchestrator integration for subsystem writes after streaming
+- Client libraries and documentation
+
+See implementation in `app/services/llm_client.py` and tests in `tests/test_llm_client.py`.
+
+---
+
 ## Executive Summary
 
 This document defines the architecture for streaming narrative text to clients while preserving the existing `DungeonMasterOutcome` contract and maintaining strict subsystem mutation ordering. The streaming layer is designed to be **additive** and **non-breaking**, allowing legacy clients to continue using the synchronous `/turn` endpoint while streaming-capable clients can opt into progressive narrative delivery.
