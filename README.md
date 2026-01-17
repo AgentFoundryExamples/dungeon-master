@@ -104,6 +104,7 @@ All configuration is managed through environment variables. Copy `.env.example` 
 | `OPENAI_STUB_MODE` | `false` | Enable stub mode for offline development |
 | `HEALTH_CHECK_JOURNEY_LOG` | `false` | Enable journey-log ping in health checks |
 | `SERVICE_NAME` | `dungeon-master` | Service name for logging |
+| `ENVIRONMENT` | `development` | Environment name for metrics labeling (production/staging/development) |
 | `LOG_LEVEL` | `INFO` | Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL) |
 | `LOG_JSON_FORMAT` | `false` | Enable JSON structured logging output |
 | `ENABLE_METRICS` | `false` | Enable metrics collection and /metrics endpoint |
@@ -1478,18 +1479,143 @@ In stub mode:
 
 ### Observability and Debugging
 
+**Enable Metrics Collection:**
+```bash
+ENABLE_METRICS=true python -m app.main
+```
+
 **View Metrics:**
 ```bash
 curl http://localhost:8080/metrics
 ```
 
-Metrics include:
+Metrics include comprehensive observability data across all subsystems:
+
+**Turn-Level Metrics:**
+- `turns.by_label.environment:<env>`: Turns processed per environment (production/staging/development)
+- `turns.by_label.character_prefix:<prefix>`: Turns by character ID prefix (first 8 chars)
+- `turns.by_label.outcome:<outcome>`: Turn outcomes (success/error/partial)
+
+**Policy Trigger Metrics:**
+- `policy_triggers.quest:triggered`: Quest triggers that passed policy roll
+- `policy_triggers.quest:skipped`: Quest triggers that failed policy roll  
+- `policy_triggers.quest:ineligible`: Quest triggers that were ineligible (cooldown/active quest)
+- `policy_triggers.poi:triggered`: POI triggers that passed policy roll
+- `policy_triggers.poi:skipped`: POI triggers that failed policy roll
+- `policy_triggers.poi:ineligible`: POI triggers that were ineligible (cooldown)
+
+**Subsystem Delta Metrics:**
+- `subsystem_deltas.quest_offered`: Quest offers
+- `subsystem_deltas.quest_completed`: Quest completions
+- `subsystem_deltas.quest_abandoned`: Quest abandons
+- `subsystem_deltas.combat_started`: Combat encounters started
+- `subsystem_deltas.combat_continued`: Combat encounters continued
+- `subsystem_deltas.combat_ended`: Combat encounters ended
+- `subsystem_deltas.poi_created`: POIs created
+- `subsystem_deltas.narrative_persisted`: Narratives persisted
+
+**Journey-Log Latencies:**
+- `journey_log_latencies.get_context`: Context fetch latency (avg/min/max)
+- `journey_log_latencies.put_quest`: Quest write latency
+- `journey_log_latencies.put_combat`: Combat write latency
+- `journey_log_latencies.post_poi`: POI write latency
+- `journey_log_latencies.persist_narrative`: Narrative persistence latency
+- `journey_log_latencies.delete_quest`: Quest delete latency
+
+**LLM Metrics:**
+- `latencies.llm_call`: LLM call latency (avg/min/max)
+- `schema_conformance.conformance_rate`: Schema parse success rate
+
+**Streaming Metrics:**
 - `streaming.total_streams`: Total streaming turns initiated
 - `streaming.completed_streams`: Successfully completed streaming turns
 - `streaming.client_disconnects`: Client disconnects during streaming
 - `streaming.parse_failures`: LLM parse failures after streaming
 - `streaming.tokens_per_stream`: Token count statistics
 - `streaming.stream_duration`: Stream duration statistics
+
+**Enable Structured JSON Logging:**
+```bash
+LOG_JSON_FORMAT=true python -m app.main
+```
+
+**Structured Turn Logs:**
+
+Each turn emits a structured JSON log with complete turn metadata:
+
+```json
+{
+  "log_type": "turn",
+  "turn_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "character_id": "550e8400-e29b-41d4-a716-446655440000",
+  "outcome": "success",
+  "subsystem_actions": {
+    "quest": "offered",
+    "combat": "none",
+    "poi": "created",
+    "narrative": "persisted"
+  },
+  "policy_decisions": {
+    "quest_eligible": true,
+    "quest_triggered": true,
+    "poi_eligible": true,
+    "poi_triggered": false
+  },
+  "intent_summary": {
+    "quest": {"action": "offer", "has_title": true, "has_summary": true},
+    "combat": {"action": "none", "enemy_count": 0},
+    "poi": {"action": "create", "has_name": true, "tag_count": 2}
+  },
+  "latencies_ms": {
+    "context_fetch_ms": 125.5,
+    "orchestration_ms": 1842.3,
+    "total_ms": 1967.8
+  },
+  "errors": null
+}
+```
+
+**Structured Log Fields:**
+- `log_type`: Always "turn" for turn logs
+- `turn_id`: Unique UUID for the turn (correlation ID)
+- `character_id`: Character UUID (or "unknown" if missing)
+- `outcome`: "success", "error", or "partial"
+- `subsystem_actions`: Actions taken per subsystem
+- `policy_decisions`: Quest/POI policy trigger decisions
+- `intent_summary`: Key intent fields (no raw narrative)
+- `latencies_ms`: Timing measurements for each phase
+- `errors`: Array of error annotations (if any)
+
+**Turn Log Sampling:**
+
+Control log volume with sampling configuration:
+
+```bash
+# Set environment variable (0.0-1.0, default: 1.0)
+TURN_LOG_SAMPLING_RATE=0.1  # Log 10% of turns
+```
+
+Note: Sampling is probabilistic. Use 1.0 for full logging in production or 0.1-0.5 for high-volume environments.
+
+**Correlation IDs:**
+
+All logs include correlation IDs for tracing requests across services:
+- `request_id`: HTTP request ID (from middleware)
+- `character_id`: Character UUID
+- `turn_id`: Unique turn identifier
+
+Use these IDs to query logs in Google Cloud Logging:
+
+```
+# Find all logs for a specific turn
+turn_id="f47ac10b-58cc-4372-a567-0e02b2c3d479"
+
+# Find all logs for a specific character
+character_id="550e8400-e29b-41d4-a716-446655440000"
+
+# Find all failed turns
+log_type="turn" AND outcome="error"
+```
 
 **Streaming Lifecycle Logs:**
 
