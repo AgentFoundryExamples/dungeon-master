@@ -27,7 +27,8 @@
           "asyncio",
           "json",
           "re",
-          "time"
+          "time",
+          "uuid"
         ],
         "third-party": [
           "fastapi.APIRouter",
@@ -65,6 +66,7 @@
           "contextvars.ContextVar",
           "json",
           "logging",
+          "random",
           "re",
           "time",
           "typing.Any",
@@ -789,6 +791,10 @@
       "target": "app/logging.py"
     },
     {
+      "source": "app/services/journey_log_client.py",
+      "target": "app/metrics.py"
+    },
+    {
       "source": "app/services/llm_client.py",
       "target": "app/logging.py"
     },
@@ -821,6 +827,10 @@
       "target": "app/logging.py"
     },
     {
+      "source": "app/services/policy_engine.py",
+      "target": "app/metrics.py"
+    },
+    {
       "source": "app/services/turn_orchestrator.py",
       "target": "app/models.py"
     },
@@ -847,6 +857,10 @@
     {
       "source": "app/services/turn_orchestrator.py",
       "target": "app/logging.py"
+    },
+    {
+      "source": "app/services/turn_orchestrator.py",
+      "target": "app/metrics.py"
     },
     {
       "source": "app/streaming/__init__.py",
@@ -1051,6 +1065,10 @@
     {
       "source": "tests/test_metrics.py",
       "target": "app/logging.py"
+    },
+    {
+      "source": "tests/test_metrics.py",
+      "target": "app/models.py"
     },
     {
       "source": "tests/test_narrative_buffer.py",

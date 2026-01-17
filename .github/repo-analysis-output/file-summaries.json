@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 40691,
-        "loc": 836,
+        "size_bytes": 45204,
+        "loc": 930,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 6679,
-        "loc": 160,
+        "size_bytes": 7035,
+        "loc": 170,
         "todo_count": 0
       }
     },
@@ -67,8 +67,8 @@
       "summary": "Python module for logging",
       "summary_text": "Python module for logging",
       "metrics": {
-        "size_bytes": 15100,
-        "loc": 347,
+        "size_bytes": 21080,
+        "loc": 477,
         "todo_count": 0
       }
     },
@@ -95,8 +95,8 @@
       "summary": "Python module for metrics",
       "summary_text": "Python module for metrics",
       "metrics": {
-        "size_bytes": 10872,
-        "loc": 241,
+        "size_bytes": 14687,
+        "loc": 308,
         "todo_count": 0
       }
     },
@@ -179,8 +179,8 @@
       "summary": "Python module for journey log client",
       "summary_text": "Python module for journey log client",
       "metrics": {
-        "size_bytes": 37376,
-        "loc": 817,
+        "size_bytes": 39084,
+        "loc": 850,
         "todo_count": 0
       }
     },
@@ -193,8 +193,8 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 26413,
-        "loc": 483,
+        "size_bytes": 27661,
+        "loc": 507,
         "todo_count": 0
       }
     },
@@ -207,8 +207,8 @@
       "summary": "Python module for outcome parser",
       "summary_text": "Python module for outcome parser",
       "metrics": {
-        "size_bytes": 22652,
-        "loc": 389,
+        "size_bytes": 23313,
+        "loc": 395,
         "todo_count": 0
       }
     },
@@ -221,8 +221,8 @@
       "summary": "Python module for policy engine",
       "summary_text": "Python module for policy engine",
       "metrics": {
-        "size_bytes": 11083,
-        "loc": 195,
+        "size_bytes": 11978,
+        "loc": 214,
         "todo_count": 0
       }
     },
@@ -235,8 +235,8 @@
       "summary": "Python module for turn orchestrator",
       "summary_text": "Python module for turn orchestrator",
       "metrics": {
-        "size_bytes": 52046,
-        "loc": 970,
+        "size_bytes": 53618,
+        "loc": 994,
         "todo_count": 0
       }
     },
@@ -417,8 +417,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 9371,
-        "loc": 184,
+        "size_bytes": 17406,
+        "loc": 324,
         "todo_count": 0
       }
     },
