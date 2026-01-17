@@ -222,8 +222,9 @@ class RateLimiter:
         now = time.time()
         
         if key not in self.buckets:
-            # Initialize bucket with max tokens
-            self.buckets[key] = (self.max_rate, now)
+            # Initialize bucket and consume one token
+            # Start with (max_rate - 1) tokens after consuming one
+            self.buckets[key] = (self.max_rate - 1.0, now)
             return True
         
         tokens, last_update = self.buckets[key]
