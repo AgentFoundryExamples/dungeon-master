@@ -14,6 +14,7 @@
 """Journey-log service client for context retrieval and narrative persistence."""
 
 import time
+import asyncio
 from typing import Optional, Any
 from datetime import datetime
 from httpx import AsyncClient, HTTPStatusError, TimeoutException
@@ -59,7 +60,10 @@ class JourneyLogClient:
         base_url: str,
         http_client: AsyncClient,
         timeout: int = 30,
-        recent_n_default: int = 20
+        recent_n_default: int = 20,
+        max_retries: int = 3,
+        retry_delay_base: float = 0.5,
+        retry_delay_max: float = 10.0
     ):
         """Initialize journey-log client.
         
@@ -68,15 +72,22 @@ class JourneyLogClient:
             http_client: HTTP client for making requests
             timeout: Request timeout in seconds
             recent_n_default: Default number of recent narrative turns to fetch
+            max_retries: Maximum retry attempts for GET requests (POST/PUT/DELETE never retried)
+            retry_delay_base: Base delay for exponential backoff (seconds)
+            retry_delay_max: Maximum delay for exponential backoff (seconds)
         """
         self.base_url = base_url.rstrip('/')
         self.http_client = http_client
         self.timeout = timeout
         self.recent_n_default = recent_n_default
+        self.max_retries = max_retries
+        self.retry_delay_base = retry_delay_base
+        self.retry_delay_max = retry_delay_max
 
         logger.info(
             f"Initialized JourneyLogClient with base_url={self.base_url}, "
-            f"timeout={self.timeout}s, recent_n_default={self.recent_n_default}"
+            f"timeout={self.timeout}s, recent_n_default={self.recent_n_default}, "
+            f"max_retries={self.max_retries}"
         )
 
     @staticmethod
@@ -245,6 +256,10 @@ class JourneyLogClient:
         - recent_n: Number of recent narrative turns (default: 20)
         - include_pois: false (as specified in requirements)
         
+        This method implements retry logic with exponential backoff for transient errors:
+        - Retries: Timeout, server errors (500, 502, 503), connection errors
+        - No retry: Not found (404), client errors (4xx except 429)
+        
         Args:
             character_id: UUID of the character
             recent_n: Number of recent turns to fetch (defaults to recent_n_default)
@@ -255,7 +270,7 @@ class JourneyLogClient:
             
         Raises:
             JourneyLogNotFoundError: If character not found (404)
-            JourneyLogTimeoutError: If request times out
+            JourneyLogTimeoutError: If request times out after all retries
             JourneyLogClientError: For other errors
         """
         if recent_n is None:
@@ -274,128 +289,276 @@ class JourneyLogClient:
         logger.info(
             "Fetching context from journey-log",
             recent_n=recent_n,
+            max_retries=self.max_retries,
             turn_id=get_turn_id()
         )
 
-        start_time = time.time()
-        try:
-            response = await self.http_client.get(
-                url,
-                params=params,
-                headers=headers,
-                timeout=self.timeout
-            )
-            duration_ms = (time.time() - start_time) * 1000
-            response.raise_for_status()
+        # Call with retry logic
+        return await self._get_with_retry(
+            url=url,
+            params=params,
+            headers=headers,
+            character_id=character_id,
+            operation_name="get_context"
+        )
+    
+    async def _get_with_retry(
+        self,
+        url: str,
+        params: dict,
+        headers: dict,
+        character_id: str,
+        operation_name: str
+    ) -> JourneyLogContext:
+        """Internal method to GET with retry logic.
+        
+        Implements exponential backoff for transient errors:
+        - Retryable: Timeout, 5xx server errors, connection errors, 429 rate limit
+        - Non-retryable: 404 not found, other 4xx client errors
+        """
+        last_exception = None
+        
+        for attempt in range(self.max_retries + 1):
+            start_time = time.time()
             
-            # Record metrics
-            collector = get_metrics_collector()
-            if collector:
-                collector.record_journey_log_latency("get_context", duration_ms)
+            try:
+                response = await self.http_client.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                    timeout=self.timeout
+                )
+                duration_ms = (time.time() - start_time) * 1000
+                response.raise_for_status()
+                
+                # Record metrics
+                collector = get_metrics_collector()
+                if collector:
+                    collector.record_journey_log_latency(operation_name, duration_ms)
+                    if attempt > 0:
+                        collector.record_error("journey_log_retry_success")
 
-            data = response.json()
-            logger.debug(
-                "Context fetch successful",
-                status_code=getattr(response, 'status_code', None),
-                duration_ms=f"{duration_ms:.2f}",
-                response_size=len(str(data)),
-                turn_id=get_turn_id()
-            )
+                data = response.json()
+                logger.debug(
+                    f"{operation_name} successful",
+                    status_code=getattr(response, 'status_code', None),
+                    duration_ms=f"{duration_ms:.2f}",
+                    response_size=len(str(data)),
+                    attempts=attempt + 1,
+                    turn_id=get_turn_id()
+                )
 
-            # Map the journey-log response to our JourneyLogContext model
-            # The journey-log API returns a CharacterContextResponse structure
-            # Use defensive .get() to handle optional fields and prevent KeyErrors
-            player_state = data.get("player_state", {})
-            narrative_data = data.get("narrative", {})
-            combat_data = data.get("combat", {})
+                # Map the journey-log response to our JourneyLogContext model
+                player_state = data.get("player_state", {})
+                narrative_data = data.get("narrative", {})
+                combat_data = data.get("combat", {})
 
-            # Validate required fields
-            if not data.get("character_id"):
-                raise JourneyLogClientError("Response missing required 'character_id' field")
-            if not player_state.get("status"):
-                raise JourneyLogClientError("Response missing required 'player_state.status' field")
-            if not player_state.get("location"):
-                raise JourneyLogClientError("Response missing required 'player_state.location' field")
+                # Validate required fields
+                if not data.get("character_id"):
+                    raise JourneyLogClientError("Response missing required 'character_id' field")
+                if not player_state.get("status"):
+                    raise JourneyLogClientError("Response missing required 'player_state.status' field")
+                if not player_state.get("location"):
+                    raise JourneyLogClientError("Response missing required 'player_state.location' field")
 
-            # Extract policy state from response
-            policy_state = self._extract_policy_state(data)
-            
-            # Extract additional_fields for DM-managed state
-            additional_fields = player_state.get("additional_fields", {})
+                # Extract policy state from response
+                policy_state = self._extract_policy_state(data)
+                
+                # Extract additional_fields for DM-managed state
+                additional_fields = player_state.get("additional_fields", {})
 
-            context = JourneyLogContext(
-                character_id=data["character_id"],
-                status=player_state["status"],
-                location=player_state["location"],
-                active_quest=data.get("quest"),
-                combat_state=combat_data.get("state"),
-                recent_history=[
-                    {
-                        "player_action": turn.get("player_action", ""),
-                        "gm_response": turn.get("gm_response", ""),
-                        "timestamp": turn.get("timestamp", "")
-                    }
-                    for turn in narrative_data.get("recent_turns", [])
-                ],
-                policy_state=policy_state,
-                additional_fields=additional_fields
-            )
+                context = JourneyLogContext(
+                    character_id=data["character_id"],
+                    status=player_state["status"],
+                    location=player_state["location"],
+                    active_quest=data.get("quest"),
+                    combat_state=combat_data.get("state"),
+                    recent_history=[
+                        {
+                            "player_action": turn.get("player_action", ""),
+                            "gm_response": turn.get("gm_response", ""),
+                            "timestamp": turn.get("timestamp", "")
+                        }
+                        for turn in narrative_data.get("recent_turns", [])
+                    ],
+                    policy_state=policy_state,
+                    additional_fields=additional_fields
+                )
 
-            logger.info(
-                "Successfully fetched context",
-                status=context.status,
-                has_quest=context.active_quest is not None,
-                history_turns=len(context.recent_history),
-                combat_active=policy_state.combat_active,
-                turns_since_last_quest=policy_state.turns_since_last_quest
-            )
+                logger.info(
+                    f"Successfully fetched context",
+                    status=context.status,
+                    has_quest=context.active_quest is not None,
+                    history_turns=len(context.recent_history),
+                    combat_active=policy_state.combat_active,
+                    turns_since_last_quest=policy_state.turns_since_last_quest,
+                    attempts=attempt + 1
+                )
 
-            return context
+                return context
 
-        except HTTPStatusError as e:
-            duration_ms = (time.time() - start_time) * 1000
-            if e.response.status_code == 404:
-                logger.error(
-                    "Character not found in journey-log",
-                    status_code=404,
+            except HTTPStatusError as e:
+                duration_ms = (time.time() - start_time) * 1000
+                status_code = e.response.status_code
+                
+                # 404 is non-retryable
+                if status_code == 404:
+                    logger.error(
+                        "Character not found in journey-log (non-retryable)",
+                        status_code=404,
+                        duration_ms=f"{duration_ms:.2f}"
+                    )
+                    raise JourneyLogNotFoundError(
+                        f"Character {character_id} not found",
+                        status_code=404
+                    ) from e
+                
+                # 4xx (except 429) are non-retryable
+                if 400 <= status_code < 500 and status_code != 429:
+                    logger.error(
+                        f"{operation_name} client error (non-retryable)",
+                        status_code=status_code,
+                        duration_ms=f"{duration_ms:.2f}",
+                        error=redact_secrets(e.response.text)
+                    )
+                    raise JourneyLogClientError(
+                        f"Journey-log returned {status_code}: {e.response.text}",
+                        status_code=status_code
+                    ) from e
+                
+                # 5xx and 429 are retryable
+                last_exception = e
+                
+                # Check if we've exhausted retries
+                if attempt >= self.max_retries:
+                    logger.error(
+                        f"{operation_name} failed after {self.max_retries} retries",
+                        status_code=status_code,
+                        total_attempts=attempt + 1,
+                        duration_ms=f"{duration_ms:.2f}",
+                        error=redact_secrets(e.response.text)
+                    )
+                    
+                    if (collector := get_metrics_collector()):
+                        collector.record_error("journey_log_retry_exhausted")
+                    
+                    raise JourneyLogClientError(
+                        f"Journey-log returned {status_code} after {self.max_retries} retries: {e.response.text}",
+                        status_code=status_code
+                    ) from e
+                
+                # Calculate retry delay
+                delay = min(
+                    self.retry_delay_base * (2 ** attempt),
+                    self.retry_delay_max
+                )
+                
+                logger.warning(
+                    f"{operation_name} failed (retryable), retrying in {delay:.2f}s",
+                    status_code=status_code,
+                    attempt=attempt + 1,
+                    max_retries=self.max_retries,
+                    retry_delay_seconds=delay,
+                    duration_ms=f"{duration_ms:.2f}",
+                    error=redact_secrets(e.response.text[:200])
+                )
+                
+                if (collector := get_metrics_collector()):
+                    collector.record_error("journey_log_http_error_retry")
+                
+                await asyncio.sleep(delay)
+
+            except TimeoutException as e:
+                last_exception = e
+                duration_ms = (time.time() - start_time) * 1000
+                
+                # Check if we've exhausted retries
+                if attempt >= self.max_retries:
+                    logger.error(
+                        f"{operation_name} timed out after {self.max_retries} retries",
+                        timeout_seconds=self.timeout,
+                        total_attempts=attempt + 1,
+                        duration_ms=f"{duration_ms:.2f}"
+                    )
+                    
+                    if (collector := get_metrics_collector()):
+                        collector.record_error("journey_log_timeout_exhausted")
+                    
+                    raise JourneyLogTimeoutError(
+                        f"Journey-log request timed out after {self.timeout}s and {self.max_retries} retries"
+                    ) from e
+                
+                # Calculate retry delay
+                delay = min(
+                    self.retry_delay_base * (2 ** attempt),
+                    self.retry_delay_max
+                )
+                
+                logger.warning(
+                    f"{operation_name} timed out (retryable), retrying in {delay:.2f}s",
+                    timeout_seconds=self.timeout,
+                    attempt=attempt + 1,
+                    max_retries=self.max_retries,
+                    retry_delay_seconds=delay,
                     duration_ms=f"{duration_ms:.2f}"
                 )
-                raise JourneyLogNotFoundError(
-                    f"Character {character_id} not found"
-                ) from e
-            else:
-                logger.error(
-                    "HTTP error from journey-log",
-                    status_code=e.response.status_code,
-                    duration_ms=f"{duration_ms:.2f}",
-                    error=redact_secrets(e.response.text)
+                
+                if (collector := get_metrics_collector()):
+                    collector.record_error("journey_log_timeout_retry")
+                
+                await asyncio.sleep(delay)
+
+            except JourneyLogClientError:
+                # Re-raise our custom exceptions (already logged)
+                raise
+
+            except Exception as e:
+                # Unexpected errors - treat as retryable for resilience
+                last_exception = e
+                duration_ms = (time.time() - start_time) * 1000
+                
+                # Check if we've exhausted retries
+                if attempt >= self.max_retries:
+                    logger.error(
+                        f"{operation_name} unexpected error after {self.max_retries} retries",
+                        error_type=type(e).__name__,
+                        total_attempts=attempt + 1,
+                        duration_ms=f"{duration_ms:.2f}"
+                    )
+                    
+                    if (collector := get_metrics_collector()):
+                        collector.record_error("journey_log_unexpected_exhausted")
+                    
+                    raise JourneyLogClientError(
+                        f"Failed to {operation_name}: {e}"
+                    ) from e
+                
+                # Calculate retry delay
+                delay = min(
+                    self.retry_delay_base * (2 ** attempt),
+                    self.retry_delay_max
                 )
-                raise JourneyLogClientError(
-                    f"Journey-log returned {e.response.status_code}: {e.response.text}",
-                    status_code=e.response.status_code
-                ) from e
-
-        except TimeoutException as e:
-            duration_ms = (time.time() - start_time) * 1000
-            logger.error(
-                "Timeout fetching context",
-                timeout_seconds=self.timeout,
-                duration_ms=f"{duration_ms:.2f}"
-            )
-            raise JourneyLogTimeoutError(
-                f"Journey-log request timed out after {self.timeout}s"
-            ) from e
-
-        except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            logger.error(
-                "Unexpected error fetching context",
-                error_type=type(e).__name__,
-                duration_ms=f"{duration_ms:.2f}"
-            )
+                
+                logger.warning(
+                    f"{operation_name} unexpected error (retryable), retrying in {delay:.2f}s",
+                    error_type=type(e).__name__,
+                    attempt=attempt + 1,
+                    max_retries=self.max_retries,
+                    retry_delay_seconds=delay,
+                    duration_ms=f"{duration_ms:.2f}"
+                )
+                
+                if (collector := get_metrics_collector()):
+                    collector.record_error("journey_log_unexpected_retry")
+                
+                await asyncio.sleep(delay)
+        
+        # Should never reach here, but just in case
+        if last_exception:
             raise JourneyLogClientError(
-                f"Failed to fetch context: {e}"
-            ) from e
+                f"Failed to {operation_name} after {self.max_retries} retries: {last_exception}"
+            ) from last_exception
+        raise JourneyLogClientError(f"Failed to {operation_name} with unknown error")
 
     async def persist_narrative(
         self,
@@ -409,6 +572,9 @@ class JourneyLogClient:
         Makes a POST request to /characters/{character_id}/narrative with:
         - user_action: The player's action
         - ai_response: The generated narrative
+        
+        **IMPORTANT**: This method does NOT retry on failure to prevent duplicate
+        narrative entries. POST operations are not idempotent.
         
         Args:
             character_id: UUID of the character
@@ -517,6 +683,9 @@ class JourneyLogClient:
         
         Makes a PUT request to /characters/{character_id}/quest with quest data.
         
+        **IMPORTANT**: This method does NOT retry on failure to prevent duplicate
+        quest modifications. PUT operations are not retried.
+        
         Args:
             character_id: UUID of the character
             quest_data: Quest information (title, summary, details)
@@ -615,6 +784,9 @@ class JourneyLogClient:
         """Delete (complete/abandon) the active quest for the character.
         
         Makes a DELETE request to /characters/{character_id}/quest.
+        
+        **IMPORTANT**: This method does NOT retry on failure to prevent duplicate
+        quest deletions. DELETE operations are not retried.
         
         Args:
             character_id: UUID of the character
@@ -718,6 +890,9 @@ class JourneyLogClient:
         {
           "combat_state": <CombatState object or null>
         }
+        
+        **IMPORTANT**: This method does NOT retry on failure to prevent duplicate
+        combat modifications. PUT operations are not retried.
         
         Args:
             character_id: UUID of the character
@@ -828,6 +1003,9 @@ class JourneyLogClient:
         """Create or reference a point of interest.
         
         Makes a POST request to /characters/{character_id}/pois with POI data.
+        
+        **IMPORTANT**: This method does NOT retry on failure to prevent duplicate
+        POI entries. POST operations are not retried.
         
         Args:
             character_id: UUID of the character
