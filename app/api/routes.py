@@ -238,6 +238,36 @@ def get_turn_orchestrator():
     )
 
 
+def get_character_rate_limiter():
+    """Dependency that provides a RateLimiter for per-character rate limiting.
+    
+    This is a placeholder that must be overridden by the application.
+    The application lifespan in main.py provides the actual implementation.
+    
+    Raises:
+        NotImplementedError: If not overridden by the application
+    """
+    raise NotImplementedError(
+        "get_character_rate_limiter dependency must be overridden. "
+        "This should be configured in app.main module."
+    )
+
+
+def get_llm_semaphore():
+    """Dependency that provides a Semaphore for global LLM concurrency limiting.
+    
+    This is a placeholder that must be overridden by the application.
+    The application lifespan in main.py provides the actual implementation.
+    
+    Raises:
+        NotImplementedError: If not overridden by the application
+    """
+    raise NotImplementedError(
+        "get_llm_semaphore dependency must be overridden. "
+        "This should be configured in app.main module."
+    )
+
+
 @router.post(
     "/turn",
     response_model=TurnResponse,
@@ -267,6 +297,27 @@ def get_turn_orchestrator():
         },
         400: {"description": "Invalid request (malformed UUID, etc.)"},
         404: {"description": "Character not found"},
+        429: {
+            "description": "Rate limit exceeded",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": {
+                            "error": "rate_limit_exceeded",
+                            "message": "Too many requests for this character. Please wait 0.5 seconds.",
+                            "retry_after_seconds": 0.5,
+                            "character_id": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                    }
+                }
+            },
+            "headers": {
+                "Retry-After": {
+                    "description": "Seconds to wait before retrying",
+                    "schema": {"type": "string"}
+                }
+            }
+        },
         500: {"description": "Internal server error"},
     }
 )
@@ -274,16 +325,19 @@ async def process_turn(
     request: TurnRequest,
     journey_log_client: JourneyLogClient = Depends(get_journey_log_client),
     turn_orchestrator: TurnOrchestrator = Depends(get_turn_orchestrator),
+    character_rate_limiter = Depends(get_character_rate_limiter),
+    llm_semaphore = Depends(get_llm_semaphore),
     settings: Settings = Depends(get_settings)
 ) -> TurnResponse:
     """Process a player turn and generate narrative response.
     
     Full orchestration flow (delegated to TurnOrchestrator):
+    0. Check per-character rate limit (429 if exceeded)
     1. Fetch context from journey-log
     2. Evaluate PolicyEngine for quest and POI trigger decisions
     3. Inject policy_hints into context
     4. Build prompt using PromptBuilder
-    5. Call LLM for narrative generation
+    5. Call LLM for narrative generation (with global concurrency limit)
     6. Parse intents and apply policy guardrails
     7. Derive subsystem actions from policy and intents
     8. Execute writes in deterministic order (quest → combat → POI → narrative)
@@ -293,6 +347,8 @@ async def process_turn(
         request: Turn request with character_id and user_action
         journey_log_client: JourneyLogClient for journey-log communication (injected)
         turn_orchestrator: TurnOrchestrator for turn processing (injected)
+        character_rate_limiter: RateLimiter for per-character throttling (injected)
+        llm_semaphore: Semaphore for global LLM concurrency control (injected)
         settings: Application settings (injected)
         
     Returns:
@@ -319,6 +375,40 @@ async def process_turn(
     # Sanitize inputs for logging to prevent log injection
     safe_character_id = sanitize_for_log(request.character_id, 36)
     safe_action = sanitize_for_log(request.user_action, 50)
+
+    # Step 0: Check per-character rate limit
+    from app.resilience import RateLimiter
+    if not await character_rate_limiter.acquire(request.character_id):
+        # Rate limit exceeded
+        retry_after = character_rate_limiter.get_retry_after(request.character_id)
+        
+        logger.warning(
+            "Rate limit exceeded for character",
+            turn_id=turn_id,
+            character_id=safe_character_id,
+            retry_after_seconds=retry_after
+        )
+        
+        # Record metrics
+        collector = get_metrics_collector()
+        if collector:
+            collector.record_error("rate_limit_exceeded")
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="rate_limited"
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": f"Too many requests for this character. Please wait {retry_after:.1f} seconds.",
+                "retry_after_seconds": round(retry_after, 1),
+                "character_id": request.character_id
+            },
+            headers={"Retry-After": str(int(retry_after) + 1)}
+        )
 
     logger.info(
         "Processing turn request",
@@ -353,13 +443,21 @@ async def process_turn(
         orchestration_start = time.time()
         with PhaseTimer("turn_orchestration", logger), MetricsTimer("turn"):
             logger.debug("Orchestrating turn with TurnOrchestrator")
-            narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn(
-                character_id=request.character_id,
-                user_action=request.user_action,
-                context=context,
-                trace_id=request.trace_id,
-                dry_run=False
-            )
+            
+            # Acquire LLM semaphore to enforce global concurrency limit
+            async with llm_semaphore:
+                logger.debug(
+                    "Acquired LLM semaphore",
+                    active_llm_calls=llm_semaphore.active_count
+                )
+                
+                narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn(
+                    character_id=request.character_id,
+                    user_action=request.user_action,
+                    context=context,
+                    trace_id=request.trace_id,
+                    dry_run=False
+                )
         latencies['orchestration_ms'] = (time.time() - orchestration_start) * 1000
         latencies['total_ms'] = (time.time() - turn_start_time) * 1000
         
@@ -565,11 +663,17 @@ async def process_turn_stream(
     request: TurnRequest,
     journey_log_client: JourneyLogClient = Depends(get_journey_log_client),
     turn_orchestrator: TurnOrchestrator = Depends(get_turn_orchestrator),
+    character_rate_limiter = Depends(get_character_rate_limiter),
+    llm_semaphore = Depends(get_llm_semaphore),
     settings: Settings = Depends(get_settings)
 ) -> StreamingResponse:
     """Process a player turn with streaming narrative delivery.
     
     This endpoint implements the two-phase streaming architecture:
+    
+    Phase 0 (Rate Limiting):
+    - Check per-character rate limit (429 if exceeded)
+    - Acquire global LLM concurrency semaphore
     
     Phase 1 (Token Streaming):
     - Fetch context from journey-log
@@ -591,6 +695,8 @@ async def process_turn_stream(
         request: Turn request with character_id and user_action
         journey_log_client: JourneyLogClient for journey-log communication (injected)
         turn_orchestrator: TurnOrchestrator for turn processing (injected)
+        character_rate_limiter: RateLimiter for per-character throttling (injected)
+        llm_semaphore: Semaphore for global LLM concurrency control (injected)
         settings: Application settings (injected)
         
     Returns:
@@ -605,6 +711,39 @@ async def process_turn_stream(
     # Sanitize inputs for logging to prevent log injection
     safe_character_id = sanitize_for_log(request.character_id, 36)
     safe_action = sanitize_for_log(request.user_action, 50)
+
+    # Step 0: Check per-character rate limit
+    from app.resilience import RateLimiter
+    if not await character_rate_limiter.acquire(request.character_id):
+        # Rate limit exceeded
+        retry_after = character_rate_limiter.get_retry_after(request.character_id)
+        
+        logger.warning(
+            "Rate limit exceeded for character (streaming)",
+            character_id=safe_character_id,
+            retry_after_seconds=retry_after
+        )
+        
+        # Record metrics
+        collector = get_metrics_collector()
+        if collector:
+            collector.record_error("rate_limit_exceeded_stream")
+            collector.record_turn_processed(
+                environment=settings.environment,
+                character_id=request.character_id,
+                outcome="rate_limited"
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": f"Too many requests for this character. Please wait {retry_after:.1f} seconds.",
+                "retry_after_seconds": round(retry_after, 1),
+                "character_id": request.character_id
+            },
+            headers={"Retry-After": str(int(retry_after) + 1)}
+        )
 
     logger.info(
         "Processing streaming turn request",
@@ -660,14 +799,22 @@ async def process_turn_stream(
                 # Step 2: Orchestrate turn with streaming (Phase 1 + Phase 2)
                 with PhaseTimer("turn_orchestration_stream", logger), MetricsTimer("turn_stream"):
                     logger.debug("Orchestrating streaming turn with TurnOrchestrator")
-                    narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn_stream(
-                        character_id=request.character_id,
-                        user_action=request.user_action,
-                        context=context,
-                        callback=token_callback,
-                        trace_id=request.trace_id,
-                        dry_run=False
-                    )
+                    
+                    # Acquire LLM semaphore to enforce global concurrency limit
+                    async with llm_semaphore:
+                        logger.debug(
+                            "Acquired LLM semaphore for streaming",
+                            active_llm_calls=llm_semaphore.active_count
+                        )
+                        
+                        narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn_stream(
+                            character_id=request.character_id,
+                            user_action=request.user_action,
+                            context=context,
+                            callback=token_callback,
+                            trace_id=request.trace_id,
+                            dry_run=False
+                        )
                 
                 # Log parse completion
                 stream_logger.log_parse_complete(
