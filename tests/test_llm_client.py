@@ -477,7 +477,7 @@ async def test_generate_narrative_stream_success():
         assert result.outcome is not None
         assert result.narrative == "You discover a hidden treasure chest in the corner."
         
-        # Verify tokens were received
+        # Verify tokens were received - should be 7 chunks total
         assert len(tokens) == 7
         assert ''.join(tokens) == '{"narrative": "You discover a hidden treasure chest in the corner.", "intents": {"quest_intent": {"action": "none"}, "combat_intent": {"action": "none"}, "poi_intent": {"action": "none"}, "meta": null}}'
 
@@ -581,9 +581,9 @@ async def test_generate_narrative_stream_empty_response():
     
     # Mock empty streaming response
     async def mock_stream():
-        # Empty stream
-        return
-        yield  # Make it a generator
+        # Empty generator that yields nothing
+        if False:
+            yield  # Make it a generator but never execute
     
     with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_stream()
@@ -826,10 +826,8 @@ async def test_generate_narrative_stream_handles_content_format():
         
         for chunk in chunks:
             mock_chunk = MagicMock()
-            mock_output_item = MagicMock()
-            # Use 'content' instead of 'content_delta'
-            mock_output_item.content = chunk
-            delattr(mock_output_item, 'content_delta')
+            # Create a simple object with only 'content' attribute
+            mock_output_item = type('OutputItem', (), {'content': chunk})()
             mock_chunk.output = [mock_output_item]
             yield mock_chunk
     

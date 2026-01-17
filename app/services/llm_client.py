@@ -436,6 +436,11 @@ class LLMClient:
                 }},
                 stream=True  # Enable streaming
             )
+            
+            # Note: If the Responses API does not support streaming, this will raise
+            # an exception (BadRequestError) which is caught and handled below.
+            # The streaming parameter is passed optimistically based on the pattern
+            # used in the Chat API.
 
             # Phase 1: Stream tokens and buffer
             async for chunk in stream:
