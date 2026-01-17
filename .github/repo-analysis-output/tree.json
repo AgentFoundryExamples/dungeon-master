@@ -332,6 +332,10 @@
     },
     {
       "type": "file",
+      "name": "IMPLEMENTATION_SUMMARY.md.bak"
+    },
+    {
+      "type": "file",
       "name": "infrastructure_versions.txt"
     },
     {

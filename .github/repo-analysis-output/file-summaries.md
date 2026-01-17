@@ -335,8 +335,8 @@ Total files: 53
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 9.84 KB  
-**LOC:** 223  
+**Size:** 17.42 KB  
+**LOC:** 408  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_poi_normalization.py
@@ -380,8 +380,8 @@ Total files: 53
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 10.43 KB  
-**LOC:** 217  
+**Size:** 17.29 KB  
+**LOC:** 374  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_policy_models.py
@@ -416,8 +416,8 @@ Total files: 53
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 16.82 KB  
-**LOC:** 374  
+**Size:** 24.14 KB  
+**LOC:** 563  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_quest_normalization.py
@@ -461,8 +461,8 @@ Total files: 53
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 28.49 KB  
-**LOC:** 554  
+**Size:** 50.04 KB  
+**LOC:** 991  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_turn_storage.py

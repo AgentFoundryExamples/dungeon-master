@@ -641,6 +641,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "asyncio",
           "unittest.mock.AsyncMock",
           "unittest.mock.MagicMock",
           "unittest.mock.patch"
@@ -1236,6 +1237,30 @@
       "target": "app/services/journey_log_client.py"
     },
     {
+      "source": "tests/test_poi_memory_sparks.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
+      "source": "tests/test_poi_memory_sparks.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "tests/test_poi_memory_sparks.py",
+      "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_poi_memory_sparks.py",
+      "target": "app/prompting/prompt_builder.py"
+    },
+    {
+      "source": "tests/test_poi_memory_sparks.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_poi_memory_sparks.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
       "source": "tests/test_poi_normalization.py",
       "target": "app/services/outcome_parser.py"
     },
@@ -1294,6 +1319,10 @@
     {
       "source": "tests/test_policy_integration.py",
       "target": "app/services/turn_orchestrator.py"
+    },
+    {
+      "source": "tests/test_policy_integration.py",
+      "target": "app/resilience.py"
     },
     {
       "source": "tests/test_policy_models.py",
@@ -1370,6 +1399,34 @@
     {
       "source": "tests/test_turn_integration.py",
       "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/prompting/prompt_builder.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "tests/test_turn_integration.py",
+      "target": "app/metrics.py"
     },
     {
       "source": "tests/test_turn_storage.py",
