@@ -1131,6 +1131,9 @@ class JourneyLogClient:
         Makes a GET request to /characters/{character_id}/pois/random.
         Returns empty list if no POIs exist or on error (non-fatal).
         
+        This method implements retry logic with exponential backoff for transient errors,
+        but failures are non-fatal and return an empty list to avoid blocking turns.
+        
         Args:
             character_id: UUID of the character
             n: Number of random POIs to fetch (1-20)
@@ -1151,59 +1154,167 @@ class JourneyLogClient:
         
         logger.info(
             "Fetching random POIs from journey-log",
-            n=n
+            n=n,
+            max_retries=self.max_retries
         )
         
-        start_time = time.time()
+        # Use retry logic but catch all exceptions to maintain non-fatal behavior
         try:
-            response = await self.http_client.get(
-                url,
+            return await self._get_random_pois_with_retry(
+                url=url,
                 params=params,
-                headers=headers,
-                timeout=self.timeout
+                headers=headers
             )
-            duration_ms = (time.time() - start_time) * 1000
-            response.raise_for_status()
-            
-            data = response.json()
-            pois = data.get("pois", [])
-            
-            logger.info(
-                "Successfully fetched random POIs",
-                status_code=getattr(response, 'status_code', None),
-                duration_ms=f"{duration_ms:.2f}",
-                poi_count=len(pois)
-            )
-            
-            return pois
-        
-        except HTTPStatusError as e:
-            duration_ms = (time.time() - start_time) * 1000
-            # Non-fatal error - log and return empty list
-            logger.warning(
-                "Failed to fetch random POIs - returning empty list",
-                status_code=e.response.status_code,
-                duration_ms=f"{duration_ms:.2f}",
-                error=redact_secrets(e.response.text)
-            )
-            return []
-        
-        except TimeoutException:
-            duration_ms = (time.time() - start_time) * 1000
-            # Non-fatal error - log and return empty list
-            logger.warning(
-                "Timeout fetching random POIs - returning empty list",
-                timeout_seconds=self.timeout,
-                duration_ms=f"{duration_ms:.2f}"
-            )
-            return []
-        
         except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            # Non-fatal error - log and return empty list
+            # All errors are non-fatal for memory sparks - return empty list
             logger.warning(
-                "Unexpected error fetching random POIs - returning empty list",
+                "Failed to fetch random POIs after retries - returning empty list",
                 error_type=type(e).__name__,
-                duration_ms=f"{duration_ms:.2f}"
+                error=str(e)
             )
             return []
+    
+    async def _get_random_pois_with_retry(
+        self,
+        url: str,
+        params: dict,
+        headers: dict
+    ) -> list[dict]:
+        """Internal method to GET random POIs with retry logic.
+        
+        Implements exponential backoff for transient errors.
+        Retries are attempted but failures are ultimately non-fatal.
+        """
+        last_exception = None
+        
+        for attempt in range(self.max_retries + 1):
+            start_time = time.time()
+            
+            try:
+                response = await self.http_client.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                    timeout=self.timeout
+                )
+                duration_ms = (time.time() - start_time) * 1000
+                response.raise_for_status()
+                
+                data = response.json()
+                pois = data.get("pois", [])
+                
+                logger.info(
+                    "Successfully fetched random POIs",
+                    status_code=getattr(response, 'status_code', None),
+                    duration_ms=f"{duration_ms:.2f}",
+                    poi_count=len(pois),
+                    attempts=attempt + 1
+                )
+                
+                # Record metrics
+                if (collector := get_metrics_collector()):
+                    collector.record_journey_log_latency("get_random_pois", duration_ms)
+                    if attempt > 0:
+                        collector.record_error("journey_log_retry_success")
+                
+                return pois
+
+            except HTTPStatusError as e:
+                duration_ms = (time.time() - start_time) * 1000
+                status_code = e.response.status_code
+                
+                # 404 and other 4xx (except 429) are non-retryable
+                if 400 <= status_code < 500 and status_code != 429:
+                    logger.warning(
+                        "get_random_pois client error (non-retryable)",
+                        status_code=status_code,
+                        duration_ms=f"{duration_ms:.2f}",
+                        error=redact_secrets(e.response.text)
+                    )
+                    raise
+                
+                # 5xx and 429 are retryable
+                last_exception = e
+                
+                if attempt >= self.max_retries:
+                    logger.warning(
+                        f"get_random_pois failed after {self.max_retries} retries",
+                        status_code=status_code,
+                        total_attempts=attempt + 1,
+                        duration_ms=f"{duration_ms:.2f}"
+                    )
+                    
+                    if (collector := get_metrics_collector()):
+                        collector.record_error("journey_log_retry_exhausted")
+                    
+                    raise
+                
+                delay = min(
+                    self.retry_delay_base * (2 ** attempt),
+                    self.retry_delay_max
+                )
+                
+                logger.debug(
+                    f"get_random_pois failed (retryable), retrying in {delay:.2f}s",
+                    status_code=status_code,
+                    attempt=attempt + 1,
+                    max_retries=self.max_retries,
+                    retry_delay_seconds=delay,
+                    duration_ms=f"{duration_ms:.2f}"
+                )
+                
+                if (collector := get_metrics_collector()):
+                    collector.record_error("journey_log_http_error_retry")
+                
+                await asyncio.sleep(delay)
+
+            except TimeoutException as e:
+                last_exception = e
+                duration_ms = (time.time() - start_time) * 1000
+                
+                if attempt >= self.max_retries:
+                    logger.warning(
+                        f"get_random_pois timed out after {self.max_retries} retries",
+                        timeout_seconds=self.timeout,
+                        total_attempts=attempt + 1,
+                        duration_ms=f"{duration_ms:.2f}"
+                    )
+                    
+                    if (collector := get_metrics_collector()):
+                        collector.record_error("journey_log_timeout_exhausted")
+                    
+                    raise
+                
+                delay = min(
+                    self.retry_delay_base * (2 ** attempt),
+                    self.retry_delay_max
+                )
+                
+                logger.debug(
+                    f"get_random_pois timed out (retryable), retrying in {delay:.2f}s",
+                    timeout_seconds=self.timeout,
+                    attempt=attempt + 1,
+                    max_retries=self.max_retries,
+                    retry_delay_seconds=delay,
+                    duration_ms=f"{duration_ms:.2f}"
+                )
+                
+                if (collector := get_metrics_collector()):
+                    collector.record_error("journey_log_timeout_retry")
+                
+                await asyncio.sleep(delay)
+
+            except Exception as e:
+                # Unexpected errors - non-retryable for simplicity
+                duration_ms = (time.time() - start_time) * 1000
+                logger.warning(
+                    "get_random_pois unexpected error (non-retryable)",
+                    error_type=type(e).__name__,
+                    duration_ms=f"{duration_ms:.2f}"
+                )
+                raise
+        
+        # Should never reach here
+        if last_exception:
+            raise last_exception
+        raise JourneyLogClientError("Failed to get random POIs with unknown error")
