@@ -18,7 +18,7 @@ from typing import Optional, Callable, AsyncIterator, Protocol
 from openai import AsyncOpenAI
 import openai
 
-from app.logging import StructuredLogger, redact_secrets
+from app.logging import StructuredLogger, redact_secrets, get_turn_id
 from app.models import (
     DungeonMasterOutcome,
     get_outcome_json_schema,
@@ -211,7 +211,8 @@ class LLMClient:
             "Generating narrative with LLM using DungeonMasterOutcome schema",
             model=self.model,
             instructions_length=len(system_instructions),
-            prompt_length=len(user_prompt)
+            prompt_length=len(user_prompt),
+            turn_id=get_turn_id()
         )
 
         start_time = time.time()
@@ -239,7 +240,7 @@ class LLMClient:
 
             # Extract content from Responses API structure
             if not response.output:
-                logger.error("OpenAI API returned empty output")
+                logger.error("OpenAI API returned empty output", turn_id=get_turn_id())
                 raise LLMResponseError("LLM returned empty output")
 
             output_item = response.output[0]
@@ -259,7 +260,7 @@ class LLMClient:
                 content = None
 
             if not content:
-                logger.error("OpenAI API returned empty content")
+                logger.error("OpenAI API returned empty content", turn_id=get_turn_id())
                 raise LLMResponseError("LLM returned empty content")
 
             # Parse the response using the outcome parser
@@ -275,18 +276,25 @@ class LLMClient:
             
             duration_ms = (time.time() - start_time) * 1000
             
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_latency("llm_call", duration_ms)
+            
             if parsed.is_valid:
                 logger.info(
                     "Successfully generated narrative with valid schema",
                     narrative_length=len(parsed.narrative),
-                    duration_ms=f"{duration_ms:.2f}"
+                    duration_ms=f"{duration_ms:.2f}",
+                    turn_id=get_turn_id()
                 )
             else:
                 logger.warning(
                     "Generated narrative but schema validation failed - using fallback",
                     narrative_length=len(parsed.narrative),
                     error_type=parsed.error_type,
-                    duration_ms=f"{duration_ms:.2f}"
+                    duration_ms=f"{duration_ms:.2f}",
+                    turn_id=get_turn_id()
                 )
             
             return parsed
@@ -296,7 +304,8 @@ class LLMClient:
             logger.error(
                 "LLM request timed out",
                 timeout_seconds=self.timeout,
-                duration_ms=f"{duration_ms:.2f}"
+                duration_ms=f"{duration_ms:.2f}",
+                turn_id=get_turn_id()
             )
             raise LLMTimeoutError(
                 f"LLM request timed out after {self.timeout}s"
@@ -306,7 +315,8 @@ class LLMClient:
             duration_ms = (time.time() - start_time) * 1000
             logger.error(
                 "LLM authentication failed",
-                duration_ms=f"{duration_ms:.2f}"
+                duration_ms=f"{duration_ms:.2f}",
+                turn_id=get_turn_id()
             )
             raise LLMConfigurationError("Invalid OpenAI API key") from e
 
@@ -315,7 +325,8 @@ class LLMClient:
             logger.error(
                 "LLM bad request error",
                 error=redact_secrets(str(e)),
-                duration_ms=f"{duration_ms:.2f}"
+                duration_ms=f"{duration_ms:.2f}",
+                turn_id=get_turn_id()
             )
             raise LLMClientError(f"Invalid request to LLM: {e}") from e
 
@@ -329,7 +340,8 @@ class LLMClient:
                 "Unexpected error during LLM generation",
                 error_type=type(e).__name__,
                 error=redact_secrets(str(e)),
-                duration_ms=f"{duration_ms:.2f}"
+                duration_ms=f"{duration_ms:.2f}",
+                turn_id=get_turn_id()
             )
             raise LLMClientError(f"Failed to generate narrative: {e}") from e
 
@@ -408,7 +420,8 @@ class LLMClient:
             instructions_length=len(system_instructions),
             prompt_length=len(user_prompt),
             has_callback=callback is not None,
-            trace_id=trace_id
+            trace_id=trace_id,
+            turn_id=get_turn_id()
         )
 
         start_time = time.time()
@@ -420,7 +433,7 @@ class LLMClient:
             schema = json_schema or get_outcome_json_schema()
             
             # Log stream start
-            logger.debug("Stream started", trace_id=trace_id)
+            logger.debug("Stream started", trace_id=trace_id, turn_id=get_turn_id())
             
             # Use OpenAI Responses API with streaming enabled
             # Note: The Responses API streaming may work differently than Chat API
@@ -478,7 +491,8 @@ class LLMClient:
                                 error_type=type(e).__name__,
                                 error=redact_secrets(str(e)),
                                 token_number=token_count,
-                                trace_id=trace_id
+                                trace_id=trace_id,
+                                turn_id=get_turn_id()
                             )
                 else:
                     # Log when we receive a chunk but can't extract a token
@@ -487,7 +501,8 @@ class LLMClient:
                         logger.debug(
                             "Received chunk with no extractable token",
                             chunk_has_output=True,
-                            trace_id=trace_id
+                            trace_id=trace_id,
+                            turn_id=get_turn_id()
                         )
                     
                     # Log token batches periodically to track progress
@@ -496,7 +511,8 @@ class LLMClient:
                             "Streaming progress",
                             tokens_received=token_count,
                             buffer_size=len(''.join(buffer)),
-                            trace_id=trace_id
+                            trace_id=trace_id,
+                            turn_id=get_turn_id()
                         )
             
             # Reconstruct complete text from buffer
@@ -508,16 +524,17 @@ class LLMClient:
                 token_count=token_count,
                 total_length=len(complete_text),
                 streaming_duration_ms=f"{streaming_duration_ms:.2f}",
-                trace_id=trace_id
+                trace_id=trace_id,
+                turn_id=get_turn_id()
             )
             
             if not complete_text:
-                logger.error("Stream completed but buffer is empty", trace_id=trace_id)
+                logger.error("Stream completed but buffer is empty", trace_id=trace_id, turn_id=get_turn_id())
                 raise LLMResponseError("LLM stream completed with empty content")
             
             # Phase 2: Parse and validate complete outcome
             parse_start_time = time.time()
-            logger.debug("Starting outcome parse phase", trace_id=trace_id)
+            logger.debug("Starting outcome parse phase", trace_id=trace_id, turn_id=get_turn_id())
             
             parsed = self.parser.parse(complete_text, trace_id=trace_id)
             
@@ -529,13 +546,19 @@ class LLMClient:
                 if not parsed.is_valid:
                     collector.record_error(f"llm_stream_parse_failure_{parsed.error_type}")
             
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_latency("llm_call", total_duration_ms)
+            
             if parsed.is_valid:
                 logger.info(
                     "Stream parse phase completed successfully",
                     narrative_length=len(parsed.narrative),
                     parse_duration_ms=f"{parse_duration_ms:.2f}",
                     total_duration_ms=f"{total_duration_ms:.2f}",
-                    trace_id=trace_id
+                    trace_id=trace_id,
+                    turn_id=get_turn_id()
                 )
             else:
                 logger.warning(
@@ -544,7 +567,8 @@ class LLMClient:
                     error_type=parsed.error_type,
                     parse_duration_ms=f"{parse_duration_ms:.2f}",
                     total_duration_ms=f"{total_duration_ms:.2f}",
-                    trace_id=trace_id
+                    trace_id=trace_id,
+                    turn_id=get_turn_id()
                 )
             
             return parsed
@@ -556,7 +580,8 @@ class LLMClient:
                 timeout_seconds=self.timeout,
                 duration_ms=f"{duration_ms:.2f}",
                 tokens_received=token_count,
-                trace_id=trace_id
+                trace_id=trace_id,
+                turn_id=get_turn_id()
             )
             raise LLMTimeoutError(
                 f"LLM streaming request timed out after {self.timeout}s"
@@ -567,7 +592,8 @@ class LLMClient:
             logger.error(
                 "LLM streaming authentication failed",
                 duration_ms=f"{duration_ms:.2f}",
-                trace_id=trace_id
+                trace_id=trace_id,
+                turn_id=get_turn_id()
             )
             raise LLMConfigurationError("Invalid OpenAI API key") from e
 
@@ -577,7 +603,8 @@ class LLMClient:
                 "LLM streaming bad request error",
                 error=redact_secrets(str(e)),
                 duration_ms=f"{duration_ms:.2f}",
-                trace_id=trace_id
+                trace_id=trace_id,
+                turn_id=get_turn_id()
             )
             raise LLMClientError(f"Invalid streaming request to LLM: {e}") from e
 
@@ -594,7 +621,8 @@ class LLMClient:
                 duration_ms=f"{duration_ms:.2f}",
                 tokens_received=token_count,
                 buffer_size=len(''.join(buffer)) if buffer else 0,
-                trace_id=trace_id
+                trace_id=trace_id,
+                turn_id=get_turn_id()
             )
             raise LLMClientError(f"Failed to generate streaming narrative: {e}") from e
 
