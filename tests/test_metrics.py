@@ -210,3 +210,84 @@ def test_metrics_endpoint_enabled():
         assert 'requests' in data
         assert 'errors' in data
         assert 'latencies' in data
+
+
+def test_metrics_collector_streaming():
+    """Test streaming metrics recording."""
+    collector = MetricsCollector()
+    
+    # Record stream start
+    collector.record_stream_start()
+    
+    # Record successful stream
+    collector.record_stream_complete(token_count=50, duration_ms=1500.0)
+    
+    # Record client disconnect
+    collector.record_stream_client_disconnect()
+    
+    # Record parse failure
+    collector.record_stream_parse_failure()
+    
+    # Record another successful stream
+    collector.record_stream_start()
+    collector.record_stream_complete(token_count=75, duration_ms=2000.0)
+    
+    metrics = collector.get_metrics()
+    
+    # Verify streaming metrics
+    assert 'streaming' in metrics
+    streaming = metrics['streaming']
+    
+    assert streaming['total_streams'] == 2
+    assert streaming['completed_streams'] == 2
+    assert streaming['client_disconnects'] == 1
+    assert streaming['parse_failures'] == 1
+    
+    # Verify token stats (dimensionless, no unit suffix)
+    assert 'tokens_per_stream' in streaming
+    token_stats = streaming['tokens_per_stream']
+    assert token_stats['count'] == 2
+    assert token_stats['avg'] == 62.5  # (50 + 75) / 2
+    assert token_stats['min'] == 50.0
+    assert token_stats['max'] == 75.0
+    
+    # Verify duration stats (milliseconds, _ms suffix)
+    assert 'stream_duration' in streaming
+    duration_stats = streaming['stream_duration']
+    assert duration_stats['count'] == 2
+    assert duration_stats['avg_ms'] == 1750.0  # (1500 + 2000) / 2
+    assert duration_stats['min_ms'] == 1500.0
+    assert duration_stats['max_ms'] == 2000.0
+
+
+def test_stream_lifecycle_logger():
+    """Test StreamLifecycleLogger functionality."""
+    from app.logging import StreamLifecycleLogger, StructuredLogger
+    import logging
+    
+    # Create a logger instance
+    logger = StructuredLogger("test_stream")
+    
+    # Create stream lifecycle logger
+    character_id = "test-char-123"
+    stream_logger = StreamLifecycleLogger(logger, character_id)
+    
+    # Test log methods (should not raise exceptions)
+    stream_logger.log_stream_start()
+    stream_logger.log_token_streamed(10)
+    stream_logger.log_token_streamed(25)
+    stream_logger.log_parse_complete(narrative_length=500, is_valid=True)
+    stream_logger.log_writes_start()
+    stream_logger.log_writes_complete(
+        quest_written=True,
+        combat_written=False,
+        poi_written=True,
+        narrative_written=True
+    )
+    stream_logger.log_stream_complete(narrative_length=500, total_tokens=25)
+    
+    # Test error logging
+    stream_logger.log_stream_error("test_error", "Test error message")
+    
+    # Test disconnect logging
+    stream_logger.log_client_disconnect()

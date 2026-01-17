@@ -28,35 +28,68 @@ from collections import defaultdict
 
 @dataclass
 class LatencyStats:
-    """Statistics for operation latency."""
+    """Statistics for a generic numeric value (latency, counts, etc.)."""
     count: int = 0
-    total_ms: float = 0.0
-    min_ms: float = float('inf')
-    max_ms: float = 0.0
+    total: float = 0.0
+    min: float = float('inf')
+    max: float = 0.0
+    
+    @property
+    def avg(self) -> float:
+        """Calculate average value."""
+        return self.total / self.count if self.count > 0 else 0.0
+    
+    # Backward compatibility properties for latency use case
+    @property
+    def total_ms(self) -> float:
+        """Alias for total (backward compatibility)."""
+        return self.total
+    
+    @property
+    def min_ms(self) -> float:
+        """Alias for min (backward compatibility)."""
+        return self.min
+    
+    @property
+    def max_ms(self) -> float:
+        """Alias for max (backward compatibility)."""
+        return self.max
     
     @property
     def avg_ms(self) -> float:
-        """Calculate average latency."""
-        return self.total_ms / self.count if self.count > 0 else 0.0
+        """Alias for avg (backward compatibility)."""
+        return self.avg
     
-    def record(self, duration_ms: float) -> None:
-        """Record a new latency sample.
+    def record(self, value: float) -> None:
+        """Record a new sample.
         
         Args:
-            duration_ms: Duration in milliseconds
+            value: The value to record (e.g., duration in ms, token count)
         """
         self.count += 1
-        self.total_ms += duration_ms
-        self.min_ms = min(self.min_ms, duration_ms)
-        self.max_ms = max(self.max_ms, duration_ms)
+        self.total += value
+        self.min = min(self.min, value)
+        self.max = max(self.max, value)
     
-    def to_dict(self) -> Dict[str, float]:
-        """Convert to dictionary for serialization."""
+    def to_dict(self, unit: str = "ms") -> Dict[str, float]:
+        """Convert to dictionary for serialization.
+        
+        Args:
+            unit: Unit suffix for keys (e.g., "ms" for milliseconds, "" for dimensionless)
+        
+        Returns:
+            Dictionary with count, avg, min, max with appropriate unit suffix
+        """
+        # Suffix keys with unit if provided (e.g., "avg_ms")
+        suffix = f"_{unit}" if unit else ""
+        avg_key = f"avg{suffix}"
+        min_key = f"min{suffix}"
+        max_key = f"max{suffix}"
         return {
             "count": self.count,
-            "avg_ms": round(self.avg_ms, 2),
-            "min_ms": round(self.min_ms, 2) if self.min_ms != float('inf') else 0.0,
-            "max_ms": round(self.max_ms, 2)
+            avg_key: round(self.avg, 2),
+            min_key: round(self.min, 2) if self.min != float('inf') else 0.0,
+            max_key: round(self.max, 2)
         }
 
 
@@ -67,6 +100,7 @@ class MetricsCollector:
     - HTTP request counts by status code
     - Operation latencies (turn processing, LLM calls, journey-log calls)
     - Error counts by type
+    - Streaming metrics (token counts, stream durations, client disconnects)
     """
     
     def __init__(self):
@@ -76,6 +110,16 @@ class MetricsCollector:
         self._error_counts: Dict[str, int] = defaultdict(int)
         self._latencies: Dict[str, LatencyStats] = defaultdict(LatencyStats)
         self._start_time = time.time()
+        
+        # Streaming-specific metrics
+        self._stream_counts = {
+            "total": 0,
+            "completed": 0,
+            "client_disconnects": 0,
+            "parse_failures": 0
+        }
+        self._stream_token_stats = LatencyStats()  # Track tokens per stream
+        self._stream_duration_stats = LatencyStats()  # Track stream duration
     
     def record_request(self, status_code: int) -> None:
         """Record an HTTP request.
@@ -104,6 +148,33 @@ class MetricsCollector:
         """
         with self._lock:
             self._latencies[operation].record(duration_ms)
+    
+    def record_stream_start(self) -> None:
+        """Record the start of a streaming turn."""
+        with self._lock:
+            self._stream_counts["total"] += 1
+    
+    def record_stream_complete(self, token_count: int, duration_ms: float) -> None:
+        """Record successful completion of a streaming turn.
+        
+        Args:
+            token_count: Number of tokens streamed
+            duration_ms: Total stream duration in milliseconds
+        """
+        with self._lock:
+            self._stream_counts["completed"] += 1
+            self._stream_token_stats.record(float(token_count))
+            self._stream_duration_stats.record(duration_ms)
+    
+    def record_stream_client_disconnect(self) -> None:
+        """Record a client disconnect during streaming."""
+        with self._lock:
+            self._stream_counts["client_disconnects"] += 1
+    
+    def record_stream_parse_failure(self) -> None:
+        """Record a parse failure after streaming."""
+        with self._lock:
+            self._stream_counts["parse_failures"] += 1
     
     def get_metrics(self) -> Dict:
         """Get all collected metrics.
@@ -144,7 +215,7 @@ class MetricsCollector:
                     "by_type": dict(self._error_counts)
                 },
                 "latencies": {
-                    operation: stats.to_dict()
+                    operation: stats.to_dict(unit="ms")
                     for operation, stats in self._latencies.items()
                 },
                 "schema_conformance": {
@@ -152,6 +223,14 @@ class MetricsCollector:
                     "successful_parses": llm_parse_success,
                     "failed_parses": llm_parse_failures,
                     "conformance_rate": round(conformance_rate, 4)
+                },
+                "streaming": {
+                    "total_streams": self._stream_counts["total"],
+                    "completed_streams": self._stream_counts["completed"],
+                    "client_disconnects": self._stream_counts["client_disconnects"],
+                    "parse_failures": self._stream_counts["parse_failures"],
+                    "tokens_per_stream": self._stream_token_stats.to_dict(unit="") if self._stream_token_stats.count > 0 else {},
+                    "stream_duration": self._stream_duration_stats.to_dict(unit="ms") if self._stream_duration_stats.count > 0 else {}
                 }
             }
     
@@ -161,6 +240,14 @@ class MetricsCollector:
             self._request_counts.clear()
             self._error_counts.clear()
             self._latencies.clear()
+            self._stream_counts = {
+                "total": 0,
+                "completed": 0,
+                "client_disconnects": 0,
+                "parse_failures": 0
+            }
+            self._stream_token_stats = LatencyStats()
+            self._stream_duration_stats = LatencyStats()
             self._start_time = time.time()
 
 
