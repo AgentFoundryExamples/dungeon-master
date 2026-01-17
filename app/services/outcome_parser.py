@@ -30,7 +30,7 @@ from app.models import (
     POIIntent,
     OUTCOME_VERSION
 )
-from app.logging import StructuredLogger, redact_secrets
+from app.logging import StructuredLogger, redact_secrets, get_turn_id
 
 logger = StructuredLogger(__name__)
 
@@ -114,7 +114,8 @@ class OutcomeParser:
             logger.info(
                 "POI policy triggered but no LLM intent - using fallback",
                 action="create",
-                fallback_name=fallback_name
+                fallback_name=fallback_name,
+                turn_id=get_turn_id()
             )
             return POIIntent(
                 action="create",
@@ -138,7 +139,7 @@ class OutcomeParser:
             if name_is_invalid:
                 # Reference actions need a name - if missing, use fallback
                 fallback_name = location_name if location_name else "Unknown Location"
-                logger.info("POI reference missing name - using fallback", fallback_name=fallback_name)
+                logger.info("POI reference missing name - using fallback", fallback_name=fallback_name, turn_id=get_turn_id())
                 return POIIntent(
                     action="reference",
                     name=fallback_name,
@@ -148,7 +149,7 @@ class OutcomeParser:
             
             # Trim name if too long
             if len(name) > 200:
-                logger.info("POI reference name too long - trimming", original_length=len(name))
+                logger.info("POI reference name too long - trimming", original_length=len(name), turn_id=get_turn_id())
                 trimmed_name = name[:200]
                 return POIIntent(
                     action="reference",
@@ -170,30 +171,30 @@ class OutcomeParser:
             if not name or not isinstance(name, str) or len(name.strip()) == 0:
                 # Try location name first, then generic fallback
                 fallback_name = location_name if location_name else "A Notable Location"
-                logger.info("POI create missing name - using fallback", fallback_name=fallback_name)
+                logger.info("POI create missing name - using fallback", fallback_name=fallback_name, turn_id=get_turn_id())
                 name = fallback_name
             
             # Trim name if too long (max 200 characters per journey-log spec)
             if len(name) > 200:
-                logger.info("POI create name too long - trimming", original_length=len(name))
+                logger.info("POI create name too long - trimming", original_length=len(name), turn_id=get_turn_id())
                 name = name[:200]
             
             # Apply fallbacks for missing/invalid description
             if not description or not isinstance(description, str) or len(description.strip()) == 0:
-                logger.info("POI create missing description - using fallback")
+                logger.info("POI create missing description - using fallback", turn_id=get_turn_id())
                 description = "An interesting location worth remembering."
             
             # Trim description if too long (max 2000 characters per journey-log spec)
             if len(description) > 2000:
-                logger.info("POI create description too long - trimming", original_length=len(description))
+                logger.info("POI create description too long - trimming", original_length=len(description), turn_id=get_turn_id())
                 description = description[:2000]
             
             # Normalize reference_tags (ensure list)
             if reference_tags is None:
                 reference_tags = []
-                logger.debug("POI create missing tags - using empty list")
+                logger.debug("POI create missing tags - using empty list", turn_id=get_turn_id())
             elif not isinstance(reference_tags, list):
-                logger.warning("POI create tags was non-list, using empty list", original_type=type(poi_intent.reference_tags).__name__)
+                logger.warning("POI create tags was non-list, using empty list", original_type=type(poi_intent.reference_tags).__name__, turn_id=get_turn_id())
                 reference_tags = []
             
             return POIIntent(
@@ -241,7 +242,8 @@ class OutcomeParser:
         if quest_intent is None and policy_triggered:
             logger.info(
                 "Quest policy triggered but no LLM intent - using fallback",
-                action="offer"
+                action="offer",
+                turn_id=get_turn_id()
             )
             return QuestIntent(
                 action="offer",
@@ -272,15 +274,15 @@ class OutcomeParser:
                         title = str(title)
                         if len(title.strip()) == 0:
                             title = "A New Opportunity"
-                            logger.info("Quest offer title was non-string empty, using fallback")
+                            logger.info("Quest offer title was non-string empty, using fallback", turn_id=get_turn_id())
                         else:
-                            logger.info("Quest offer title was non-string, converted to string", original_type=type(quest_intent.quest_title).__name__)
+                            logger.info("Quest offer title was non-string, converted to string", original_type=type(quest_intent.quest_title).__name__, turn_id=get_turn_id())
                     except Exception:
                         title = "A New Opportunity"
-                        logger.warning("Quest offer title type conversion failed, using fallback", original_type=type(quest_intent.quest_title).__name__)
+                        logger.warning("Quest offer title type conversion failed, using fallback", original_type=type(quest_intent.quest_title).__name__, turn_id=get_turn_id())
                 else:
                     title = "A New Opportunity"
-                    logger.info("Quest offer missing title - using fallback")
+                    logger.info("Quest offer missing title - using fallback", turn_id=get_turn_id())
             
             if not summary or not isinstance(summary, str) or len(summary.strip()) == 0:
                 # Try to convert to string if it's not None
@@ -289,21 +291,21 @@ class OutcomeParser:
                         summary = str(summary)
                         if len(summary.strip()) == 0:
                             summary = "An opportunity for adventure presents itself."
-                            logger.info("Quest offer summary was non-string empty, using fallback")
+                            logger.info("Quest offer summary was non-string empty, using fallback", turn_id=get_turn_id())
                         else:
-                            logger.info("Quest offer summary was non-string, converted to string", original_type=type(quest_intent.quest_summary).__name__)
+                            logger.info("Quest offer summary was non-string, converted to string", original_type=type(quest_intent.quest_summary).__name__, turn_id=get_turn_id())
                     except Exception:
                         summary = "An opportunity for adventure presents itself."
-                        logger.warning("Quest offer summary type conversion failed, using fallback", original_type=type(quest_intent.quest_summary).__name__)
+                        logger.warning("Quest offer summary type conversion failed, using fallback", original_type=type(quest_intent.quest_summary).__name__, turn_id=get_turn_id())
                 else:
                     summary = "An opportunity for adventure presents itself."
-                    logger.info("Quest offer missing summary - using fallback")
+                    logger.info("Quest offer missing summary - using fallback", turn_id=get_turn_id())
             
             if details is None:
                 details = {}
-                logger.debug("Quest offer missing details - using empty dict")
+                logger.debug("Quest offer missing details - using empty dict", turn_id=get_turn_id())
             elif not isinstance(details, dict):
-                logger.warning("Quest offer details was non-dict, using empty dict", original_type=type(quest_intent.quest_details).__name__)
+                logger.warning("Quest offer details was non-dict, using empty dict", original_type=type(quest_intent.quest_details).__name__, turn_id=get_turn_id())
                 details = {}
             
             return QuestIntent(
@@ -357,7 +359,8 @@ class OutcomeParser:
                 error_type="json_decode_error",
                 error_details=error_msg,
                 payload_preview=truncated_payload,
-                trace_id=trace_id
+                trace_id=trace_id,
+                turn_id=get_turn_id()
             )
             
             # Attempt to extract any text that looks like narrative from raw response
@@ -384,7 +387,8 @@ class OutcomeParser:
                 has_combat_intent=outcome.intents.combat_intent is not None,
                 has_poi_intent=outcome.intents.poi_intent is not None,
                 has_meta_intent=outcome.intents.meta is not None,
-                trace_id=trace_id
+                trace_id=trace_id,
+                turn_id=get_turn_id()
             )
             
             return ParsedOutcome(
@@ -404,7 +408,8 @@ class OutcomeParser:
                 error_count=len(error_list),
                 error_details=error_list,
                 payload_preview=truncated_payload,
-                trace_id=trace_id
+                trace_id=trace_id,
+                turn_id=get_turn_id()
             )
             
             # Try to extract narrative from partial JSON
@@ -428,7 +433,8 @@ class OutcomeParser:
                 error_type="unexpected_error",
                 error_details=error_list,
                 payload_preview=truncated_payload,
-                trace_id=trace_id
+                trace_id=trace_id,
+                turn_id=get_turn_id()
             )
             
             # Try to extract narrative from partial JSON
