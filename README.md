@@ -153,6 +153,113 @@ POI_MEMORY_SPARK_COUNT=5
 - The journey-log `/pois/random` endpoint is optimized for fast sampling
 - Non-fatal errors ensure turn processing is never blocked
 
+## Rate Limiting and Resilience
+
+The service implements comprehensive safeguards to prevent runaway resource usage and handle transient failures gracefully.
+
+### Rate Limiting
+
+**Per-Character Rate Limiting**
+- Prevents individual characters from exhausting service resources
+- Configured via `MAX_TURNS_PER_CHARACTER_PER_SECOND` (default: 2.0)
+- Uses token bucket algorithm for smooth rate limiting
+- Returns HTTP 429 with `Retry-After` header when limit exceeded
+- Independent limits per character (one character can't block others)
+
+**Global LLM Concurrency Limiting**
+- Prevents API rate limit exhaustion from concurrent requests
+- Configured via `MAX_CONCURRENT_LLM_CALLS` (default: 10)
+- Queues requests when limit is reached (FIFO)
+- Applies across all characters and both `/turn` and `/turn/stream` endpoints
+
+**Rate Limit Response (HTTP 429)**:
+```json
+{
+  "detail": {
+    "error": "rate_limit_exceeded",
+    "message": "Too many requests for this character. Please wait 0.5 seconds.",
+    "retry_after_seconds": 0.5,
+    "character_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+### Retry and Backoff
+
+The service automatically retries transient failures with exponential backoff:
+
+**LLM Client Retries**
+- **Retried**: Timeouts, rate limits (429), server errors (5xx), connection errors
+- **Not Retried**: Authentication errors (401), bad requests (400), permission denied (403)
+- Exponential backoff: base delay × 2^(attempt-1), capped at max delay
+- Configuration:
+  - `LLM_MAX_RETRIES` (default: 3)
+  - `LLM_RETRY_DELAY_BASE` (default: 1.0 seconds)
+  - `LLM_RETRY_DELAY_MAX` (default: 30.0 seconds)
+
+**Journey-Log Client Retries**
+- **GET requests only**: Context fetching, random POI retrieval
+- **Never retried**: POST, PUT, DELETE (to prevent duplicates)
+- Same retry logic as LLM client for GET requests
+- Configuration:
+  - `JOURNEY_LOG_MAX_RETRIES` (default: 3)
+  - `JOURNEY_LOG_RETRY_DELAY_BASE` (default: 0.5 seconds)
+  - `JOURNEY_LOG_RETRY_DELAY_MAX` (default: 10.0 seconds)
+
+**Why No Retries for Mutations?**
+- POST/PUT/DELETE are not idempotent
+- Retrying could create duplicate quests, POIs, or narrative entries
+- Failed mutations are logged and reported in subsystem_summary
+- The narrative always completes even if subsystem writes fail
+
+### Operational Tuning
+
+**Conservative Defaults**
+- Defaults are intentionally conservative to prevent resource exhaustion
+- Tune based on your infrastructure and traffic patterns
+- Monitor metrics to identify appropriate limits
+
+**Tuning Guidelines**:
+
+| Metric | Symptom | Action |
+|--------|---------|--------|
+| High rate limit hits | Legitimate users throttled | Increase `MAX_TURNS_PER_CHARACTER_PER_SECOND` |
+| LLM API rate limits | 429 from OpenAI | Decrease `MAX_CONCURRENT_LLM_CALLS` or upgrade API tier |
+| Long turn latencies | Requests queued | Increase `MAX_CONCURRENT_LLM_CALLS` (if API tier allows) |
+| Frequent timeouts | Slow LLM responses | Increase `OPENAI_TIMEOUT` or reduce prompt size |
+| Retry exhaustion | Journey-log unreachable | Increase `JOURNEY_LOG_TIMEOUT` or `JOURNEY_LOG_MAX_RETRIES` |
+
+**Environment-Specific Configuration**:
+```bash
+# Production (higher limits, shorter timeouts)
+MAX_TURNS_PER_CHARACTER_PER_SECOND=5.0
+MAX_CONCURRENT_LLM_CALLS=50
+OPENAI_TIMEOUT=30
+LLM_MAX_RETRIES=2
+
+# Development (lower limits, longer timeouts for debugging)
+MAX_TURNS_PER_CHARACTER_PER_SECOND=1.0
+MAX_CONCURRENT_LLM_CALLS=2
+OPENAI_TIMEOUT=120
+LLM_MAX_RETRIES=5
+```
+
+### Observability
+
+**Metrics Tracked** (when `ENABLE_METRICS=true`):
+- `rate_limit_exceeded`: Per-character rate limit hits
+- `llm_retry_*`: LLM retry attempts by error type
+- `journey_log_retry_*`: Journey-log retry attempts
+- `llm_timeout_exhausted`: LLM requests that timed out after all retries
+- `journey_log_timeout_exhausted`: Journey-log requests that timed out after all retries
+
+**Log Events**:
+- Rate limit exceeded (WARNING): Includes character_id, retry_after_seconds
+- Retry attempts (WARNING): Includes attempt number, delay, error type
+- Retry exhaustion (ERROR): Includes total attempts, final error
+
+Access metrics at `/metrics` endpoint (requires `ENABLE_METRICS=true`).
+
 ## API Usage
 
 ### Synchronous Turn Processing

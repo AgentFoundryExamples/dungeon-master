@@ -6,6 +6,260 @@ Defined comprehensive architecture for streaming narrative text to clients while
 ## Status
 **Design Phase Complete** (Implementation not started)
 
+---
+
+# Rate Limiting and Resilient Client Policies - Implementation Summary
+
+## Overview
+Implemented comprehensive safeguards to prevent runaway resource usage and handle transient failures gracefully in external service calls (LLM, journey-log).
+
+## Status
+**Implementation Complete**
+
+## Key Features
+
+### 1. Configuration-Driven Rate Limits
+Added configurable rate limits and retry policies via environment variables:
+
+**Rate Limiting**:
+- `MAX_TURNS_PER_CHARACTER_PER_SECOND` (default: 2.0): Per-character turn rate limit
+- `MAX_CONCURRENT_LLM_CALLS` (default: 10): Global LLM concurrency limit
+
+**LLM Retry Configuration**:
+- `LLM_MAX_RETRIES` (default: 3): Maximum retry attempts for transient errors
+- `LLM_RETRY_DELAY_BASE` (default: 1.0s): Base delay for exponential backoff
+- `LLM_RETRY_DELAY_MAX` (default: 30.0s): Maximum delay cap
+
+**Journey-Log Retry Configuration**:
+- `JOURNEY_LOG_MAX_RETRIES` (default: 3): Maximum retry attempts for GET requests only
+- `JOURNEY_LOG_RETRY_DELAY_BASE` (default: 0.5s): Base delay for exponential backoff
+- `JOURNEY_LOG_RETRY_DELAY_MAX` (default: 10.0s): Maximum delay cap
+
+All defaults are conservative to prevent resource exhaustion. Tunable per environment.
+
+### 2. LLM Client Resilience (`app/services/llm_client.py`)
+
+**Retry Logic with Exponential Backoff**:
+- Retries transient errors: Timeouts, rate limits (429), server errors (5xx), connection errors
+- No retry for non-recoverable errors: Authentication (401), bad requests (400), permissions (403)
+- Exponential backoff: `base_delay × 2^(attempt-1)`, capped at `max_delay`
+- Logs each retry attempt with error type, delay, attempt number
+
+**Error Classification**:
+- `APITimeoutError` → Retryable
+- `RateLimitError` → Retryable
+- `InternalServerError` → Retryable
+- `APIConnectionError` → Retryable
+- `AuthenticationError` → Non-retryable (immediate failure)
+- `BadRequestError` → Non-retryable (immediate failure)
+- `PermissionDeniedError` → Non-retryable (immediate failure)
+
+**Metrics Integration**:
+- `llm_retry_*`: Retry attempts by error type
+- `llm_timeout_exhausted`: Requests that timed out after all retries
+- `llm_retry_success`: Successful retry (recovered from transient error)
+
+### 3. Journey-Log Client Resilience (`app/services/journey_log_client.py`)
+
+**Selective Retry Logic**:
+- **GET requests only**: Context fetching (`get_context`), random POI retrieval (`get_random_pois`)
+- **Never retried**: POST, PUT, DELETE (to prevent duplicates)
+- Same exponential backoff as LLM client
+- Distinguishes between retryable (5xx, 429, timeout) and non-retryable (404, 4xx) errors
+
+**Why No Retries for Mutations?**:
+- POST/PUT/DELETE are not idempotent
+- Retrying could create duplicate quests, POIs, or narrative entries
+- Failed mutations are logged and reported in `subsystem_summary`
+- The narrative always completes even if subsystem writes fail
+
+**Docstring Documentation**:
+- All mutating methods explicitly document "**IMPORTANT**: This method does NOT retry on failure"
+- Explains rationale for no-retry policy
+
+**Metrics Integration**:
+- `journey_log_retry_*`: Retry attempts
+- `journey_log_timeout_exhausted`: Requests that timed out after all retries
+- `journey_log_retry_success`: Successful retry
+
+### 4. Rate Limiting in API Routes (`app/api/routes.py`, `app/main.py`)
+
+**Per-Character Rate Limiting**:
+- Token bucket algorithm: Each character has independent rate limit
+- Returns HTTP 429 with `Retry-After` header when exceeded
+- Logs character_id and retry_after_seconds for debugging
+- Applies to both `/turn` and `/turn/stream` endpoints
+
+**Global LLM Concurrency Limiting**:
+- Semaphore-based concurrency control
+- Queues requests when limit reached (FIFO)
+- Wraps `orchestrate_turn` and `orchestrate_turn_stream` calls
+- Logs active_llm_calls count for observability
+
+**HTTP 429 Response Format**:
+```json
+{
+  "detail": {
+    "error": "rate_limit_exceeded",
+    "message": "Too many requests for this character. Please wait 0.5 seconds.",
+    "retry_after_seconds": 0.5,
+    "character_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+**Metrics Integration**:
+- `rate_limit_exceeded`: Per-character rate limit hits
+- `rate_limit_exceeded_stream`: Per-character rate limit hits on streaming endpoint
+
+### 5. Resilience Utilities (`app/resilience.py`)
+
+Created reusable utility module with:
+
+**RetryConfig**:
+- Configures max retries, base delay, max delay
+- Exponential backoff calculation: `base_delay × 2^(attempt-1)`
+- Selective retry based on exception type
+
+**RateLimiter**:
+- Token bucket algorithm for per-key rate limiting
+- Refills tokens at configured rate per second
+- Returns `retry_after` seconds for client backoff
+
+**Semaphore**:
+- Async context manager for concurrency control
+- Tracks active operation count
+- Thread-safe via asyncio.Semaphore
+
+## Architecture Decisions
+
+### 1. Conservative Defaults
+- Defaults intentionally conservative to prevent resource exhaustion
+- Production environments should tune based on traffic patterns
+- Monitor metrics to identify appropriate limits
+
+### 2. No Retry for Mutations
+- POST/PUT/DELETE never retried to prevent duplicates
+- Alternative: Could implement idempotency tokens (not done for simplicity)
+- Trade-off: Occasional failed writes vs guaranteed no duplicates
+
+### 3. Exponential Backoff
+- Prevents retry storms from overwhelming downstream services
+- Capped at max_delay to avoid excessively long waits
+- Standard industry practice for transient error handling
+
+### 4. Rate Limiting at API Layer
+- Enforced before context fetch to minimize wasted work
+- Character-specific limits prevent one hot character from blocking others
+- Global LLM limit prevents API rate limit exhaustion
+
+### 5. Metrics for Observability
+- All rate limits and retries emit metrics
+- Enables monitoring and alerting for operational issues
+- Structured logs include character_id for debugging
+
+## Edge Cases Handled
+
+### 1. Rate Limit Persistence
+- Rate limits reset predictably via token bucket refill
+- No shared state across workers (each worker has independent buckets)
+- Trade-off: Hot characters could bypass throttling by distributing across workers
+- Future: Could use Redis for shared state across workers
+
+### 2. Retry Idempotency
+- GET requests are idempotent (safe to retry)
+- POST/PUT/DELETE never retried (not idempotent)
+- Alternative: Could add idempotency tokens for POST/PUT (not implemented)
+
+### 3. Timeout Configuration
+- Separate timeouts for LLM and journey-log
+- Extremely low values don't deadlock (retries exhausted, error returned)
+- Can differ per environment via config
+
+### 4. Metrics and Logging
+- Rate limit logs include character_id for debugging
+- No sensitive content logged (narrative redacted by default)
+- Turn_id included in all logs for correlation
+
+## Testing
+
+### Unit Tests (`tests/test_resilience.py`)
+- ✅ RetryConfig exponential backoff calculation
+- ✅ RetryConfig delay capping at max_delay
+- ✅ RetryConfig selective exception filtering
+- ✅ RateLimiter token bucket algorithm
+- ✅ RateLimiter per-key isolation
+- ✅ RateLimiter retry_after calculation
+- ✅ Semaphore concurrency control
+- ✅ Semaphore active count tracking
+
+### Integration Tests (Future)
+- [ ] LLM retry behavior with mocked transient errors
+- [ ] Journey-log retry behavior for GET requests
+- [ ] Journey-log no-retry for POST/PUT/DELETE
+- [ ] Per-character rate limit enforcement
+- [ ] Global LLM concurrency limiting
+- [ ] HTTP 429 response format
+
+## Documentation
+
+### README.md
+- ✅ Added "Rate Limiting and Resilience" section
+- ✅ Documented configuration options
+- ✅ Explained retry logic (what's retried, what's not, why)
+- ✅ Provided tuning guidelines with examples
+- ✅ Listed metrics for observability
+
+### .env.example
+- ✅ Added rate limiting configuration
+- ✅ Added retry/backoff configuration
+- ✅ Documented safe defaults
+
+### Code Documentation
+- ✅ LLM client methods document retry behavior
+- ✅ Journey-log client methods explicitly document no-retry policy for mutations
+- ✅ Resilience utilities have comprehensive docstrings
+
+## Files Created/Modified
+
+### Created
+- `app/resilience.py`: Reusable retry, rate limiting, and semaphore utilities
+- `tests/test_resilience.py`: Unit tests for resilience utilities
+
+### Modified
+- `app/config.py`: Added rate limiting and retry configuration
+- `app/services/llm_client.py`: Added retry logic with exponential backoff
+- `app/services/journey_log_client.py`: Added retry logic for GET requests only
+- `app/api/routes.py`: Added rate limiting and LLM concurrency control
+- `app/main.py`: Initialize rate limiters and wire up dependencies
+- `.env.example`: Added rate limiting and retry configuration
+- `README.md`: Added rate limiting and resilience documentation
+- `IMPLEMENTATION_SUMMARY.md`: This file (added rate limiting summary)
+
+## Operational Guidance
+
+### Monitoring
+- Track `rate_limit_exceeded` metrics to identify throttled users
+- Monitor `*_retry_*` metrics to identify transient error patterns
+- Alert on `*_timeout_exhausted` to catch persistent failures
+
+### Tuning
+- Start with defaults and adjust based on observed behavior
+- Increase per-character rate if legitimate users are throttled
+- Increase LLM concurrency if turn latencies are high (and API tier allows)
+- Decrease LLM concurrency if hitting OpenAI rate limits
+- Increase retry counts if transient errors are frequent but recoverable
+
+### Troubleshooting
+- Check `/metrics` endpoint for rate limit and retry statistics
+- Review logs for `rate_limit_exceeded` events with character_id
+- Look for `retry_exhausted` logs to identify persistent failures
+- Verify configuration values match expected environment settings
+
+---
+
+# Narrative Streaming Architecture - Design Summary
+
 ## Key Deliverables
 
 ### 1. Streaming Architecture Document (STREAMING_ARCHITECTURE.md)
