@@ -205,8 +205,8 @@ class SSETransport(StreamTransport):
     Server-Sent Events transport implementation.
     
     SSE Format:
-        data: {"type":"token","content":"Hello"}\\n\\n
-        data: {"type":"complete","intents":{...}}\\n\\n
+        data: {"type":"token","content":"Hello"}\n\n
+        data: {"type":"complete","intents":{...}}\n\n
     
     Features:
     - HTTP-based (works through firewalls/proxies)
@@ -226,18 +226,18 @@ class SSETransport(StreamTransport):
         self._connected = True
     
     async def send_event(self, event: StreamEvent) -> None:
-        """Send event in SSE format: data: {json}\\n\\n"""
+        """Send event in SSE format: data: {json}\n\n"""
         if not self._connected:
             raise TransportError("Transport not connected")
         
         import json
         data = json.dumps({"type": event.type, **event.data})
-        await self.response_stream.write(f"data: {data}\\n\\n")
+        await self.response_stream.write(f"data: {data}\n\n")
     
     async def close(self) -> None:
         """Send SSE [DONE] marker and close stream."""
         if self._connected:
-            await self.response_stream.write("data: [DONE]\\n\\n")
+            await self.response_stream.write("data: [DONE]\n\n")
             self._connected = False
     
     def is_connected(self) -> bool:
