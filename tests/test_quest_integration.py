@@ -495,3 +495,231 @@ async def test_quest_put_other_error_handling(orchestrator, llm_client, journey_
     
     # Verify narrative still completed
     assert summary.narrative_persisted is True
+
+
+@pytest.mark.asyncio
+async def test_quest_lifecycle_across_multiple_turns():
+    """Test quest lifecycle from offer through completion across multiple turns.
+    
+    Validates:
+    - Quest offer persists to journey-log
+    - Quest remains active across subsequent turns
+    - Quest completion removes quest from journey-log
+    - State remains consistent throughout lifecycle
+    """
+    # Setup
+    policy_engine_always_trigger = PolicyEngine(
+        quest_trigger_prob=1.0,
+        quest_cooldown_turns=0,
+        poi_trigger_prob=0.0,
+        rng_seed=42
+    )
+    
+    llm_client = AsyncMock(spec=LLMClient)
+    journey_log_client = AsyncMock(spec=JourneyLogClient)
+    journey_log_client.persist_narrative = AsyncMock()
+    journey_log_client.put_quest = AsyncMock()
+    journey_log_client.delete_quest = AsyncMock()
+    
+    prompt_builder = PromptBuilder()
+    orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine_always_trigger,
+        llm_client=llm_client,
+        journey_log_client=journey_log_client,
+        prompt_builder=prompt_builder
+    )
+    
+    # Turn 1: Offer quest
+    context_no_quest = JourneyLogContext(
+        character_id="char-lifecycle",
+        status="Healthy",
+        location={"id": "town", "display_name": "Town"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        policy_state=PolicyState(
+            has_active_quest=False,
+            combat_active=False,
+            turns_since_last_quest=10,
+            turns_since_last_poi=10
+        )
+    )
+    
+    outcome_offer = DungeonMasterOutcome(
+        narrative="A quest giver approaches you.",
+        intents=IntentsBlock(
+            quest_intent=QuestIntent(
+                action="offer",
+                quest_title="Retrieve the Artifact",
+                quest_summary="Find the lost artifact in the ruins.",
+                quest_details={"difficulty": "medium"}
+            ),
+            combat_intent=CombatIntent(action="none"),
+            poi_intent=POIIntent(action="none")
+        )
+    )
+    llm_client.generate_narrative.return_value = ParsedOutcome(
+        outcome=outcome_offer,
+        narrative=outcome_offer.narrative,
+        is_valid=True
+    )
+    
+    narrative1, intents1, summary1 = await orchestrator.orchestrate_turn(
+        character_id="char-lifecycle",
+        user_action="I look for opportunities",
+        context=context_no_quest,
+        trace_id="trace-1"
+    )
+    
+    # Verify quest was offered
+    assert summary1.quest_change.action == "offered"
+    assert summary1.quest_change.success is True
+    assert journey_log_client.put_quest.called
+    
+    # Turn 2: Progress quest (quest active)
+    context_with_quest = JourneyLogContext(
+        character_id="char-lifecycle",
+        status="Healthy",
+        location={"id": "ruins", "display_name": "Ancient Ruins"},
+        active_quest={"name": "Retrieve the Artifact", "description": "Find the lost artifact"},
+        combat_state=None,
+        recent_history=[],
+        policy_state=PolicyState(
+            has_active_quest=True,
+            combat_active=False,
+            turns_since_last_quest=1,
+            turns_since_last_poi=10
+        )
+    )
+    
+    outcome_progress = DungeonMasterOutcome(
+        narrative="You search the ruins.",
+        intents=IntentsBlock(
+            quest_intent=QuestIntent(action="progress"),
+            combat_intent=CombatIntent(action="none"),
+            poi_intent=POIIntent(action="none")
+        )
+    )
+    llm_client.generate_narrative.return_value = ParsedOutcome(
+        outcome=outcome_progress,
+        narrative=outcome_progress.narrative,
+        is_valid=True
+    )
+    
+    narrative2, intents2, summary2 = await orchestrator.orchestrate_turn(
+        character_id="char-lifecycle",
+        user_action="I search the ruins",
+        context=context_with_quest,
+        trace_id="trace-2"
+    )
+    
+    # Verify quest progress (no new PUT/DELETE)
+    assert summary2.quest_change.action == "none"
+    
+    # Turn 3: Complete quest
+    outcome_complete = DungeonMasterOutcome(
+        narrative="You find the artifact and complete the quest!",
+        intents=IntentsBlock(
+            quest_intent=QuestIntent(action="complete"),
+            combat_intent=CombatIntent(action="none"),
+            poi_intent=POIIntent(action="none")
+        )
+    )
+    llm_client.generate_narrative.return_value = ParsedOutcome(
+        outcome=outcome_complete,
+        narrative=outcome_complete.narrative,
+        is_valid=True
+    )
+    
+    narrative3, intents3, summary3 = await orchestrator.orchestrate_turn(
+        character_id="char-lifecycle",
+        user_action="I retrieve the artifact",
+        context=context_with_quest,
+        trace_id="trace-3"
+    )
+    
+    # Verify quest was completed
+    assert summary3.quest_change.action == "completed"
+    assert summary3.quest_change.success is True
+    assert journey_log_client.delete_quest.called
+
+
+@pytest.mark.asyncio
+async def test_quest_offer_rejected_by_failed_policy_roll():
+    """Test quest offer is rejected when policy roll fails.
+    
+    Validates:
+    - Policy guardrails prevent quest offers when roll fails
+    - LLM intent is preserved but not executed
+    - Subsystem summary reflects the block
+    """
+    # Policy engine that will fail the roll
+    policy_engine_no_trigger = PolicyEngine(
+        quest_trigger_prob=0.0,  # Never trigger
+        quest_cooldown_turns=0,
+        poi_trigger_prob=0.0,
+        rng_seed=42
+    )
+    
+    llm_client = AsyncMock(spec=LLMClient)
+    journey_log_client = AsyncMock(spec=JourneyLogClient)
+    journey_log_client.persist_narrative = AsyncMock()
+    journey_log_client.put_quest = AsyncMock()
+    
+    prompt_builder = PromptBuilder()
+    orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine_no_trigger,
+        llm_client=llm_client,
+        journey_log_client=journey_log_client,
+        prompt_builder=prompt_builder
+    )
+    
+    context = JourneyLogContext(
+        character_id="char-rejected",
+        status="Healthy",
+        location={"id": "town", "display_name": "Town"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        policy_state=PolicyState(
+            has_active_quest=False,
+            combat_active=False,
+            turns_since_last_quest=10,
+            turns_since_last_poi=10
+        )
+    )
+    
+    # LLM suggests quest offer
+    outcome = DungeonMasterOutcome(
+        narrative="A quest giver approaches you.",
+        intents=IntentsBlock(
+            quest_intent=QuestIntent(
+                action="offer",
+                quest_title="Test Quest",
+                quest_summary="A test quest"
+            ),
+            combat_intent=CombatIntent(action="none"),
+            poi_intent=POIIntent(action="none")
+        )
+    )
+    llm_client.generate_narrative.return_value = ParsedOutcome(
+        outcome=outcome,
+        narrative=outcome.narrative,
+        is_valid=True
+    )
+    
+    narrative, intents, summary = await orchestrator.orchestrate_turn(
+        character_id="char-rejected",
+        user_action="I look around",
+        context=context,
+        trace_id="trace-reject"
+    )
+    
+    # Verify narrative completes
+    assert narrative is not None
+    
+    # Verify quest PUT was NOT called (blocked by policy)
+    assert not journey_log_client.put_quest.called
+    
+    # Verify summary shows quest was blocked
+    assert summary.quest_change.action == "none"

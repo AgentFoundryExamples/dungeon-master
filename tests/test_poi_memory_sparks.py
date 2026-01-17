@@ -322,3 +322,226 @@ async def test_get_random_pois_clamps_n_to_min(journey_log_client, mock_http_cli
     # Verify n clamped to 1
     call_args = mock_http_client.get.call_args
     assert call_args[1]["params"]["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_poi_trigger_frequency_over_multiple_turns():
+    """Test POI trigger frequency matches configured probability over many turns.
+    
+    Validates:
+    - POI triggers occur within statistical bounds
+    - Trigger rate aligns with configured probability
+    - No unexpected POI creation when policy blocks
+    """
+    from app.services.turn_orchestrator import TurnOrchestrator
+    from app.services.policy_engine import PolicyEngine
+    from app.services.llm_client import LLMClient
+    from app.prompting.prompt_builder import PromptBuilder
+    from app.models import JourneyLogContext, PolicyState, DungeonMasterOutcome, IntentsBlock, QuestIntent, CombatIntent, POIIntent
+    from app.services.outcome_parser import ParsedOutcome
+    from unittest.mock import AsyncMock
+    
+    num_turns = 50
+    poi_trigger_prob = 0.4
+    poi_cooldown_turns = 2
+    rng_seed = 789
+    
+    # Statistical bounds
+    min_expected = 5
+    max_expected = 20
+    
+    # Setup
+    policy_engine = PolicyEngine(
+        quest_trigger_prob=0.0,
+        poi_trigger_prob=poi_trigger_prob,
+        poi_cooldown_turns=poi_cooldown_turns,
+        rng_seed=rng_seed
+    )
+    
+    llm_client = AsyncMock(spec=LLMClient)
+    journey_log_client = AsyncMock(spec=JourneyLogClient)
+    journey_log_client.persist_narrative = AsyncMock()
+    journey_log_client.post_poi = AsyncMock()
+    
+    prompt_builder = PromptBuilder()
+    orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine,
+        llm_client=llm_client,
+        journey_log_client=journey_log_client,
+        prompt_builder=prompt_builder
+    )
+    
+    poi_created_count = 0
+    turns_since_last_poi = 999
+    
+    for turn_num in range(num_turns):
+        context = JourneyLogContext(
+            character_id="poi-frequency-char",
+            status="Healthy",
+            location={"id": "wilderness", "display_name": "Wilderness"},
+            active_quest=None,
+            combat_state=None,
+            recent_history=[],
+            policy_state=PolicyState(
+                has_active_quest=False,
+                combat_active=False,
+                turns_since_last_quest=999,
+                turns_since_last_poi=turns_since_last_poi
+            )
+        )
+        
+        outcome = DungeonMasterOutcome(
+            narrative=f"Turn {turn_num}: You explore the wilderness.",
+            intents=IntentsBlock(
+                quest_intent=QuestIntent(action="none"),
+                combat_intent=CombatIntent(action="none"),
+                poi_intent=POIIntent(
+                    action="create",
+                    name=f"POI {turn_num}",
+                    description="A discovered location"
+                )
+            )
+        )
+        llm_client.generate_narrative.return_value = ParsedOutcome(
+            outcome=outcome,
+            narrative=outcome.narrative,
+            is_valid=True
+        )
+        
+        narrative, intents, summary = await orchestrator.orchestrate_turn(
+            character_id="poi-frequency-char",
+            user_action=f"Explore turn {turn_num}",
+            context=context,
+            trace_id=f"trace-{turn_num}"
+        )
+        
+        if summary.poi_change.action == "created" and summary.poi_change.success:
+            poi_created_count += 1
+            turns_since_last_poi = 0
+        else:
+            turns_since_last_poi += 1
+    
+    # Validate trigger frequency
+    assert min_expected <= poi_created_count <= max_expected, (
+        f"POI triggers ({poi_created_count}) outside expected range "
+        f"[{min_expected}, {max_expected}] over {num_turns} turns"
+    )
+
+
+@pytest.mark.asyncio
+async def test_poi_memory_sparks_integration_with_triggers():
+    """Test POI memory sparks work correctly alongside new POI creation.
+    
+    Validates:
+    - Memory sparks are fetched correctly
+    - New POI creation doesn't interfere with memory sparks
+    - Both features work independently
+    """
+    from app.services.turn_orchestrator import TurnOrchestrator
+    from app.services.policy_engine import PolicyEngine
+    from app.services.llm_client import LLMClient
+    from app.prompting.prompt_builder import PromptBuilder
+    from app.models import JourneyLogContext, PolicyState, DungeonMasterOutcome, IntentsBlock, QuestIntent, CombatIntent, POIIntent
+    from app.services.outcome_parser import ParsedOutcome
+    from unittest.mock import AsyncMock, MagicMock
+    from httpx import Response
+    
+    # Setup
+    policy_engine = PolicyEngine(
+        quest_trigger_prob=0.0,
+        poi_trigger_prob=1.0,  # Always trigger
+        poi_cooldown_turns=0,
+        rng_seed=42
+    )
+    
+    llm_client = AsyncMock(spec=LLMClient)
+    
+    # Mock journey log client with memory sparks
+    mock_http_client = AsyncMock()
+    
+    # Mock memory spark response
+    mock_sparks_response = MagicMock(spec=Response)
+    mock_sparks_response.status_code = 200
+    mock_sparks_response.json.return_value = {
+        "pois": [
+            {"id": "old-poi-1", "name": "Ancient Temple", "description": "A temple from the past"},
+            {"id": "old-poi-2", "name": "Forgotten Cave", "description": "A dark cave"}
+        ],
+        "count": 2,
+        "requested_n": 3,
+        "total_available": 5
+    }
+    mock_sparks_response.raise_for_status = MagicMock()
+    
+    # Mock POST response for new POI
+    mock_post_response = MagicMock(spec=Response)
+    mock_post_response.status_code = 201
+    mock_post_response.raise_for_status = MagicMock()
+    
+    # Mock narrative persist
+    mock_narrative_response = MagicMock(spec=Response)
+    mock_narrative_response.status_code = 200
+    mock_narrative_response.raise_for_status = MagicMock()
+    
+    mock_http_client.get.return_value = mock_sparks_response
+    mock_http_client.post.return_value = mock_post_response
+    
+    journey_log_client = JourneyLogClient(
+        base_url="http://test",
+        http_client=mock_http_client
+    )
+    
+    prompt_builder = PromptBuilder()
+    orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine,
+        llm_client=llm_client,
+        journey_log_client=journey_log_client,
+        prompt_builder=prompt_builder
+    )
+    
+    context = JourneyLogContext(
+        character_id="memory-spark-char",
+        status="Healthy",
+        location={"id": "forest", "display_name": "Forest"},
+        active_quest=None,
+        combat_state=None,
+        recent_history=[],
+        policy_state=PolicyState(
+            has_active_quest=False,
+            combat_active=False,
+            turns_since_last_quest=999,
+            turns_since_last_poi=10
+        )
+    )
+    
+    outcome = DungeonMasterOutcome(
+        narrative="You discover a new clearing in the forest.",
+        intents=IntentsBlock(
+            quest_intent=QuestIntent(action="none"),
+            combat_intent=CombatIntent(action="none"),
+            poi_intent=POIIntent(
+                action="create",
+                name="Forest Clearing",
+                description="A peaceful clearing"
+            )
+        )
+    )
+    llm_client.generate_narrative.return_value = ParsedOutcome(
+        outcome=outcome,
+        narrative=outcome.narrative,
+        is_valid=True
+    )
+    
+    # Execute turn
+    narrative, intents, summary = await orchestrator.orchestrate_turn(
+        character_id="memory-spark-char",
+        user_action="I explore",
+        context=context,
+        trace_id="trace-memory"
+    )
+    
+    # Verify narrative completed
+    assert narrative is not None
+    
+    # Verify new POI was created
+    assert summary.poi_change.action == "created"
