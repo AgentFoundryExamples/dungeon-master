@@ -1448,6 +1448,71 @@ In stub mode:
 **Solution:** Check OpenAI API key and model availability. Try stub mode for testing.
 
 **Symptom:** High latency on turns
+**Solution:** Monitor /metrics endpoint for latency breakdown. Consider using streaming endpoint for better perceived performance.
+
+### Streaming Issues
+
+**Symptom:** No token events received on streaming endpoint
+**Solution:** 
+- Verify client supports Server-Sent Events (SSE)
+- Check `Accept: text/event-stream` header is set
+- Ensure no proxy/gateway is buffering SSE streams (set `X-Accel-Buffering: no`)
+- Check for CORS issues if calling from browser
+
+**Symptom:** Client disconnects during streaming but turn not completed
+**Solution:** Server continues processing after disconnect and persists narrative. The turn completes successfully server-side. Check journey-log for the persisted narrative.
+
+**Symptom:** Streaming endpoint returns error event with `llm_response_error`
+**Solution:** 
+- LLM returned invalid JSON that failed schema validation
+- No journey-log write occurs when validation fails (safe failure)
+- Check metrics at `/metrics` for `streaming.parse_failures` count
+- Review logs for `stream_phase=parse_complete` with `is_valid=False`
+
+**Symptom:** High client disconnect rate in metrics
+**Solution:**
+- Check client timeout settings (clients may disconnect before completion)
+- Monitor `/metrics` endpoint `streaming.client_disconnects` counter
+- Review logs for `stream_phase=client_disconnect` entries
+- Note: Server completes turn even after disconnect
+
+### Observability and Debugging
+
+**View Metrics:**
+```bash
+curl http://localhost:8080/metrics
+```
+
+Metrics include:
+- `streaming.total_streams`: Total streaming turns initiated
+- `streaming.completed_streams`: Successfully completed streaming turns
+- `streaming.client_disconnects`: Client disconnects during streaming
+- `streaming.parse_failures`: LLM parse failures after streaming
+- `streaming.tokens_per_stream`: Token count statistics
+- `streaming.stream_duration`: Stream duration statistics
+
+**Streaming Lifecycle Logs:**
+
+Logs track streaming phases with `stream_phase` field:
+- `start`: Stream started (character_id logged)
+- `token_streaming`: Tokens being streamed (token_count logged)
+- `parse_complete`: Narrative parsing finished (narrative_length, is_valid logged)
+- `writes_start`: Subsystem writes starting
+- `writes_complete`: Subsystem writes finished (quest/combat/POI/narrative flags logged)
+- `client_disconnect`: Client disconnected mid-stream (token_count, duration logged)
+- `complete`: Stream completed successfully (narrative_length, total_tokens, duration logged)
+- `error`: Stream failed (error_type, error_message, token_count, duration logged)
+
+**Enable Debug Logging:**
+```bash
+LOG_LEVEL=DEBUG python -m app.main
+```
+
+Debug logs include:
+- Individual token streaming progress
+- Subsystem write initiation
+- Context correlation with request_id and character_id
+- Timing information for each phase (duration_ms)
 **Solution:** Reduce JOURNEY_LOG_RECENT_N to fetch fewer narrative turns. Increase OPENAI_TIMEOUT.
 
 ## Current Status
