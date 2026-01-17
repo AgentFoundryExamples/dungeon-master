@@ -194,10 +194,11 @@ class TurnStorage:
             
             # Keep only recent turns per character (limit to MAX_TURNS_PER_CHARACTER)
             if len(self._character_turns[turn_detail.character_id]) > self.MAX_TURNS_PER_CHARACTER:
-                # Remove oldest turn references
-                removed_turn_ids = self._character_turns[turn_detail.character_id][:-self.MAX_TURNS_PER_CHARACTER]
+                # Calculate how many to remove and remove oldest turn references
+                num_to_remove = len(self._character_turns[turn_detail.character_id]) - self.MAX_TURNS_PER_CHARACTER
+                removed_turn_ids = self._character_turns[turn_detail.character_id][:num_to_remove]
                 self._character_turns[turn_detail.character_id] = \
-                    self._character_turns[turn_detail.character_id][-self.MAX_TURNS_PER_CHARACTER:]
+                    self._character_turns[turn_detail.character_id][num_to_remove:]
                 
                 logger.debug(
                     "Trimmed character turn history",
@@ -290,15 +291,24 @@ class TurnStorage:
     def _cleanup_expired(self, current_time: float) -> None:
         """Remove expired entries based on TTL.
         
+        Since OrderedDict maintains insertion order, we can iterate from oldest
+        to newest and stop when we find a non-expired entry.
+        
         Args:
             current_time: Current timestamp for comparison
         """
         expired_turn_ids = []
         
-        for turn_id, (turn_detail, stored_time) in self._turns.items():
+        # Iterate from oldest entries (since OrderedDict maintains insertion order)
+        # and stop when we find a non-expired one
+        for turn_id, (_, stored_time) in self._turns.items():
             if current_time - stored_time > self.ttl_seconds:
                 expired_turn_ids.append(turn_id)
+            else:
+                # Since turns are ordered by insertion time, we can stop here
+                break
         
+        # Remove expired entries (safe to do after iteration completes)
         for turn_id in expired_turn_ids:
             del self._turns[turn_id]
         
