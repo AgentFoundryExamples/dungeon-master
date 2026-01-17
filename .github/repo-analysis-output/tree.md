@@ -29,6 +29,10 @@
     ├── outcome_parser.py
     ├── policy_engine.py
     └── turn_orchestrator.py
+  ├── streaming
+    ├── __init__.py
+    ├── buffer.py
+    └── transport.py
   ├── __init__.py
   ├── config.py
   ├── logging.py
@@ -46,6 +50,7 @@
   ├── test_journey_log_client.py
   ├── test_llm_client.py
   ├── test_metrics.py
+  ├── test_narrative_buffer.py
   ├── test_outcome_models.py
   ├── test_outcome_parser.py
   ├── test_poi_memory_sparks.py
@@ -58,6 +63,8 @@
   ├── test_prompt_builder.py
   ├── test_quest_integration.py
   ├── test_quest_normalization.py
+  ├── test_stream_transport.py
+  ├── test_streaming_integration.py
   └── test_turn_integration.py
 ├── .env.example
 ├── .gitignore

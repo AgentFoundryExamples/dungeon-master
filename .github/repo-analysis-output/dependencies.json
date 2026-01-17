@@ -24,12 +24,15 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "asyncio",
+          "json",
           "re"
         ],
         "third-party": [
           "fastapi.APIRouter",
           "fastapi.Depends",
           "fastapi.HTTPException",
+          "fastapi.responses.StreamingResponse",
           "fastapi.status",
           "httpx.AsyncClient"
         ]
@@ -258,6 +261,49 @@
       }
     },
     {
+      "id": "app/streaming/__init__.py",
+      "path": "app/streaming/__init__.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/streaming/buffer.py",
+      "path": "app/streaming/buffer.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone",
+          "time",
+          "typing.List",
+          "typing.Optional"
+        ],
+        "third-party": []
+      }
+    },
+    {
+      "id": "app/streaming/transport.py",
+      "path": "app/streaming/transport.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "abc.ABC",
+          "abc.abstractmethod",
+          "dataclasses.dataclass",
+          "datetime.datetime",
+          "datetime.timezone",
+          "json",
+          "typing.Any",
+          "typing.Dict",
+          "typing.Optional"
+        ],
+        "third-party": []
+      }
+    },
+    {
       "id": "example_openai_usage.py",
       "path": "example_openai_usage.py",
       "type": "file",
@@ -411,6 +457,17 @@
         ],
         "third-party": [
           "fastapi.testclient.TestClient"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_narrative_buffer.py",
+      "path": "tests/test_narrative_buffer.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": [
+          "pytest"
         ]
       }
     },
@@ -571,6 +628,37 @@
       }
     },
     {
+      "id": "tests/test_stream_transport.py",
+      "path": "tests/test_stream_transport.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_streaming_integration.py",
+      "path": "tests/test_streaming_integration.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json",
+          "unittest.mock.AsyncMock",
+          "unittest.mock.MagicMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "httpx.Response",
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_turn_integration.py",
       "path": "tests/test_turn_integration.py",
       "type": "file",
@@ -633,6 +721,10 @@
     {
       "source": "app/api/routes.py",
       "target": "app/metrics.py"
+    },
+    {
+      "source": "app/api/routes.py",
+      "target": "app/streaming/__init__.py"
     },
     {
       "source": "app/main.py",
@@ -752,6 +844,18 @@
     },
     {
       "source": "app/services/turn_orchestrator.py",
+      "target": "app/logging.py"
+    },
+    {
+      "source": "app/streaming/__init__.py",
+      "target": "app/streaming/transport.py"
+    },
+    {
+      "source": "app/streaming/__init__.py",
+      "target": "app/streaming/buffer.py"
+    },
+    {
+      "source": "app/streaming/transport.py",
       "target": "app/logging.py"
     },
     {
@@ -943,6 +1047,10 @@
       "target": "app/main.py"
     },
     {
+      "source": "tests/test_narrative_buffer.py",
+      "target": "app/streaming/buffer.py"
+    },
+    {
       "source": "tests/test_outcome_models.py",
       "target": "app/models.py"
     },
@@ -1067,6 +1175,10 @@
       "target": "app/models.py"
     },
     {
+      "source": "tests/test_stream_transport.py",
+      "target": "app/streaming/transport.py"
+    },
+    {
       "source": "tests/test_turn_integration.py",
       "target": "app/services/llm_client.py"
     },
@@ -1081,6 +1193,8 @@
   ],
   "external_dependencies_summary": {
     "stdlib": [
+      "abc.ABC",
+      "abc.abstractmethod",
       "asyncio",
       "collections.defaultdict",
       "contextlib.asynccontextmanager",
@@ -1122,6 +1236,7 @@
       "fastapi.Request",
       "fastapi.Response",
       "fastapi.middleware.cors.CORSMiddleware",
+      "fastapi.responses.StreamingResponse",
       "fastapi.status",
       "fastapi.testclient.TestClient",
       "httpx.AsyncClient",
@@ -1142,7 +1257,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 32,
-    "third-party_count": 26
+    "stdlib_count": 34,
+    "third-party_count": 27
   }
 }

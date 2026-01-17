@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 41
+Total files: 47
 
 ## app/__init__.py
 **Language:** Python  
@@ -29,8 +29,8 @@ Total files: 41
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 24.49 KB  
-**LOC:** 562  
+**Size:** 36.86 KB  
+**LOC:** 792  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -155,8 +155,35 @@ Total files: 41
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for turn orchestrator  
-**Size:** 41.11 KB  
-**LOC:** 773  
+**Size:** 50.83 KB  
+**LOC:** 970  
+**TODOs/FIXMEs:** 0  
+
+## app/streaming/__init__.py
+**Language:** Python  
+**Role:** module-init  
+**Role Justification:** module initialization file '__init__'  
+**Summary:** Python module initialization (role: module-init)  
+**Size:** 0.95 KB  
+**LOC:** 16  
+**TODOs/FIXMEs:** 0  
+
+## app/streaming/buffer.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for buffer  
+**Size:** 4.53 KB  
+**LOC:** 86  
+**TODOs/FIXMEs:** 0  
+
+## app/streaming/transport.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for transport  
+**Size:** 5.30 KB  
+**LOC:** 117  
 **TODOs/FIXMEs:** 0  
 
 ## example_openai_usage.py
@@ -247,6 +274,15 @@ Total files: 41
 **Summary:** Python test file (role: test)  
 **Size:** 6.49 KB  
 **LOC:** 135  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_narrative_buffer.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 4.36 KB  
+**LOC:** 85  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_outcome_models.py
@@ -355,6 +391,24 @@ Total files: 41
 **Summary:** Python test file (role: test)  
 **Size:** 6.35 KB  
 **LOC:** 140  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_stream_transport.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 6.31 KB  
+**LOC:** 147  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_streaming_integration.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 10.93 KB  
+**LOC:** 215  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_turn_integration.py

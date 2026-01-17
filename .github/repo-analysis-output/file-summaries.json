@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 41,
+  "total_files": 47,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 25080,
-        "loc": 562,
+        "size_bytes": 37740,
+        "loc": 792,
         "todo_count": 0
       }
     },
@@ -235,8 +235,50 @@
       "summary": "Python module for turn orchestrator",
       "summary_text": "Python module for turn orchestrator",
       "metrics": {
-        "size_bytes": 42097,
-        "loc": 773,
+        "size_bytes": 52046,
+        "loc": 970,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/streaming/__init__.py",
+      "language": "Python",
+      "role": "module-init",
+      "role_justification": "module initialization file '__init__'",
+      "summary": "Python module initialization (role: module-init)",
+      "summary_text": "Python module initialization (role: module-init)",
+      "metrics": {
+        "size_bytes": 977,
+        "loc": 16,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/streaming/buffer.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for buffer",
+      "summary_text": "Python module for buffer",
+      "metrics": {
+        "size_bytes": 4635,
+        "loc": 86,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "app/streaming/transport.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for transport",
+      "summary_text": "Python module for transport",
+      "metrics": {
+        "size_bytes": 5432,
+        "loc": 117,
         "todo_count": 0
       }
     },
@@ -377,6 +419,20 @@
       "metrics": {
         "size_bytes": 6648,
         "loc": 135,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_narrative_buffer.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 4467,
+        "loc": 85,
         "todo_count": 0
       }
     },
@@ -545,6 +601,34 @@
       "metrics": {
         "size_bytes": 6500,
         "loc": 140,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_stream_transport.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 6464,
+        "loc": 147,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_streaming_integration.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 11197,
+        "loc": 215,
         "todo_count": 0
       }
     },
