@@ -411,7 +411,7 @@ async def test_generate_narrative_stream_stub_mode():
     
     tokens = []
     
-    def callback(token: str):
+    async def callback(token: str):
         tokens.append(token)
     
     result = await client.generate_narrative_stream(
@@ -439,7 +439,7 @@ async def test_generate_narrative_stream_success():
     
     tokens = []
     
-    def callback(token: str):
+    async def callback(token: str):
         tokens.append(token)
     
     # Mock streaming response
@@ -532,7 +532,7 @@ async def test_generate_narrative_stream_callback_exception():
     
     call_count = [0]
     
-    def faulty_callback(token: str):
+    async def faulty_callback(token: str):
         call_count[0] += 1
         if call_count[0] == 2:
             raise ValueError("Callback error")
@@ -803,41 +803,3 @@ async def test_generate_narrative_stream_with_trace_id():
         assert isinstance(result, ParsedOutcome)
         assert result.is_valid
         assert result.narrative == "Test with trace"
-
-
-@pytest.mark.asyncio
-async def test_generate_narrative_stream_handles_content_format():
-    """Test streaming handles different content formats (delta vs full)."""
-    client = LLMClient(
-        api_key="sk-test-key",
-        model="gpt-5.1",
-        stub_mode=False
-    )
-    
-    # Mock streaming response with 'content' field instead of 'content_delta'
-    async def mock_stream():
-        chunks = [
-            '{"narrative": "Test narrative", ',
-            '"intents": {"quest_intent": {"action": "none"}, ',
-            '"combat_intent": {"action": "none"}, ',
-            '"poi_intent": {"action": "none"}, ',
-            '"meta": null}}'
-        ]
-        
-        for chunk in chunks:
-            mock_chunk = MagicMock()
-            # Create a simple object with only 'content' attribute
-            mock_output_item = type('OutputItem', (), {'content': chunk})()
-            mock_chunk.output = [mock_output_item]
-            yield mock_chunk
-    
-    with patch.object(client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
-        mock_create.return_value = mock_stream()
-        
-        result = await client.generate_narrative_stream(
-            system_instructions="You are a game master",
-            user_prompt="The player searches the room"
-        )
-        
-        assert isinstance(result, ParsedOutcome)
-        assert result.is_valid

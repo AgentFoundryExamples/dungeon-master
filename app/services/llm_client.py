@@ -41,9 +41,11 @@ class StreamingCallback(Protocol):
     
     Callbacks should not raise exceptions. If they do, the exception will be
     logged and streaming will continue.
+    
+    Note: Callbacks are async to prevent event loop blocking during I/O operations.
     """
     
-    def __call__(self, token: str) -> None:
+    async def __call__(self, token: str) -> None:
         """Process a streaming token.
         
         Args:
@@ -391,12 +393,12 @@ class LLMClient:
             stub_outcome = self._generate_stub_outcome(user_prompt)
             if callback:
                 try:
-                    callback(stub_outcome.narrative)
+                    await callback(stub_outcome.narrative)
                 except Exception as e:
                     logger.warning(
                         "Callback raised exception during stub streaming",
                         error_type=type(e).__name__,
-                        error=str(e)
+                        error=redact_secrets(str(e))
                     )
             return stub_outcome
 
@@ -445,49 +447,48 @@ class LLMClient:
             # Phase 1: Stream tokens and buffer
             async for chunk in stream:
                 # Extract content from chunk
-                # The streaming format may vary; handle multiple possible formats
+                # Only process content_delta to avoid duplicating data in the buffer.
+                # The 'content' attribute typically contains the full message, not a delta,
+                # which would lead to duplicated data when streaming.
                 token = None
                 
                 if hasattr(chunk, 'output') and chunk.output:
                     output_item = chunk.output[0]
                     if hasattr(output_item, 'content_delta'):
-                        # Delta format
+                        # Delta format - incremental token
                         if isinstance(output_item.content_delta, str):
                             token = output_item.content_delta
                         elif hasattr(output_item.content_delta, 'text'):
                             token = output_item.content_delta.text
-                    elif hasattr(output_item, 'content'):
-                        # Full content format
-                        if isinstance(output_item.content, str):
-                            token = output_item.content
-                        elif isinstance(output_item.content, list):
-                            # Extract text from content array
-                            text_parts = []
-                            for content_item in output_item.content:
-                                if hasattr(content_item, 'text'):
-                                    text_parts.append(content_item.text)
-                                elif isinstance(content_item, dict) and 'text' in content_item:
-                                    text_parts.append(content_item['text'])
-                            token = ''.join(text_parts)
                 
                 if token:
                     # Buffer the token
                     buffer.append(token)
                     token_count += 1
                     
-                    # Emit to callback if provided
+                    # Emit to callback if provided (async to prevent event loop blocking)
                     if callback:
                         try:
-                            callback(token)
+                            await callback(token)
                         except Exception as e:
                             # Log callback errors but don't interrupt streaming
+                            # Redact sensitive information from error messages
                             logger.warning(
                                 "Callback raised exception during streaming",
                                 error_type=type(e).__name__,
-                                error=str(e),
+                                error=redact_secrets(str(e)),
                                 token_number=token_count,
                                 trace_id=trace_id
                             )
+                else:
+                    # Log when we receive a chunk but can't extract a token
+                    # This helps identify API format changes or unhandled structures
+                    if hasattr(chunk, 'output') and chunk.output:
+                        logger.debug(
+                            "Received chunk with no extractable token",
+                            chunk_has_output=True,
+                            trace_id=trace_id
+                        )
                     
                     # Log token batches periodically to track progress
                     if token_count % 50 == 0:
@@ -523,11 +524,9 @@ class LLMClient:
             parse_duration_ms = (time.time() - parse_start_time) * 1000
             total_duration_ms = (time.time() - start_time) * 1000
             
-            # Record schema conformance metrics
+            # Record schema conformance metrics (only record errors)
             if (collector := get_metrics_collector()):
-                if parsed.is_valid:
-                    collector.record_error("llm_stream_parse_success")
-                else:
+                if not parsed.is_valid:
                     collector.record_error(f"llm_stream_parse_failure_{parsed.error_type}")
             
             if parsed.is_valid:
