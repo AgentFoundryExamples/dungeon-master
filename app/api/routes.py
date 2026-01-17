@@ -727,11 +727,12 @@ async def process_turn_stream(
             if (collector := get_metrics_collector()):
                 collector.record_stream_client_disconnect()
             # Cancel orchestration task if still running
-            orchestration_task.cancel()
-            try:
-                await orchestration_task
-            except asyncio.CancelledError:
-                pass
+            if not orchestration_task.done():
+                orchestration_task.cancel()
+                try:
+                    await orchestration_task
+                except asyncio.CancelledError:
+                    pass  # Expected cancellation
             raise
         except Exception as e:
             logger.error(

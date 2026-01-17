@@ -243,15 +243,15 @@ def test_metrics_collector_streaming():
     assert streaming['client_disconnects'] == 1
     assert streaming['parse_failures'] == 1
     
-    # Verify token stats
+    # Verify token stats (dimensionless, no unit suffix)
     assert 'tokens_per_stream' in streaming
     token_stats = streaming['tokens_per_stream']
     assert token_stats['count'] == 2
-    assert token_stats['avg_ms'] == 62.5  # (50 + 75) / 2
-    assert token_stats['min_ms'] == 50.0
-    assert token_stats['max_ms'] == 75.0
+    assert token_stats['avg'] == 62.5  # (50 + 75) / 2
+    assert token_stats['min'] == 50.0
+    assert token_stats['max'] == 75.0
     
-    # Verify duration stats
+    # Verify duration stats (milliseconds, _ms suffix)
     assert 'stream_duration' in streaming
     duration_stats = streaming['stream_duration']
     assert duration_stats['count'] == 2

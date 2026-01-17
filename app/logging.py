@@ -287,7 +287,7 @@ class StreamLifecycleLogger:
             stream_phase="parse_complete",
             narrative_length=narrative_length,
             is_valid=is_valid,
-            duration_ms=f"{duration_ms:.2f}"
+            duration_ms=round(duration_ms, 2)
         )
     
     def log_writes_start(self) -> None:
@@ -323,7 +323,7 @@ class StreamLifecycleLogger:
             "Client disconnected during streaming",
             stream_phase="client_disconnect",
             token_count=self.token_count,
-            duration_ms=f"{duration_ms:.2f}"
+            duration_ms=round(duration_ms, 2)
         )
     
     def log_stream_complete(self, narrative_length: int, total_tokens: int) -> None:
@@ -339,7 +339,7 @@ class StreamLifecycleLogger:
             stream_phase="complete",
             narrative_length=narrative_length,
             total_tokens=total_tokens,
-            duration_ms=f"{duration_ms:.2f}"
+            duration_ms=round(duration_ms, 2)
         )
     
     def log_stream_error(self, error_type: str, error_message: str) -> None:
@@ -356,7 +356,7 @@ class StreamLifecycleLogger:
             error_type=error_type,
             error_message=sanitize_for_log(error_message),
             token_count=self.token_count,
-            duration_ms=f"{duration_ms:.2f}"
+            duration_ms=round(duration_ms, 2)
         )
 
 
@@ -373,7 +373,6 @@ def sanitize_for_log(text: str, max_length: int = 200) -> str:
     Returns:
         Sanitized text safe for logging
     """
-    import re
     # Remove control characters (newlines, carriage returns, etc.)
     sanitized = re.sub(r'[\r\n\t\x00-\x1f\x7f-\x9f]', '', str(text))
     # Truncate to max length
