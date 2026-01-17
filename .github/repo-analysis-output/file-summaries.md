@@ -29,8 +29,8 @@ Total files: 41
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 22.31 KB  
-**LOC:** 522  
+**Size:** 24.49 KB  
+**LOC:** 562  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -128,8 +128,8 @@ Total files: 41
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for llm client  
-**Size:** 12.08 KB  
-**LOC:** 244  
+**Size:** 13.57 KB  
+**LOC:** 265  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/outcome_parser.py
@@ -155,8 +155,8 @@ Total files: 41
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for turn orchestrator  
-**Size:** 39.02 KB  
-**LOC:** 739  
+**Size:** 41.11 KB  
+**LOC:** 773  
 **TODOs/FIXMEs:** 0  
 
 ## example_openai_usage.py

@@ -310,6 +310,10 @@
     },
     {
       "type": "file",
+      "name": "STREAMING_ARCHITECTURE.md"
+    },
+    {
+      "type": "file",
       "name": "verify_poi_features.py"
     }
   ]

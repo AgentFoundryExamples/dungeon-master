@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 22849,
-        "loc": 522,
+        "size_bytes": 25080,
+        "loc": 562,
         "todo_count": 0
       }
     },
@@ -193,8 +193,8 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 12374,
-        "loc": 244,
+        "size_bytes": 13900,
+        "loc": 265,
         "todo_count": 0
       }
     },
@@ -235,8 +235,8 @@
       "summary": "Python module for turn orchestrator",
       "summary_text": "Python module for turn orchestrator",
       "metrics": {
-        "size_bytes": 39956,
-        "loc": 739,
+        "size_bytes": 42097,
+        "loc": 773,
         "todo_count": 0
       }
     },
