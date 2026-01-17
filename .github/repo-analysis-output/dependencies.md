@@ -8,16 +8,16 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 47
-- **Intra-repo dependencies**: 133
-- **External stdlib dependencies**: 34
+- **Total files**: 49
+- **Intra-repo dependencies**: 137
+- **External stdlib dependencies**: 39
 - **External third-party dependencies**: 27
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 34 unique modules
+Total: 39 unique modules
 
 - `abc.ABC`
 - `abc.abstractmethod`
@@ -31,15 +31,15 @@ Total: 34 unique modules
 - `datetime.timezone`
 - `enum.Enum`
 - `functools.lru_cache`
+- `functools.wraps`
 - `hashlib`
 - `json`
 - `logging`
+- `math`
 - `os`
 - `random`
 - `re`
-- `threading.Lock`
-- `time`
-- ... and 14 more (see JSON for full list)
+- ... and 19 more (see JSON for full list)
 
 ### Third-Party Packages
 
@@ -73,8 +73,8 @@ Total: 27 unique packages
 - `app/services/journey_log_client.py` (13 dependents)
 - `app/services/llm_client.py` (13 dependents)
 - `app/services/outcome_parser.py` (12 dependents)
+- `app/logging.py` (11 dependents)
 - `app/services/policy_engine.py` (11 dependents)
-- `app/logging.py` (10 dependents)
 - `app/metrics.py` (10 dependents)
 - `app/prompting/prompt_builder.py` (9 dependents)
 - `app/config.py` (8 dependents)
@@ -82,10 +82,10 @@ Total: 27 unique packages
 
 ## Files with Most Dependencies (Intra-Repo)
 
-- `app/main.py` (10 dependencies)
+- `app/main.py` (11 dependencies)
+- `app/api/routes.py` (10 dependencies)
 - `tests/test_acceptance_criteria.py` (10 dependencies)
 - `tests/test_api.py` (10 dependencies)
-- `app/api/routes.py` (9 dependencies)
 - `app/services/turn_orchestrator.py` (8 dependencies)
 - `tests/conftest.py` (8 dependencies)
 - `tests/test_policy_integration.py` (8 dependencies)

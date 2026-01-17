@@ -26,6 +26,7 @@
         "stdlib": [
           "asyncio",
           "json",
+          "math",
           "re",
           "time",
           "uuid"
@@ -171,6 +172,24 @@
       }
     },
     {
+      "id": "app/resilience.py",
+      "path": "app/resilience.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "asyncio",
+          "functools.wraps",
+          "time",
+          "typing.Callable",
+          "typing.Optional",
+          "typing.ParamSpec",
+          "typing.Type",
+          "typing.TypeVar"
+        ],
+        "third-party": []
+      }
+    },
+    {
       "id": "app/services/__init__.py",
       "path": "app/services/__init__.py",
       "type": "file",
@@ -185,6 +204,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "asyncio",
           "datetime.datetime",
           "time",
           "typing.Any",
@@ -203,6 +223,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "asyncio",
           "time",
           "typing.AsyncIterator",
           "typing.Callable",
@@ -632,6 +653,19 @@
       }
     },
     {
+      "id": "tests/test_resilience.py",
+      "path": "tests/test_resilience.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "asyncio"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_stream_transport.py",
       "path": "tests/test_stream_transport.py",
       "type": "file",
@@ -731,6 +765,10 @@
       "target": "app/streaming/__init__.py"
     },
     {
+      "source": "app/api/routes.py",
+      "target": "app/resilience.py"
+    },
+    {
       "source": "app/main.py",
       "target": "app/api/routes.py"
     },
@@ -771,6 +809,10 @@
       "target": "app/prompting/prompt_builder.py"
     },
     {
+      "source": "app/main.py",
+      "target": "app/resilience.py"
+    },
+    {
       "source": "app/middleware.py",
       "target": "app/logging.py"
     },
@@ -781,6 +823,10 @@
     {
       "source": "app/prompting/prompt_builder.py",
       "target": "app/models.py"
+    },
+    {
+      "source": "app/resilience.py",
+      "target": "app/logging.py"
     },
     {
       "source": "app/services/journey_log_client.py",
@@ -1199,6 +1245,10 @@
       "target": "app/models.py"
     },
     {
+      "source": "tests/test_resilience.py",
+      "target": "app/resilience.py"
+    },
+    {
       "source": "tests/test_stream_transport.py",
       "target": "app/streaming/transport.py"
     },
@@ -1241,9 +1291,11 @@
       "datetime.timezone",
       "enum.Enum",
       "functools.lru_cache",
+      "functools.wraps",
       "hashlib",
       "json",
       "logging",
+      "math",
       "os",
       "random",
       "re",
@@ -1256,8 +1308,11 @@
       "typing.List",
       "typing.Literal",
       "typing.Optional",
+      "typing.ParamSpec",
       "typing.Protocol",
       "typing.Tuple",
+      "typing.Type",
+      "typing.TypeVar",
       "unittest.mock.AsyncMock",
       "unittest.mock.MagicMock",
       "unittest.mock.patch",
@@ -1293,7 +1348,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 34,
+    "stdlib_count": 39,
     "third-party_count": 27
   }
 }

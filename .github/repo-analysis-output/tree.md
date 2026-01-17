@@ -39,7 +39,8 @@
   ├── main.py
   ├── metrics.py
   ├── middleware.py
-  └── models.py
+  ├── models.py
+  └── resilience.py
 ├── tests
   ├── __init__.py
   ├── conftest.py
@@ -63,6 +64,7 @@
   ├── test_prompt_builder.py
   ├── test_quest_integration.py
   ├── test_quest_normalization.py
+  ├── test_resilience.py
   ├── test_stream_transport.py
   ├── test_streaming_integration.py
   └── test_turn_integration.py

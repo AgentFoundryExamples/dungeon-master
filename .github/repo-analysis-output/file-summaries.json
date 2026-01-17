@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 47,
+  "total_files": 49,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 45204,
-        "loc": 930,
+        "size_bytes": 51178,
+        "loc": 1049,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 7035,
-        "loc": 170,
+        "size_bytes": 8783,
+        "loc": 218,
         "todo_count": 0
       }
     },
@@ -81,8 +81,8 @@
       "summary": "Python main entry point (role: entry-point)",
       "summary_text": "Python main entry point (role: entry-point)",
       "metrics": {
-        "size_bytes": 9865,
-        "loc": 206,
+        "size_bytes": 12125,
+        "loc": 259,
         "todo_count": 0
       }
     },
@@ -158,6 +158,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "app/resilience.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for resilience",
+      "summary_text": "Python module for resilience",
+      "metrics": {
+        "size_bytes": 9597,
+        "loc": 188,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "app/services/__init__.py",
       "language": "Python",
       "role": "module-init",
@@ -179,8 +193,8 @@
       "summary": "Python module for journey log client",
       "summary_text": "Python module for journey log client",
       "metrics": {
-        "size_bytes": 39084,
-        "loc": 850,
+        "size_bytes": 51876,
+        "loc": 1065,
         "todo_count": 0
       }
     },
@@ -193,8 +207,8 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 27661,
-        "loc": 507,
+        "size_bytes": 33127,
+        "loc": 599,
         "todo_count": 0
       }
     },
@@ -601,6 +615,20 @@
       "metrics": {
         "size_bytes": 6500,
         "loc": 140,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_resilience.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 7481,
+        "loc": 111,
         "todo_count": 0
       }
     },

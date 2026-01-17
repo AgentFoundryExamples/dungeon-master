@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 47
+Total files: 49
 
 ## app/__init__.py
 **Language:** Python  
@@ -29,8 +29,8 @@ Total files: 47
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 44.14 KB  
-**LOC:** 930  
+**Size:** 49.98 KB  
+**LOC:** 1049  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -38,8 +38,8 @@ Total files: 47
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 6.87 KB  
-**LOC:** 170  
+**Size:** 8.58 KB  
+**LOC:** 218  
 **TODOs/FIXMEs:** 0  
 
 ## app/logging.py
@@ -56,8 +56,8 @@ Total files: 47
 **Role:** entry-point  
 **Role Justification:** common entry point name 'main'  
 **Summary:** Python main entry point (role: entry-point)  
-**Size:** 9.63 KB  
-**LOC:** 206  
+**Size:** 11.84 KB  
+**LOC:** 259  
 **TODOs/FIXMEs:** 0  
 
 ## app/metrics.py
@@ -105,6 +105,15 @@ Total files: 47
 **LOC:** 260  
 **TODOs/FIXMEs:** 0  
 
+## app/resilience.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for resilience  
+**Size:** 9.37 KB  
+**LOC:** 188  
+**TODOs/FIXMEs:** 0  
+
 ## app/services/__init__.py
 **Language:** Python  
 **Role:** module-init  
@@ -119,8 +128,8 @@ Total files: 47
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for journey log client  
-**Size:** 38.17 KB  
-**LOC:** 850  
+**Size:** 50.66 KB  
+**LOC:** 1065  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/llm_client.py
@@ -128,8 +137,8 @@ Total files: 47
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for llm client  
-**Size:** 27.01 KB  
-**LOC:** 507  
+**Size:** 32.35 KB  
+**LOC:** 599  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/outcome_parser.py
@@ -391,6 +400,15 @@ Total files: 47
 **Summary:** Python test file (role: test)  
 **Size:** 6.35 KB  
 **LOC:** 140  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_resilience.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 7.31 KB  
+**LOC:** 111  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_stream_transport.py

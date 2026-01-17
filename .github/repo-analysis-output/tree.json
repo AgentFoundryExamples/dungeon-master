@@ -177,6 +177,10 @@
         {
           "type": "file",
           "name": "models.py"
+        },
+        {
+          "type": "file",
+          "name": "resilience.py"
         }
       ]
     },
@@ -271,6 +275,10 @@
         {
           "type": "file",
           "name": "test_quest_normalization.py"
+        },
+        {
+          "type": "file",
+          "name": "test_resilience.py"
         },
         {
           "type": "file",
