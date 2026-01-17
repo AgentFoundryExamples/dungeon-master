@@ -277,7 +277,8 @@ class LLMClient:
             duration_ms = (time.time() - start_time) * 1000
             
             # Record metrics
-            if (collector := get_metrics_collector()):
+            collector = get_metrics_collector()
+            if collector:
                 collector.record_latency("llm_call", duration_ms)
             
             if parsed.is_valid:
@@ -546,7 +547,8 @@ class LLMClient:
                     collector.record_error(f"llm_stream_parse_failure_{parsed.error_type}")
             
             # Record metrics
-            if (collector := get_metrics_collector()):
+            collector = get_metrics_collector()
+            if collector:
                 collector.record_latency("llm_call", total_duration_ms)
             
             if parsed.is_valid:
