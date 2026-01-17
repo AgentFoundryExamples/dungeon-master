@@ -784,13 +784,12 @@ async def test_multi_turn_quest_trigger_frequency():
     quest_cooldown_turns = 5
     rng_seed = 42
     
-    # Statistical bounds: With cooldown, effective trigger rate is reduced.
-    # For p=0.3 and cooldown=5, on average a trigger occurs every ~20 turns
-    # (1/(p * (1 + cooldown/2))), giving ~5 triggers over 100 turns.
-    # Using 3-sigma bounds for 99.7% confidence: 3-15 triggers
-    # Note: This is an approximation; actual distribution depends on cooldown implementation
-    min_expected_triggers = 3
-    max_expected_triggers = 15
+    # Statistical bounds: With p=0.3 and cooldown=5, the average cycle length is
+    # cooldown + 1/p ≈ 5 + 3.33 = 8.33 turns. Over 100 turns, we expect about 12 triggers.
+    # Using a 3-sigma interval on a binomial distribution for eligible turns
+    # gives a robust range for validation.
+    min_expected_triggers = 5
+    max_expected_triggers = 21
     
     # Create policy engine with deterministic seed
     policy_engine = PolicyEngine(
@@ -1145,15 +1144,22 @@ async def test_multi_turn_state_consistency_with_failures():
     journey_log_client.persist_narrative = AsyncMock()
     
     # Configure quest/POI writes to fail intermittently
-    call_count = [0]
+    # Track call counts to verify failure pattern is actually triggered
+    quest_call_count = [0]
+    poi_call_count = [0]
     
-    def intermittent_failure(*args, **kwargs):
-        call_count[0] += 1
-        if call_count[0] % 3 == 0:  # Fail every 3rd call
-            raise JourneyLogClientError("Simulated failure", status_code=500)
+    def quest_failure(*args, **kwargs):
+        quest_call_count[0] += 1
+        if quest_call_count[0] % FAILURE_INTERVAL == 0:  # Fail every 3rd call
+            raise JourneyLogClientError("Simulated quest write failure", status_code=500)
     
-    journey_log_client.put_quest = AsyncMock(side_effect=intermittent_failure)
-    journey_log_client.post_poi = AsyncMock(side_effect=intermittent_failure)
+    def poi_failure(*args, **kwargs):
+        poi_call_count[0] += 1
+        if poi_call_count[0] % FAILURE_INTERVAL == 0:  # Fail every 3rd call
+            raise JourneyLogClientError("Simulated POI write failure", status_code=500)
+    
+    journey_log_client.put_quest = AsyncMock(side_effect=quest_failure)
+    journey_log_client.post_poi = AsyncMock(side_effect=poi_failure)
     
     prompt_builder = PromptBuilder()
     orchestrator = TurnOrchestrator(
@@ -1223,8 +1229,14 @@ async def test_multi_turn_state_consistency_with_failures():
     # Verify all narratives completed
     assert successful_narratives == num_turns
     
-    # Verify some failures occurred (due to intermittent failures simulated by FAILURE_INTERVAL)
-    assert quest_failures > 0 or poi_failures > 0, "Expected some failures to occur"
+    # Verify failures occurred - at least one of quest or POI should have failures
+    # since we're triggering both with high probability over 10 turns
+    total_calls = quest_call_count[0] + poi_call_count[0]
+    assert total_calls > 0, "Expected at least some quest or POI calls to occur"
+    assert quest_failures > 0 or poi_failures > 0, (
+        f"Expected some failures to occur. Quest calls: {quest_call_count[0]}, "
+        f"POI calls: {poi_call_count[0]}, Quest failures: {quest_failures}, POI failures: {poi_failures}"
+    )
 
 
 @pytest.mark.asyncio

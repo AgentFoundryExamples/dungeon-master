@@ -407,8 +407,10 @@ async def test_policy_rate_limit_behavior():
     )
     assert response2.narrative is not None
     
-    # Third immediate request would hit rate limit (but we can't easily test that
-    # without the full API infrastructure, so this test validates the happy path)
+    # This test has been simplified to validate the happy path only.
+    # A local RateLimiter was created but not used by the `process_turn` function,
+    # and proper integration testing of rate limiting requires the full API infrastructure
+    # where the RateLimiter dependency can be controlled and HTTP 429 responses can be asserted.
 
 
 @pytest.mark.asyncio

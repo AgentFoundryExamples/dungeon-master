@@ -368,7 +368,9 @@ async def test_poi_trigger_frequency_over_multiple_turns():
         policy_engine=policy_engine,
         llm_client=llm_client,
         journey_log_client=journey_log_client,
-        prompt_builder=prompt_builder
+        prompt_builder=prompt_builder,
+        poi_memory_spark_enabled=True,
+        poi_memory_spark_count=3
     )
     
     poi_created_count = 0
@@ -496,7 +498,9 @@ async def test_poi_memory_sparks_integration_with_triggers():
         policy_engine=policy_engine,
         llm_client=llm_client,
         journey_log_client=journey_log_client,
-        prompt_builder=prompt_builder
+        prompt_builder=prompt_builder,
+        poi_memory_spark_enabled=True,
+        poi_memory_spark_count=3
     )
     
     context = JourneyLogContext(
