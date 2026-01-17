@@ -388,10 +388,26 @@ async def process_turn(
                 "narrative": "persisted" if subsystem_summary.narrative_persisted else "failed"
             },
             policy_decisions={
-                "quest_eligible": context.policy_hints.quest_trigger_decision.eligible if context.policy_hints else False,
-                "quest_triggered": context.policy_hints.quest_trigger_decision.roll_passed if context.policy_hints else False,
-                "poi_eligible": context.policy_hints.poi_trigger_decision.eligible if context.policy_hints else False,
-                "poi_triggered": context.policy_hints.poi_trigger_decision.roll_passed if context.policy_hints else False
+                "quest_eligible": (
+                    context.policy_hints.quest_trigger_decision.eligible 
+                    if context.policy_hints and context.policy_hints.quest_trigger_decision 
+                    else False
+                ),
+                "quest_triggered": (
+                    context.policy_hints.quest_trigger_decision.roll_passed 
+                    if context.policy_hints and context.policy_hints.quest_trigger_decision 
+                    else False
+                ),
+                "poi_eligible": (
+                    context.policy_hints.poi_trigger_decision.eligible 
+                    if context.policy_hints and context.policy_hints.poi_trigger_decision 
+                    else False
+                ),
+                "poi_triggered": (
+                    context.policy_hints.poi_trigger_decision.roll_passed 
+                    if context.policy_hints and context.policy_hints.poi_trigger_decision 
+                    else False
+                )
             },
             intent_summary=turn_logger.create_intent_summary(intents),
             latencies=latencies,

@@ -23,6 +23,7 @@ This module provides:
 import logging
 import re
 import time
+import random
 from contextvars import ContextVar
 from typing import Optional, Dict, Any
 import json
@@ -541,7 +542,6 @@ class TurnLogger:
             return True
         if self.sampling_rate <= 0.0:
             return False
-        import random
         return random.random() < self.sampling_rate
     
     def log_turn(

@@ -246,9 +246,10 @@ Note: Error logs are always emitted regardless of sampling rate.
 
 - **Log Exclusion:** Exclude verbose debug logs in production
   ```bash
-  gcloud logging exclusions create debug-logs \
-    --log-filter='severity=DEBUG AND resource.type="cloud_run_revision"' \
-    --description="Exclude debug logs to reduce costs"
+  # Exclude high-volume debug logs (keep important error/warning debug logs)
+  gcloud logging exclusions create verbose-debug-logs \
+    --log-filter='severity=DEBUG AND resource.type="cloud_run_revision" AND NOT (jsonPayload.error_type OR jsonPayload.log_type="turn")' \
+    --description="Exclude verbose debug logs while keeping error/turn debug logs"
   ```
 
 - **Log Retention:** Set retention periods per log type
