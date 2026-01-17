@@ -67,6 +67,7 @@ class MetricsCollector:
     - HTTP request counts by status code
     - Operation latencies (turn processing, LLM calls, journey-log calls)
     - Error counts by type
+    - Streaming metrics (token counts, stream durations, client disconnects)
     """
     
     def __init__(self):
@@ -76,6 +77,16 @@ class MetricsCollector:
         self._error_counts: Dict[str, int] = defaultdict(int)
         self._latencies: Dict[str, LatencyStats] = defaultdict(LatencyStats)
         self._start_time = time.time()
+        
+        # Streaming-specific metrics
+        self._stream_counts = {
+            "total": 0,
+            "completed": 0,
+            "client_disconnects": 0,
+            "parse_failures": 0
+        }
+        self._stream_token_stats = LatencyStats()  # Track tokens per stream
+        self._stream_duration_stats = LatencyStats()  # Track stream duration
     
     def record_request(self, status_code: int) -> None:
         """Record an HTTP request.
@@ -104,6 +115,33 @@ class MetricsCollector:
         """
         with self._lock:
             self._latencies[operation].record(duration_ms)
+    
+    def record_stream_start(self) -> None:
+        """Record the start of a streaming turn."""
+        with self._lock:
+            self._stream_counts["total"] += 1
+    
+    def record_stream_complete(self, token_count: int, duration_ms: float) -> None:
+        """Record successful completion of a streaming turn.
+        
+        Args:
+            token_count: Number of tokens streamed
+            duration_ms: Total stream duration in milliseconds
+        """
+        with self._lock:
+            self._stream_counts["completed"] += 1
+            self._stream_token_stats.record(float(token_count))
+            self._stream_duration_stats.record(duration_ms)
+    
+    def record_stream_client_disconnect(self) -> None:
+        """Record a client disconnect during streaming."""
+        with self._lock:
+            self._stream_counts["client_disconnects"] += 1
+    
+    def record_stream_parse_failure(self) -> None:
+        """Record a parse failure after streaming."""
+        with self._lock:
+            self._stream_counts["parse_failures"] += 1
     
     def get_metrics(self) -> Dict:
         """Get all collected metrics.
@@ -152,6 +190,14 @@ class MetricsCollector:
                     "successful_parses": llm_parse_success,
                     "failed_parses": llm_parse_failures,
                     "conformance_rate": round(conformance_rate, 4)
+                },
+                "streaming": {
+                    "total_streams": self._stream_counts["total"],
+                    "completed_streams": self._stream_counts["completed"],
+                    "client_disconnects": self._stream_counts["client_disconnects"],
+                    "parse_failures": self._stream_counts["parse_failures"],
+                    "tokens_per_stream": self._stream_token_stats.to_dict() if self._stream_token_stats.count > 0 else {},
+                    "stream_duration": self._stream_duration_stats.to_dict() if self._stream_duration_stats.count > 0 else {}
                 }
             }
     
@@ -161,6 +207,14 @@ class MetricsCollector:
             self._request_counts.clear()
             self._error_counts.clear()
             self._latencies.clear()
+            self._stream_counts = {
+                "total": 0,
+                "completed": 0,
+                "client_disconnects": 0,
+                "parse_failures": 0
+            }
+            self._stream_token_stats = LatencyStats()
+            self._stream_duration_stats = LatencyStats()
             self._start_time = time.time()
 
 
