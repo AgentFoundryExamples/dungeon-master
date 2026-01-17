@@ -89,6 +89,47 @@ class TurnOrchestrator:
     
     The orchestrator does NOT make GET calls for missing state - it relies
     on the context provided in the request.
+    
+    STREAMING INTEGRATION NOTES:
+    --------------------------
+    The orchestrator's deterministic sequencing is preserved in streaming mode:
+    
+    PHASE 1 (Token Streaming - NEW):
+    - Policy decisions (same as synchronous)
+    - LLM token streaming via generate_narrative_stream() (new async generator)
+    - Tokens buffered internally for replay (new NarrativeBuffer)
+    - Client receives tokens in real-time via StreamTransport (SSE/WebSocket)
+    
+    PHASE 2 (Validation & Writes - SAME AS SYNCHRONOUS):
+    - Assemble complete narrative from buffer
+    - Parse against DungeonMasterOutcome schema (same parsing logic)
+    - Normalize intents (same quest/POI fallback logic)
+    - Derive subsystem actions (same policy gating and validation)
+    - Execute writes in deterministic order: quest → combat → POI → narrative (same)
+    
+    Key invariants maintained:
+    1. Subsystem writes NEVER occur during streaming (Phase 1)
+    2. Write order (quest → combat → POI → narrative) preserved in Phase 2
+    3. DungeonMasterOutcome schema is authoritative (validated in Phase 2)
+    4. Policy gating and context validation unchanged
+    5. Failure handling unchanged (continue narrative, no retry for DELETE)
+    
+    When implementing streaming:
+    - orchestrate_turn() logic unchanged for /turn endpoint (backward compatibility)
+    - New orchestrate_turn_stream() for /turn/stream endpoint
+    - Same _derive_subsystem_actions() and write execution methods used in both modes
+    - Same failure handling and TurnSubsystemSummary generation
+    - NarrativeBuffer replaces direct narrative string for replay to journey-log
+    
+    Streaming flow:
+    1. Create NarrativeBuffer and StreamTransport
+    2. Call LLMClient.generate_narrative_stream() (async generator)
+    3. For each token: buffer.append(token) + transport.send_event(token_event)
+    4. Finalize buffer, get complete narrative
+    5. Continue with existing validation and write logic (Phase 2)
+    6. Send complete event with intents and subsystem_summary
+    
+    See STREAMING_ARCHITECTURE.md for detailed two-phase design and event contracts.
     """
     
     def __init__(

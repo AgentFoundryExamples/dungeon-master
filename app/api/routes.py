@@ -14,10 +14,56 @@
 """API route handlers for Dungeon Master service.
 
 This module defines the HTTP endpoints for the Dungeon Master service:
-- POST /turn: Process a player turn and generate narrative response
+- POST /turn: Process a player turn and generate narrative response (synchronous)
+- POST /turn/stream: Process a turn with streaming narrative delivery (PLANNED - see below)
 - GET /health: Service health check with optional journey-log ping
+- GET /metrics: Service metrics (optional, requires ENABLE_METRICS=true)
+- POST /debug/parse_llm: Debug endpoint for LLM parsing (optional, requires ENABLE_DEBUG_ENDPOINTS=true)
 
-All handlers are stubbed for now and will be implemented in a future issue.
+STREAMING ENDPOINT INTEGRATION NOTES (PLANNED):
+---------------------------------------------
+A future streaming endpoint (POST /turn/stream) will be added to support progressive
+narrative delivery via Server-Sent Events (SSE) or WebSocket.
+
+Planned endpoint signature:
+    @router.post("/turn/stream")
+    async def process_turn_stream(
+        request: TurnRequest,
+        transport_type: TransportType = TransportType.SSE
+    ) -> StreamingResponse | WebSocketConnection
+
+Streaming flow:
+1. Accept same TurnRequest as /turn endpoint (backward compatible request model)
+2. Fetch context from journey-log (same as /turn)
+3. Evaluate policy decisions (same as /turn)
+4. Stream narrative tokens to client in real-time via StreamTransport
+   - Send "token" events as LLM generates text
+   - Buffer tokens internally for validation and journey-log persistence
+5. After streaming complete, validate DungeonMasterOutcome schema
+6. Execute subsystem writes in deterministic order (quest → combat → POI → narrative)
+7. Send "complete" event with intents and subsystem_summary
+8. Close transport connection
+
+Key differences from /turn:
+- Progressive narrative delivery (tokens streamed in real-time)
+- Event-based protocol (token, metadata, complete, error events)
+- Long-lived connection (SSE/WebSocket vs single HTTP response)
+- Same validation and write logic (deferred to Phase 2 after streaming)
+
+Backward compatibility:
+- Existing /turn endpoint remains unchanged
+- Legacy clients unaffected
+- Same TurnRequest model used
+- Same DungeonMasterOutcome schema enforced
+
+When implementing:
+- Use StreamTransport abstraction (SSETransport or WebSocketTransport)
+- Use NarrativeBuffer to accumulate tokens for replay to journey-log
+- Use StreamingLLMClient.generate_narrative_stream() for token streaming
+- Reuse existing TurnOrchestrator subsystem write logic (Phase 2)
+- Follow event contracts defined in STREAMING_ARCHITECTURE.md
+
+See STREAMING_ARCHITECTURE.md for complete design, event contracts, and failure handling.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
