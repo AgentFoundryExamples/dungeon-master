@@ -1360,16 +1360,6 @@ async def process_turn_stream(
 **Risk**: SSE/WebSocket vulnerabilities (injection, DoS)
 
 **Mitigation**:
-- Set max buffer size (e.g., 50KB, ~12K tokens)
-- Truncate if exceeded, send `error` event
-- Log buffer overflow events
-- Same max_output_tokens limit as legacy (4000 tokens)
-
-### 8. Transport Security
-
-**Risk**: SSE/WebSocket vulnerabilities (injection, DoS)
-
-**Mitigation**:
 - Validate all events before sending (JSON serialization escapes control chars)
 - Use same authentication/authorization as legacy `/turn` endpoint
 - Apply rate limiting to `/turn/stream` endpoint (e.g., max 10 requests/minute per user)
