@@ -784,9 +784,10 @@ async def test_multi_turn_quest_trigger_frequency():
     quest_cooldown_turns = 5
     rng_seed = 42
     
-    # Statistical bounds: For 100 turns with p=0.3 and cooldown=5,
-    # expected triggers ≈ 100 * 0.3 / (1 + 5) ≈ 5-10 triggers
-    # Using 3-sigma bounds for 99.7% confidence
+    # Statistical bounds: With cooldown, effective trigger rate is reduced.
+    # For p=0.3 and cooldown=5, on average a trigger occurs every ~20 turns
+    # (1/(p * (1 + cooldown/2))), giving ~5 triggers over 100 turns.
+    # Using 3-sigma bounds for 99.7% confidence: 3-15 triggers
     min_expected_triggers = 3
     max_expected_triggers = 15
     
@@ -908,9 +909,9 @@ async def test_multi_turn_poi_trigger_frequency():
     poi_cooldown_turns = 3
     rng_seed = 123
     
-    # Statistical bounds: For 100 turns with p=0.4 and cooldown=3,
-    # expected triggers ≈ 100 * 0.4 / (1 + 3) ≈ 10 triggers
-    # Using 3-sigma bounds
+    # Statistical bounds: With p=0.4 and cooldown=3, triggers occur roughly
+    # every ~12.5 turns on average, giving ~8 triggers over 100 turns.
+    # Using 3-sigma bounds for 99.7% confidence: 5-20 triggers
     min_expected_triggers = 5
     max_expected_triggers = 20
     
@@ -1165,6 +1166,9 @@ async def test_multi_turn_state_consistency_with_failures():
     quest_failures = 0
     poi_failures = 0
     
+    # Failure pattern: every Nth call fails
+    FAILURE_INTERVAL = 3
+    
     for turn_num in range(num_turns):
         context = JourneyLogContext(
             character_id="test-char-999",
@@ -1217,7 +1221,7 @@ async def test_multi_turn_state_consistency_with_failures():
     # Verify all narratives completed
     assert successful_narratives == num_turns
     
-    # Verify some failures occurred (due to intermittent failures)
+    # Verify some failures occurred (due to intermittent failures simulated by FAILURE_INTERVAL)
     assert quest_failures > 0 or poi_failures > 0, "Expected some failures to occur"
 
 
