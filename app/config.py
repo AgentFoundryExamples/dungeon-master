@@ -149,6 +149,28 @@ class Settings(BaseSettings):
         description="Number of random POIs to fetch as memory sparks (1-20)"
     )
 
+    # Admin and Policy Configuration
+    policy_config_file: Optional[str] = Field(
+        default=None,
+        description="Optional path to JSON file for runtime policy config (probabilities, cooldowns)"
+    )
+    admin_endpoints_enabled: bool = Field(
+        default=False,
+        description="Enable admin endpoints for turn introspection and policy management"
+    )
+    turn_storage_ttl_seconds: int = Field(
+        default=3600,
+        ge=60,
+        le=86400,
+        description="TTL for turn details in storage (60-86400 seconds, default: 1 hour)"
+    )
+    turn_storage_max_size: int = Field(
+        default=10000,
+        ge=100,
+        le=100000,
+        description="Maximum number of turns to store in memory (100-100000, default: 10000)"
+    )
+
     # Rate Limiting Configuration
     max_turns_per_character_per_second: float = Field(
         default=2.0,

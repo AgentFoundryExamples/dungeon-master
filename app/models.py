@@ -893,6 +893,195 @@ class TurnSubsystemSummary(BaseModel):
         description="Error message if narrative persistence failed"
     )
 
+# ============================================================================
+# Admin Endpoint Models
+# ============================================================================
+# These models define the structured responses for admin introspection
+# endpoints that allow operators to inspect turn state for debugging.
+
+
+class AdminTurnDetail(BaseModel):
+    """Admin turn detail for introspection endpoint.
+    
+    Provides comprehensive turn state for debugging including inputs,
+    decisions, LLM outputs, and journey-log writes. Returned by
+    GET /admin/turns/{turn_id} endpoint.
+    
+    Attributes:
+        turn_id: Unique turn identifier
+        character_id: Character UUID
+        timestamp: ISO 8601 timestamp of turn start
+        user_action: Player's input action
+        context_snapshot: Redacted character context at turn time
+        policy_decisions: Policy engine decisions (quest/POI eligibility, rolls)
+        llm_narrative: Generated narrative text (may be truncated)
+        llm_intents: Structured intents from LLM output
+        journey_log_writes: Summary of subsystem writes (quest, combat, POI, narrative)
+        errors: List of errors encountered during turn processing
+        latency_ms: Total turn processing time in milliseconds
+        redacted: Whether sensitive data was redacted from response
+    """
+    turn_id: str = Field(
+        ...,
+        description="Unique turn identifier"
+    )
+    character_id: str = Field(
+        ...,
+        description="Character UUID"
+    )
+    timestamp: str = Field(
+        ...,
+        description="ISO 8601 timestamp of turn start"
+    )
+    user_action: str = Field(
+        ...,
+        description="Player's input action"
+    )
+    context_snapshot: Dict[str, Any] = Field(
+        ...,
+        description="Character context snapshot at turn time (redacted)"
+    )
+    policy_decisions: Dict[str, Any] = Field(
+        ...,
+        description="Policy engine decisions for quest/POI triggers"
+    )
+    llm_narrative: Optional[str] = Field(
+        None,
+        description="Generated narrative text (may be truncated)"
+    )
+    llm_intents: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Structured intents from LLM output"
+    )
+    journey_log_writes: Dict[str, Any] = Field(
+        ...,
+        description="Summary of subsystem writes (quest, combat, POI, narrative)"
+    )
+    errors: List[Dict[str, str]] = Field(
+        default_factory=list,
+        description="List of errors encountered during turn processing"
+    )
+    latency_ms: Optional[float] = Field(
+        None,
+        description="Total turn processing time in milliseconds"
+    )
+    redacted: bool = Field(
+        default=True,
+        description="Whether sensitive data was redacted from response"
+    )
+
+
+class AdminRecentTurnsResponse(BaseModel):
+    """Response for admin recent turns endpoint.
+    
+    Returns a list of recent turns for a character in reverse chronological
+    order. Returned by GET /admin/characters/{id}/recent_turns endpoint.
+    
+    Attributes:
+        character_id: Character UUID
+        turns: List of turn details (most recent first)
+        total_count: Total number of turns returned
+        limit: Maximum number of turns requested
+    """
+    character_id: str = Field(
+        ...,
+        description="Character UUID"
+    )
+    turns: List[AdminTurnDetail] = Field(
+        ...,
+        description="List of turn details in reverse chronological order"
+    )
+    total_count: int = Field(
+        ...,
+        description="Total number of turns returned"
+    )
+    limit: int = Field(
+        ...,
+        description="Maximum number of turns requested"
+    )
+
+
+class PolicyConfigResponse(BaseModel):
+    """Response for policy config inspection endpoint.
+    
+    Returns current policy configuration parameters.
+    
+    Attributes:
+        quest_trigger_prob: Current quest trigger probability
+        quest_cooldown_turns: Current quest cooldown in turns
+        poi_trigger_prob: Current POI trigger probability
+        poi_cooldown_turns: Current POI cooldown in turns
+        last_updated: ISO 8601 timestamp of last config change
+    """
+    quest_trigger_prob: float = Field(
+        ...,
+        description="Current quest trigger probability (0.0-1.0)"
+    )
+    quest_cooldown_turns: int = Field(
+        ...,
+        description="Current quest cooldown in turns"
+    )
+    poi_trigger_prob: float = Field(
+        ...,
+        description="Current POI trigger probability (0.0-1.0)"
+    )
+    poi_cooldown_turns: int = Field(
+        ...,
+        description="Current POI cooldown in turns"
+    )
+    last_updated: Optional[str] = Field(
+        None,
+        description="ISO 8601 timestamp of last config change"
+    )
+
+
+class PolicyConfigReloadRequest(BaseModel):
+    """Request for policy config reload endpoint.
+    
+    Triggers manual reload of policy configuration from file or provided values.
+    
+    Attributes:
+        config: Optional new config values to apply (overrides file)
+        actor: Optional actor identity for audit log
+    """
+    config: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Optional new config values to apply (overrides file)"
+    )
+    actor: Optional[str] = Field(
+        None,
+        description="Optional actor identity for audit log"
+    )
+
+
+class PolicyConfigReloadResponse(BaseModel):
+    """Response for policy config reload endpoint.
+    
+    Returns success/failure status and error details if reload failed.
+    
+    Attributes:
+        success: Whether config reload succeeded
+        message: Human-readable status message
+        error: Error details if reload failed
+        config: Current config after reload attempt
+    """
+    success: bool = Field(
+        ...,
+        description="Whether config reload succeeded"
+    )
+    message: str = Field(
+        ...,
+        description="Human-readable status message"
+    )
+    error: Optional[str] = Field(
+        None,
+        description="Error details if reload failed"
+    )
+    config: Optional[PolicyConfigResponse] = Field(
+        None,
+        description="Current config after reload attempt"
+    )
+
 
 # Resolve forward references for TurnResponse
 TurnResponse.model_rebuild()
