@@ -193,8 +193,8 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 13900,
-        "loc": 265,
+        "size_bytes": 26413,
+        "loc": 483,
         "todo_count": 0
       }
     },
@@ -361,8 +361,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 13415,
-        "loc": 295,
+        "size_bytes": 27854,
+        "loc": 608,
         "todo_count": 0
       }
     },

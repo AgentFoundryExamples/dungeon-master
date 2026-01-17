@@ -10,14 +10,14 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 - **Total files**: 41
 - **Intra-repo dependencies**: 119
-- **External stdlib dependencies**: 30
+- **External stdlib dependencies**: 32
 - **External third-party dependencies**: 26
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 30 unique modules
+Total: 32 unique modules
 
 - `asyncio`
 - `collections.defaultdict`
@@ -38,8 +38,8 @@ Total: 30 unique modules
 - `threading.Lock`
 - `time`
 - `typing.Any`
-- `typing.Callable`
-- ... and 10 more (see JSON for full list)
+- `typing.AsyncIterator`
+- ... and 12 more (see JSON for full list)
 
 ### Third-Party Packages
 

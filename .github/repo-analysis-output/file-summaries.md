@@ -128,8 +128,8 @@ Total files: 41
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for llm client  
-**Size:** 13.57 KB  
-**LOC:** 265  
+**Size:** 25.79 KB  
+**LOC:** 483  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/outcome_parser.py
@@ -236,8 +236,8 @@ Total files: 41
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 13.10 KB  
-**LOC:** 295  
+**Size:** 27.20 KB  
+**LOC:** 608  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_metrics.py
