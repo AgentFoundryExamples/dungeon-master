@@ -140,6 +140,9 @@ class TurnStorage:
         >>> recent = storage.get_character_recent_turns("char-id-456", limit=10)
     """
     
+    # Maximum turns to track per character before trimming
+    MAX_TURNS_PER_CHARACTER = 100
+    
     def __init__(self, max_size: int = 10000, ttl_seconds: int = 3600):
         """Initialize turn storage.
         
@@ -189,12 +192,12 @@ class TurnStorage:
                 self._character_turns[turn_detail.character_id] = []
             self._character_turns[turn_detail.character_id].append(turn_detail.turn_id)
             
-            # Keep only recent turns per character (limit to 100)
-            if len(self._character_turns[turn_detail.character_id]) > 100:
+            # Keep only recent turns per character (limit to MAX_TURNS_PER_CHARACTER)
+            if len(self._character_turns[turn_detail.character_id]) > self.MAX_TURNS_PER_CHARACTER:
                 # Remove oldest turn references
-                removed_turn_ids = self._character_turns[turn_detail.character_id][:-100]
+                removed_turn_ids = self._character_turns[turn_detail.character_id][:-self.MAX_TURNS_PER_CHARACTER]
                 self._character_turns[turn_detail.character_id] = \
-                    self._character_turns[turn_detail.character_id][-100:]
+                    self._character_turns[turn_detail.character_id][-self.MAX_TURNS_PER_CHARACTER:]
                 
                 logger.debug(
                     "Trimmed character turn history",
