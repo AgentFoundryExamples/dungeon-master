@@ -101,6 +101,9 @@ class MetricsCollector:
     - Operation latencies (turn processing, LLM calls, journey-log calls)
     - Error counts by type
     - Streaming metrics (token counts, stream durations, client disconnects)
+    - Turn-level metrics (processed, policy triggers, subsystem deltas)
+    - Journey-log endpoint latencies
+    - Schema parse success/failure rates
     """
     
     def __init__(self):
@@ -120,6 +123,22 @@ class MetricsCollector:
         }
         self._stream_token_stats = LatencyStats()  # Track tokens per stream
         self._stream_duration_stats = LatencyStats()  # Track stream duration
+        
+        # Turn-level metrics with labels
+        # Format: {(label_key, label_value): count}
+        self._turn_counts: Dict[tuple, int] = defaultdict(int)
+        
+        # Policy trigger metrics
+        # Format: {(policy_type, decision): count}
+        self._policy_triggers: Dict[tuple, int] = defaultdict(int)
+        
+        # Subsystem delta metrics per turn
+        # Format: {subsystem: count}
+        self._subsystem_deltas: Dict[str, int] = defaultdict(int)
+        
+        # Journey-log endpoint latencies
+        # Format: {endpoint_type: LatencyStats}
+        self._journey_log_latencies: Dict[str, LatencyStats] = defaultdict(LatencyStats)
     
     def record_request(self, status_code: int) -> None:
         """Record an HTTP request.
@@ -176,6 +195,56 @@ class MetricsCollector:
         with self._lock:
             self._stream_counts["parse_failures"] += 1
     
+    def record_turn_processed(
+        self, 
+        environment: str = "unknown",
+        character_id: Optional[str] = None,
+        outcome: str = "success"
+    ) -> None:
+        """Record a processed turn with labels.
+        
+        Args:
+            environment: Environment label (e.g., "production", "staging")
+            character_id: Character ID (hashed for safety, optional)
+            outcome: Outcome label ("success", "error", "partial")
+        """
+        with self._lock:
+            # Use first 8 chars of character_id as label if provided (for bounded cardinality)
+            char_label = character_id[:8] if character_id else "unknown"
+            self._turn_counts[("environment", environment)] += 1
+            self._turn_counts[("character_prefix", char_label)] += 1
+            self._turn_counts[("outcome", outcome)] += 1
+    
+    def record_policy_trigger(self, policy_type: str, decision: str) -> None:
+        """Record a policy trigger decision.
+        
+        Args:
+            policy_type: Type of policy ("quest", "poi")
+            decision: Decision outcome ("triggered", "skipped", "ineligible")
+        """
+        with self._lock:
+            self._policy_triggers[(policy_type, decision)] += 1
+    
+    def record_subsystem_delta(self, subsystem: str, action: str) -> None:
+        """Record a subsystem change per turn.
+        
+        Args:
+            subsystem: Subsystem name ("quest", "combat", "poi", "narrative")
+            action: Action taken ("offered", "completed", "started", "ended", "created", "persisted")
+        """
+        with self._lock:
+            self._subsystem_deltas[f"{subsystem}_{action}"] += 1
+    
+    def record_journey_log_latency(self, endpoint_type: str, duration_ms: float) -> None:
+        """Record journey-log endpoint latency.
+        
+        Args:
+            endpoint_type: Endpoint type (e.g., "get_context", "put_quest", "post_poi", "persist_narrative")
+            duration_ms: Duration in milliseconds
+        """
+        with self._lock:
+            self._journey_log_latencies[endpoint_type].record(duration_ms)
+    
     def get_metrics(self) -> Dict:
         """Get all collected metrics.
         
@@ -224,6 +293,21 @@ class MetricsCollector:
                     "failed_parses": llm_parse_failures,
                     "conformance_rate": round(conformance_rate, 4)
                 },
+                "turns": {
+                    "by_label": {
+                        f"{label_key}:{label_value}": count
+                        for (label_key, label_value), count in self._turn_counts.items()
+                    }
+                },
+                "policy_triggers": {
+                    f"{policy_type}:{decision}": count
+                    for (policy_type, decision), count in self._policy_triggers.items()
+                },
+                "subsystem_deltas": dict(self._subsystem_deltas),
+                "journey_log_latencies": {
+                    endpoint: stats.to_dict(unit="ms")
+                    for endpoint, stats in self._journey_log_latencies.items()
+                },
                 "streaming": {
                     "total_streams": self._stream_counts["total"],
                     "completed_streams": self._stream_counts["completed"],
@@ -248,6 +332,10 @@ class MetricsCollector:
             }
             self._stream_token_stats = LatencyStats()
             self._stream_duration_stats = LatencyStats()
+            self._turn_counts.clear()
+            self._policy_triggers.clear()
+            self._subsystem_deltas.clear()
+            self._journey_log_latencies.clear()
             self._start_time = time.time()
 
 

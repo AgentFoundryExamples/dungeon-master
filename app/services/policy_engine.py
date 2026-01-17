@@ -32,7 +32,8 @@ import hashlib
 from typing import Optional, Dict, Any
 
 from app.models import QuestTriggerDecision, POITriggerDecision
-from app.logging import StructuredLogger
+from app.logging import StructuredLogger, get_turn_id
+from app.metrics import get_metrics_collector
 
 logger = StructuredLogger(__name__)
 
@@ -206,10 +207,21 @@ class PolicyEngine:
             roll_passed=roll_passed
         )
         
+        # Record metrics
+        collector = get_metrics_collector()
+        if collector:
+            if roll_passed:
+                collector.record_policy_trigger("quest", "triggered")
+            elif not eligible:
+                collector.record_policy_trigger("quest", "ineligible")
+            else:
+                collector.record_policy_trigger("quest", "skipped")
+        
         logger.debug(
             f"Quest trigger evaluation: character_id={character_id}, "
             f"eligible={eligible}, roll_passed={roll_passed}, "
-            f"reasons={reasons if not eligible else 'none'}"
+            f"reasons={reasons if not eligible else 'none'}",
+            turn_id=get_turn_id()
         )
         
         return decision
@@ -249,10 +261,21 @@ class PolicyEngine:
             roll_passed=roll_passed
         )
         
+        # Record metrics
+        collector = get_metrics_collector()
+        if collector:
+            if roll_passed:
+                collector.record_policy_trigger("poi", "triggered")
+            elif not eligible:
+                collector.record_policy_trigger("poi", "ineligible")
+            else:
+                collector.record_policy_trigger("poi", "skipped")
+        
         logger.debug(
             f"POI trigger evaluation: character_id={character_id}, "
             f"eligible={eligible}, roll_passed={roll_passed}, "
-            f"reasons={reasons if not eligible else 'none'}"
+            f"reasons={reasons if not eligible else 'none'}",
+            turn_id=get_turn_id()
         )
         
         return decision

@@ -18,7 +18,8 @@ from typing import Optional, Any
 from datetime import datetime
 from httpx import AsyncClient, HTTPStatusError, TimeoutException
 from app.models import JourneyLogContext, PolicyState
-from app.logging import StructuredLogger, redact_secrets
+from app.logging import StructuredLogger, redact_secrets, get_turn_id
+from app.metrics import get_metrics_collector
 
 logger = StructuredLogger(__name__)
 
@@ -272,7 +273,8 @@ class JourneyLogClient:
 
         logger.info(
             "Fetching context from journey-log",
-            recent_n=recent_n
+            recent_n=recent_n,
+            turn_id=get_turn_id()
         )
 
         start_time = time.time()
@@ -285,13 +287,19 @@ class JourneyLogClient:
             )
             duration_ms = (time.time() - start_time) * 1000
             response.raise_for_status()
+            
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_journey_log_latency("get_context", duration_ms)
 
             data = response.json()
             logger.debug(
                 "Context fetch successful",
                 status_code=getattr(response, 'status_code', None),
                 duration_ms=f"{duration_ms:.2f}",
-                response_size=len(str(data))
+                response_size=len(str(data)),
+                turn_id=get_turn_id()
             )
 
             # Map the journey-log response to our JourneyLogContext model
@@ -427,7 +435,8 @@ class JourneyLogClient:
         logger.info(
             "Persisting narrative to journey-log",
             action_length=len(user_action),
-            narrative_length=len(narrative)
+            narrative_length=len(narrative),
+            turn_id=get_turn_id()
         )
 
         start_time = time.time()
@@ -440,11 +449,17 @@ class JourneyLogClient:
             )
             duration_ms = (time.time() - start_time) * 1000
             response.raise_for_status()
+            
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_journey_log_latency("persist_narrative", duration_ms)
 
             logger.info(
                 "Successfully persisted narrative",
                 status_code=getattr(response, 'status_code', None),
-                duration_ms=f"{duration_ms:.2f}"
+                duration_ms=f"{duration_ms:.2f}",
+                turn_id=get_turn_id()
             )
 
         except HTTPStatusError as e:
@@ -520,7 +535,8 @@ class JourneyLogClient:
         
         logger.info(
             "Putting quest to journey-log",
-            quest_title=quest_data.get("title") if quest_data else None
+            quest_title=quest_data.get("title") if quest_data else None,
+            turn_id=get_turn_id()
         )
         
         start_time = time.time()
@@ -534,10 +550,16 @@ class JourneyLogClient:
             duration_ms = (time.time() - start_time) * 1000
             response.raise_for_status()
             
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_journey_log_latency("put_quest", duration_ms)
+            
             logger.info(
                 "Successfully put quest",
                 status_code=getattr(response, 'status_code', None),
-                duration_ms=f"{duration_ms:.2f}"
+                duration_ms=f"{duration_ms:.2f}",
+                turn_id=get_turn_id()
             )
         
         except HTTPStatusError as e:
@@ -609,7 +631,10 @@ class JourneyLogClient:
         if trace_id:
             headers["X-Trace-Id"] = trace_id
         
-        logger.info("Deleting quest from journey-log")
+        logger.info(
+            "Deleting quest from journey-log",
+            turn_id=get_turn_id()
+        )
         
         start_time = time.time()
         try:
@@ -621,10 +646,16 @@ class JourneyLogClient:
             duration_ms = (time.time() - start_time) * 1000
             response.raise_for_status()
             
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_journey_log_latency("delete_quest", duration_ms)
+            
             logger.info(
                 "Successfully deleted quest",
                 status_code=getattr(response, 'status_code', None),
-                duration_ms=f"{duration_ms:.2f}"
+                duration_ms=f"{duration_ms:.2f}",
+                turn_id=get_turn_id()
             )
         
         except HTTPStatusError as e:
@@ -708,7 +739,8 @@ class JourneyLogClient:
         logger.info(
             "Putting combat to journey-log",
             action_type=action_type,
-            has_combat_data=combat_data is not None
+            has_combat_data=combat_data is not None,
+            turn_id=get_turn_id()
         )
         
         start_time = time.time()
@@ -728,11 +760,17 @@ class JourneyLogClient:
             duration_ms = (time.time() - start_time) * 1000
             response.raise_for_status()
             
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_journey_log_latency("put_combat", duration_ms)
+            
             logger.info(
                 "Successfully put combat",
                 status_code=getattr(response, 'status_code', None),
                 duration_ms=f"{duration_ms:.2f}",
-                action_type=action_type
+                action_type=action_type,
+                turn_id=get_turn_id()
             )
         
         except HTTPStatusError as e:
@@ -811,7 +849,8 @@ class JourneyLogClient:
         logger.info(
             "Posting POI to journey-log",
             action_type=action_type,
-            poi_name=poi_data.get("name") if poi_data else None
+            poi_name=poi_data.get("name") if poi_data else None,
+            turn_id=get_turn_id()
         )
         
         start_time = time.time()
@@ -846,10 +885,16 @@ class JourneyLogClient:
             duration_ms = (time.time() - start_time) * 1000
             response.raise_for_status()
             
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_journey_log_latency("post_poi", duration_ms)
+            
             logger.info(
                 "Successfully posted POI",
                 status_code=getattr(response, 'status_code', None),
-                duration_ms=f"{duration_ms:.2f}"
+                duration_ms=f"{duration_ms:.2f}",
+                turn_id=get_turn_id()
             )
         
         except HTTPStatusError as e:

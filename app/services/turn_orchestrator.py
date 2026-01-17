@@ -51,7 +51,8 @@ from app.services.journey_log_client import (
     JourneyLogClientError,
 )
 from app.prompting.prompt_builder import PromptBuilder
-from app.logging import StructuredLogger
+from app.logging import StructuredLogger, get_turn_id
+from app.metrics import get_metrics_collector
 
 logger = StructuredLogger(__name__)
 
@@ -885,7 +886,13 @@ class TurnOrchestrator:
                     success=True,
                     error=None
                 )
-                logger.info("Quest offer successful", quest_name=title)
+                
+                # Record metrics
+                collector = get_metrics_collector()
+                if collector:
+                    collector.record_subsystem_delta("quest", "offered")
+                
+                logger.info("Quest offer successful", quest_name=title, turn_id=get_turn_id())
             
             elif action.action_type in ["complete", "abandon"]:
                 # DELETE operation - no retry on failure per design
@@ -893,12 +900,19 @@ class TurnOrchestrator:
                     character_id=character_id,
                     trace_id=trace_id
                 )
+                action_label = "completed" if action.action_type == "complete" else "abandoned"
                 summary.quest_change = SubsystemActionType(
-                    action="completed" if action.action_type == "complete" else "abandoned",
+                    action=action_label,
                     success=True,
                     error=None
                 )
-                logger.info(f"Quest {action.action_type} successful")
+                
+                # Record metrics
+                collector = get_metrics_collector()
+                if collector:
+                    collector.record_subsystem_delta("quest", action_label)
+                
+                logger.info(f"Quest {action.action_type} successful", turn_id=get_turn_id())
         
         except JourneyLogClientError as e:
             # Check for HTTP 409 Conflict using status_code attribute
@@ -907,7 +921,8 @@ class TurnOrchestrator:
                 logger.warning(
                     "Quest PUT skipped - active quest already exists (HTTP 409)",
                     action=action.action_type,
-                    error=str(e)
+                    error=str(e),
+                    turn_id=get_turn_id()
                 )
                 summary.quest_change = SubsystemActionType(
                     action="skipped",
@@ -922,7 +937,8 @@ class TurnOrchestrator:
                     "Quest action failed - continuing with narrative",
                     action=action.action_type,
                     error=str(e),
-                    is_destructive=action.action_type in ["complete", "abandon"]
+                    is_destructive=action.action_type in ["complete", "abandon"],
+                    turn_id=get_turn_id()
                 )
                 summary.quest_change = SubsystemActionType(
                     action=action.action_type,
@@ -1022,7 +1038,8 @@ class TurnOrchestrator:
                     logger.error(
                         "Combat start failed - no valid enemies provided in CombatIntent",
                         character_id=character_id,
-                        intent_enemies=action.intent_data.get("enemies") if action.intent_data else None
+                        intent_enemies=action.intent_data.get("enemies") if action.intent_data else None,
+                        turn_id=get_turn_id()
                     )
                     summary.combat_change = SubsystemActionType(
                         action="start",
@@ -1053,7 +1070,8 @@ class TurnOrchestrator:
                 if not context.combat_state:
                     logger.error(
                         "Combat continue failed - no combat_state in context",
-                        character_id=character_id
+                        character_id=character_id,
+                        turn_id=get_turn_id()
                     )
                     summary.combat_change = SubsystemActionType(
                         action="continue",
@@ -1101,7 +1119,13 @@ class TurnOrchestrator:
                 success=True,
                 error=None
             )
-            logger.info(f"Combat {action.action_type} successful", change_type=change_type)
+            
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_subsystem_delta("combat", change_type)
+            
+            logger.info(f"Combat {action.action_type} successful", change_type=change_type, turn_id=get_turn_id())
         
         except JourneyLogClientError as e:
             # Catches all journey-log errors: NotFound, Timeout, Client errors
@@ -1109,7 +1133,8 @@ class TurnOrchestrator:
             logger.error(
                 "Combat action failed - continuing with narrative",
                 action=action.action_type,
-                error=str(e)
+                error=str(e),
+                turn_id=get_turn_id()
             )
             summary.combat_change = SubsystemActionType(
                 action=action.action_type,
@@ -1154,7 +1179,13 @@ class TurnOrchestrator:
                 success=True,
                 error=None
             )
-            logger.info(f"POI {action.action_type} successful")
+            
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_subsystem_delta("poi", action.action_type)
+            
+            logger.info(f"POI {action.action_type} successful", turn_id=get_turn_id())
         
         except JourneyLogClientError as e:
             # Catches all journey-log errors: NotFound, Timeout, Client errors
@@ -1162,7 +1193,8 @@ class TurnOrchestrator:
             logger.error(
                 "POI action failed - continuing with narrative",
                 action=action.action_type,
-                error=str(e)
+                error=str(e),
+                turn_id=get_turn_id()
             )
             summary.poi_created = SubsystemActionType(
                 action=action.action_type,
@@ -1205,13 +1237,20 @@ class TurnOrchestrator:
                 trace_id=trace_id
             )
             summary.narrative_persisted = True
-            logger.info("Narrative persistence successful")
+            
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_subsystem_delta("narrative", "persisted")
+            
+            logger.info("Narrative persistence successful", turn_id=get_turn_id())
         
         except JourneyLogClientError as e:
             error_msg = f"Narrative persistence failed: {str(e)}"
             logger.error(
                 "Narrative persistence failed",
-                error=str(e)
+                error=str(e),
+                turn_id=get_turn_id()
             )
             summary.narrative_persisted = False
             summary.narrative_error = error_msg

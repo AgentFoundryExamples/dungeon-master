@@ -80,6 +80,10 @@ class Settings(BaseSettings):
         default="dungeon-master",
         description="Service name for logging and identification"
     )
+    environment: str = Field(
+        default="development",
+        description="Environment name for metrics labeling (e.g., production, staging, development)"
+    )
     log_level: str = Field(
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
@@ -93,6 +97,12 @@ class Settings(BaseSettings):
     enable_metrics: bool = Field(
         default=False,
         description="Enable metrics collection and /metrics endpoint"
+    )
+    turn_log_sampling_rate: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Sampling rate for turn logs (0.0-1.0, where 1.0 logs all turns)"
     )
     
     # Debug Configuration
