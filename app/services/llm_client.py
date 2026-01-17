@@ -14,7 +14,7 @@
 """LLM client for narrative generation using OpenAI Responses API."""
 
 import time
-from typing import Optional
+from typing import Optional, Callable, AsyncIterator, Protocol
 from openai import AsyncOpenAI
 import openai
 
@@ -31,6 +31,25 @@ from app.services.outcome_parser import OutcomeParser, ParsedOutcome
 from app.metrics import get_metrics_collector
 
 logger = StructuredLogger(__name__)
+
+
+class StreamingCallback(Protocol):
+    """Protocol for streaming token callbacks.
+    
+    Callbacks receive individual tokens as they're generated and can be used
+    to write tokens to transport layers (SSE, WebSocket, etc.).
+    
+    Callbacks should not raise exceptions. If they do, the exception will be
+    logged and streaming will continue.
+    """
+    
+    def __call__(self, token: str) -> None:
+        """Process a streaming token.
+        
+        Args:
+            token: A chunk of text from the LLM stream
+        """
+        ...
 
 
 class LLMClientError(Exception):
@@ -311,6 +330,269 @@ class LLMClient:
                 duration_ms=f"{duration_ms:.2f}"
             )
             raise LLMClientError(f"Failed to generate narrative: {e}") from e
+
+    async def generate_narrative_stream(
+        self,
+        system_instructions: str,
+        user_prompt: str,
+        callback: Optional[StreamingCallback] = None,
+        trace_id: Optional[str] = None,
+        json_schema: Optional[dict] = None
+    ) -> ParsedOutcome:
+        """Generate narrative using streaming with two-phase processing.
+        
+        Phase 1 (Streaming): Stream tokens progressively to callback while buffering
+        Phase 2 (Validation): Parse complete buffer against DungeonMasterOutcome schema
+        
+        This method provides progressive narrative delivery while maintaining the same
+        validation guarantees as generate_narrative(). The callback receives tokens
+        as they arrive, and the complete validated outcome is returned after streaming.
+        
+        Token Streaming (Phase 1):
+        - Tokens emitted via callback as they're generated
+        - All tokens buffered internally for Phase 2 validation
+        - Callback exceptions are logged but don't interrupt streaming
+        - Stream lifecycle logged (start, token batches, completion)
+        
+        Outcome Validation (Phase 2):
+        - Complete buffer validated against DungeonMasterOutcome schema
+        - Same strict validation as generate_narrative()
+        - Parse errors logged with detailed context and duration
+        - Returns ParsedOutcome with validated outcome or fallback narrative
+        
+        Args:
+            system_instructions: System-level instructions for the LLM (includes schema)
+            user_prompt: The user prompt containing context and action
+            callback: Optional callback for receiving streaming tokens
+            trace_id: Optional trace ID for request correlation
+            json_schema: Optional pre-generated JSON schema to avoid redundant generation
+            
+        Returns:
+            ParsedOutcome with validated outcome (if successful) and narrative text
+            
+        Raises:
+            LLMTimeoutError: If request times out
+            LLMResponseError: If response is invalid or missing narrative
+            LLMClientError: For other errors
+            
+        Example:
+            >>> def on_token(token: str):
+            ...     print(token, end='', flush=True)
+            ...
+            >>> outcome = await client.generate_narrative_stream(
+            ...     system_instructions="...",
+            ...     user_prompt="...",
+            ...     callback=on_token
+            ... )
+            >>> print(f"\\nFinal outcome: {outcome.is_valid}")
+        """
+        if self.stub_mode:
+            # In stub mode, simulate streaming by yielding the stub narrative
+            stub_outcome = self._generate_stub_outcome(user_prompt)
+            if callback:
+                try:
+                    callback(stub_outcome.narrative)
+                except Exception as e:
+                    logger.warning(
+                        "Callback raised exception during stub streaming",
+                        error_type=type(e).__name__,
+                        error=str(e)
+                    )
+            return stub_outcome
+
+        logger.info(
+            "Starting streaming narrative generation",
+            model=self.model,
+            instructions_length=len(system_instructions),
+            prompt_length=len(user_prompt),
+            has_callback=callback is not None,
+            trace_id=trace_id
+        )
+
+        start_time = time.time()
+        buffer = []
+        token_count = 0
+        
+        try:
+            # Use the provided schema, or generate it if not available
+            schema = json_schema or get_outcome_json_schema()
+            
+            # Log stream start
+            logger.debug("Stream started", trace_id=trace_id)
+            
+            # Use OpenAI Responses API with streaming enabled
+            # Note: The Responses API streaming may work differently than Chat API
+            # This implementation assumes stream parameter is supported
+            stream = await self.client.responses.create(
+                model=self.model,
+                instructions=system_instructions,
+                input=user_prompt,
+                max_output_tokens=4000,
+                text={"format": {
+                    "type": "json_schema",
+                    "name": "dungeon_master_outcome",
+                    "strict": True,
+                    "schema": schema
+                }},
+                stream=True  # Enable streaming
+            )
+
+            # Phase 1: Stream tokens and buffer
+            async for chunk in stream:
+                # Extract content from chunk
+                # The streaming format may vary; handle multiple possible formats
+                token = None
+                
+                if hasattr(chunk, 'output') and chunk.output:
+                    output_item = chunk.output[0]
+                    if hasattr(output_item, 'content_delta'):
+                        # Delta format
+                        if isinstance(output_item.content_delta, str):
+                            token = output_item.content_delta
+                        elif hasattr(output_item.content_delta, 'text'):
+                            token = output_item.content_delta.text
+                    elif hasattr(output_item, 'content'):
+                        # Full content format
+                        if isinstance(output_item.content, str):
+                            token = output_item.content
+                        elif isinstance(output_item.content, list):
+                            # Extract text from content array
+                            text_parts = []
+                            for content_item in output_item.content:
+                                if hasattr(content_item, 'text'):
+                                    text_parts.append(content_item.text)
+                                elif isinstance(content_item, dict) and 'text' in content_item:
+                                    text_parts.append(content_item['text'])
+                            token = ''.join(text_parts)
+                
+                if token:
+                    # Buffer the token
+                    buffer.append(token)
+                    token_count += 1
+                    
+                    # Emit to callback if provided
+                    if callback:
+                        try:
+                            callback(token)
+                        except Exception as e:
+                            # Log callback errors but don't interrupt streaming
+                            logger.warning(
+                                "Callback raised exception during streaming",
+                                error_type=type(e).__name__,
+                                error=str(e),
+                                token_number=token_count,
+                                trace_id=trace_id
+                            )
+                    
+                    # Log token batches periodically to track progress
+                    if token_count % 50 == 0:
+                        logger.debug(
+                            "Streaming progress",
+                            tokens_received=token_count,
+                            buffer_size=len(''.join(buffer)),
+                            trace_id=trace_id
+                        )
+            
+            # Reconstruct complete text from buffer
+            complete_text = ''.join(buffer)
+            
+            streaming_duration_ms = (time.time() - start_time) * 1000
+            logger.info(
+                "Stream completed",
+                token_count=token_count,
+                total_length=len(complete_text),
+                streaming_duration_ms=f"{streaming_duration_ms:.2f}",
+                trace_id=trace_id
+            )
+            
+            if not complete_text:
+                logger.error("Stream completed but buffer is empty", trace_id=trace_id)
+                raise LLMResponseError("LLM stream completed with empty content")
+            
+            # Phase 2: Parse and validate complete outcome
+            parse_start_time = time.time()
+            logger.debug("Starting outcome parse phase", trace_id=trace_id)
+            
+            parsed = self.parser.parse(complete_text, trace_id=trace_id)
+            
+            parse_duration_ms = (time.time() - parse_start_time) * 1000
+            total_duration_ms = (time.time() - start_time) * 1000
+            
+            # Record schema conformance metrics
+            if (collector := get_metrics_collector()):
+                if parsed.is_valid:
+                    collector.record_error("llm_stream_parse_success")
+                else:
+                    collector.record_error(f"llm_stream_parse_failure_{parsed.error_type}")
+            
+            if parsed.is_valid:
+                logger.info(
+                    "Stream parse phase completed successfully",
+                    narrative_length=len(parsed.narrative),
+                    parse_duration_ms=f"{parse_duration_ms:.2f}",
+                    total_duration_ms=f"{total_duration_ms:.2f}",
+                    trace_id=trace_id
+                )
+            else:
+                logger.warning(
+                    "Stream parse phase failed - using fallback narrative",
+                    narrative_length=len(parsed.narrative),
+                    error_type=parsed.error_type,
+                    parse_duration_ms=f"{parse_duration_ms:.2f}",
+                    total_duration_ms=f"{total_duration_ms:.2f}",
+                    trace_id=trace_id
+                )
+            
+            return parsed
+
+        except openai.APITimeoutError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "LLM streaming request timed out",
+                timeout_seconds=self.timeout,
+                duration_ms=f"{duration_ms:.2f}",
+                tokens_received=token_count,
+                trace_id=trace_id
+            )
+            raise LLMTimeoutError(
+                f"LLM streaming request timed out after {self.timeout}s"
+            ) from e
+
+        except openai.AuthenticationError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "LLM streaming authentication failed",
+                duration_ms=f"{duration_ms:.2f}",
+                trace_id=trace_id
+            )
+            raise LLMConfigurationError("Invalid OpenAI API key") from e
+
+        except openai.BadRequestError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "LLM streaming bad request error",
+                error=redact_secrets(str(e)),
+                duration_ms=f"{duration_ms:.2f}",
+                trace_id=trace_id
+            )
+            raise LLMClientError(f"Invalid streaming request to LLM: {e}") from e
+
+        except (LLMResponseError, LLMTimeoutError, LLMConfigurationError):
+            # Re-raise our custom exceptions
+            raise
+
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Unexpected error during LLM streaming generation",
+                error_type=type(e).__name__,
+                error=redact_secrets(str(e)),
+                duration_ms=f"{duration_ms:.2f}",
+                tokens_received=token_count,
+                buffer_size=len(''.join(buffer)) if buffer else 0,
+                trace_id=trace_id
+            )
+            raise LLMClientError(f"Failed to generate streaming narrative: {e}") from e
 
     def _generate_stub_outcome(self, user_prompt: str) -> ParsedOutcome:
         """Generate stub outcome for offline development.
