@@ -42,9 +42,9 @@ class StreamEvent:
     timestamp: Optional[str] = None
     
     def __post_init__(self):
-        """Set timestamp if not provided."""
+        """Set timestamp if not provided with 'Z' suffix for UTC."""
         if self.timestamp is None:
-            self.timestamp = datetime.now(timezone.utc).isoformat()
+            self.timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
 class StreamTransport(ABC):

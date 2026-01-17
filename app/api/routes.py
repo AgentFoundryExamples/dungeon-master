@@ -501,6 +501,13 @@ async def process_turn_stream(
     # Define the async generator for SSE streaming
     async def event_stream():
         """Async generator that yields SSE-formatted events."""
+        # Helper function to format SSE events
+        def format_sse_event(event: StreamEvent) -> bytes:
+            """Format StreamEvent as SSE message."""
+            payload = {"type": event.type, "timestamp": event.timestamp}
+            payload.update(event.data)
+            return f"data: {json.dumps(payload)}\n\n".encode('utf-8')
+        
         # Queue for passing events from callback to generator
         event_queue = asyncio.Queue()
         transport_error = None
@@ -640,33 +647,18 @@ async def process_turn_stream(
                 
                 if event_type == "token":
                     # Stream token event
-                    stream_event = StreamEvent(
-                        type="token",
-                        data={"content": event_data}
-                    )
-                    payload = {"type": stream_event.type, "timestamp": stream_event.timestamp}
-                    payload.update(stream_event.data)
-                    yield f"data: {json.dumps(payload)}\n\n".encode('utf-8')
+                    stream_event = StreamEvent(type="token", data={"content": event_data})
+                    yield format_sse_event(stream_event)
                     
                 elif event_type == "complete":
                     # Stream complete event
-                    stream_event = StreamEvent(
-                        type="complete",
-                        data=event_data
-                    )
-                    payload = {"type": stream_event.type, "timestamp": stream_event.timestamp}
-                    payload.update(stream_event.data)
-                    yield f"data: {json.dumps(payload)}\n\n".encode('utf-8')
+                    stream_event = StreamEvent(type="complete", data=event_data)
+                    yield format_sse_event(stream_event)
                     
                 elif event_type == "error":
                     # Stream error event
-                    stream_event = StreamEvent(
-                        type="error",
-                        data=event_data
-                    )
-                    payload = {"type": stream_event.type, "timestamp": stream_event.timestamp}
-                    payload.update(stream_event.data)
-                    yield f"data: {json.dumps(payload)}\n\n".encode('utf-8')
+                    stream_event = StreamEvent(type="error", data=event_data)
+                    yield format_sse_event(stream_event)
             
             # Send SSE [DONE] marker
             yield b"data: [DONE]\n\n"

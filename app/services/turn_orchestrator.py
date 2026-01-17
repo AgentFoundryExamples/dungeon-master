@@ -488,11 +488,16 @@ class TurnOrchestrator:
         )
         
         # Phase 1: Stream narrative tokens via LLM client
+        # Pass json_schema to avoid redundant generation
+        from app.models import get_outcome_json_schema
+        json_schema = get_outcome_json_schema()
+        
         parsed_outcome = await self.llm_client.generate_narrative_stream(
             system_instructions=system_instructions,
             user_prompt=user_prompt,
             callback=callback,
-            trace_id=trace_id
+            trace_id=trace_id,
+            json_schema=json_schema
         )
         
         narrative = parsed_outcome.narrative
