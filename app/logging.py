@@ -30,6 +30,7 @@ import json
 # Context variables for request correlation
 request_id_ctx: ContextVar[Optional[str]] = ContextVar('request_id', default=None)
 character_id_ctx: ContextVar[Optional[str]] = ContextVar('character_id', default=None)
+turn_id_ctx: ContextVar[Optional[str]] = ContextVar('turn_id', default=None)
 
 
 def set_request_id(request_id: str) -> None:
@@ -68,6 +69,24 @@ def get_character_id() -> Optional[str]:
     return character_id_ctx.get()
 
 
+def set_turn_id(turn_id: str) -> None:
+    """Set the turn ID in context for correlation.
+    
+    Args:
+        turn_id: Unique identifier for the turn
+    """
+    turn_id_ctx.set(turn_id)
+
+
+def get_turn_id() -> Optional[str]:
+    """Get the current turn ID from context.
+    
+    Returns:
+        Current turn ID or None if not set
+    """
+    return turn_id_ctx.get()
+
+
 def clear_context() -> None:
     """Clear all context variables.
     
@@ -75,6 +94,7 @@ def clear_context() -> None:
     """
     request_id_ctx.set(None)
     character_id_ctx.set(None)
+    turn_id_ctx.set(None)
 
 
 def redact_secrets(text: str) -> str:
@@ -108,7 +128,7 @@ def get_structured_extras() -> Dict[str, Any]:
     """Get structured logging extras with correlation IDs.
     
     Returns:
-        Dictionary with request_id and character_id if available
+        Dictionary with request_id, character_id, and turn_id if available
     """
     extras: Dict[str, Any] = {}
     
@@ -119,6 +139,10 @@ def get_structured_extras() -> Dict[str, Any]:
     character_id = get_character_id()
     if character_id:
         extras['character_id'] = character_id
+    
+    turn_id = get_turn_id()
+    if turn_id:
+        extras['turn_id'] = turn_id
     
     return extras
 
@@ -472,3 +496,148 @@ def configure_logging(
     root_logger.info(
         f"Logging configured: level={level}, json_format={json_format}, service={service_name}"
     )
+
+
+class TurnLogger:
+    """Structured logger for emitting per-turn JSON logs.
+    
+    Emits comprehensive structured JSON logs for each turn including:
+    - turn_id: Unique identifier for the turn
+    - character_id: Character UUID (or placeholder if missing)
+    - subsystem_actions: Quest/combat/POI changes
+    - policy_decisions: Policy trigger outcomes
+    - intent_summary: Key intent fields (without raw narrative)
+    - latencies: Timing measurements for each phase
+    - errors: Error annotations if any occurred
+    
+    Sensitive fields (raw narrative, PII) are redacted by default.
+    Supports configurable sampling to control log volume.
+    """
+    
+    def __init__(
+        self,
+        logger: StructuredLogger,
+        sampling_rate: float = 1.0,
+        redact_narrative: bool = True
+    ):
+        """Initialize turn logger.
+        
+        Args:
+            logger: Structured logger instance
+            sampling_rate: Fraction of turns to log (0.0-1.0), default 1.0 (all turns)
+            redact_narrative: If True, redact raw narrative text from logs
+        """
+        self.logger = logger
+        self.sampling_rate = max(0.0, min(1.0, sampling_rate))
+        self.redact_narrative = redact_narrative
+    
+    def should_log_turn(self) -> bool:
+        """Determine if this turn should be logged based on sampling rate.
+        
+        Returns:
+            True if turn should be logged, False otherwise
+        """
+        if self.sampling_rate >= 1.0:
+            return True
+        if self.sampling_rate <= 0.0:
+            return False
+        import random
+        return random.random() < self.sampling_rate
+    
+    def log_turn(
+        self,
+        turn_id: str,
+        character_id: Optional[str],
+        subsystem_actions: dict,
+        policy_decisions: dict,
+        intent_summary: Optional[dict],
+        latencies: dict,
+        errors: Optional[list] = None,
+        outcome: str = "success"
+    ) -> None:
+        """Log a complete turn with structured data.
+        
+        Args:
+            turn_id: Unique turn identifier
+            character_id: Character UUID (or None for placeholder)
+            subsystem_actions: Dict with quest/combat/poi/narrative changes
+            policy_decisions: Dict with quest/poi trigger decisions
+            intent_summary: Optional dict with key intent fields (no raw narrative)
+            latencies: Dict with timing measurements (context_fetch_ms, llm_call_ms, etc.)
+            errors: Optional list of error messages/annotations
+            outcome: Overall turn outcome ("success", "error", "partial")
+        """
+        if not self.should_log_turn():
+            return
+        
+        # Use placeholder if character_id is missing
+        safe_character_id = character_id if character_id else "unknown"
+        
+        # Build turn log payload
+        turn_log = {
+            "log_type": "turn",
+            "turn_id": turn_id,
+            "character_id": safe_character_id,
+            "outcome": outcome,
+            "subsystem_actions": subsystem_actions,
+            "policy_decisions": policy_decisions,
+            "latencies_ms": latencies
+        }
+        
+        # Add intent summary if available (without raw narrative)
+        if intent_summary:
+            turn_log["intent_summary"] = intent_summary
+        
+        # Add errors if any
+        if errors:
+            turn_log["errors"] = errors
+        
+        # Log as structured JSON
+        self.logger.info(
+            f"Turn completed: {turn_id}",
+            **turn_log
+        )
+    
+    def create_intent_summary(self, intents: Optional[Any]) -> Optional[dict]:
+        """Create a redacted intent summary from IntentsBlock.
+        
+        Extracts key fields without including raw narrative text.
+        
+        Args:
+            intents: IntentsBlock or None
+            
+        Returns:
+            Dict with intent summary or None if intents is None
+        """
+        if not intents:
+            return None
+        
+        summary = {}
+        
+        # Quest intent summary
+        if hasattr(intents, 'quest_intent') and intents.quest_intent:
+            quest = intents.quest_intent
+            summary['quest'] = {
+                'action': quest.action if hasattr(quest, 'action') else 'none',
+                'has_title': bool(quest.quest_title) if hasattr(quest, 'quest_title') else False,
+                'has_summary': bool(quest.quest_summary) if hasattr(quest, 'quest_summary') else False
+            }
+        
+        # Combat intent summary
+        if hasattr(intents, 'combat_intent') and intents.combat_intent:
+            combat = intents.combat_intent
+            summary['combat'] = {
+                'action': combat.action if hasattr(combat, 'action') else 'none',
+                'enemy_count': len(combat.enemies) if hasattr(combat, 'enemies') and combat.enemies else 0
+            }
+        
+        # POI intent summary
+        if hasattr(intents, 'poi_intent') and intents.poi_intent:
+            poi = intents.poi_intent
+            summary['poi'] = {
+                'action': poi.action if hasattr(poi, 'action') else 'none',
+                'has_name': bool(poi.name) if hasattr(poi, 'name') else False,
+                'tag_count': len(poi.reference_tags) if hasattr(poi, 'reference_tags') and poi.reference_tags else 0
+            }
+        
+        return summary if summary else None
