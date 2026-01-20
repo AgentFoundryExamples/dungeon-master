@@ -667,8 +667,8 @@ def test_prompt_includes_status_transition_rules(prompt_builder, sample_context)
         user_action="I continue my adventure"
     )
     
-    # Should include status transition rules section
-    assert "STATUS TRANSITIONS" in system_instructions or "status transition" in system_instructions.lower()
+    # Should include status transition rules section header
+    assert "STATUS TRANSITIONS AND GAME OVER RULES:" in system_instructions
     
     # Should document status ordering
     assert "Healthy" in system_instructions
