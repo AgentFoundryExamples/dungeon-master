@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 67797,
-        "loc": 1426,
+        "size_bytes": 51056,
+        "loc": 1147,
         "todo_count": 0
       }
     },
@@ -67,8 +67,8 @@
       "summary": "Python module for logging",
       "summary_text": "Python module for logging",
       "metrics": {
-        "size_bytes": 21455,
-        "loc": 483,
+        "size_bytes": 16661,
+        "loc": 363,
         "todo_count": 0
       }
     },
@@ -95,8 +95,8 @@
       "summary": "Python module for metrics",
       "summary_text": "Python module for metrics",
       "metrics": {
-        "size_bytes": 14687,
-        "loc": 308,
+        "size_bytes": 12709,
+        "loc": 270,
         "todo_count": 0
       }
     },
@@ -221,8 +221,8 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 33127,
-        "loc": 599,
+        "size_bytes": 18494,
+        "loc": 348,
         "todo_count": 0
       }
     },
@@ -263,8 +263,8 @@
       "summary": "Python module for turn orchestrator",
       "summary_text": "Python module for turn orchestrator",
       "metrics": {
-        "size_bytes": 59883,
-        "loc": 1094,
+        "size_bytes": 45665,
+        "loc": 830,
         "todo_count": 0
       }
     },
@@ -277,8 +277,8 @@
       "summary": "Python module initialization (role: module-init)",
       "summary_text": "Python module initialization (role: module-init)",
       "metrics": {
-        "size_bytes": 977,
-        "loc": 16,
+        "size_bytes": 1179,
+        "loc": 20,
         "todo_count": 0
       }
     },
@@ -291,8 +291,8 @@
       "summary": "Python module for buffer",
       "summary_text": "Python module for buffer",
       "metrics": {
-        "size_bytes": 4635,
-        "loc": 86,
+        "size_bytes": 4775,
+        "loc": 88,
         "todo_count": 0
       }
     },
@@ -305,8 +305,8 @@
       "summary": "Python module for transport",
       "summary_text": "Python module for transport",
       "metrics": {
-        "size_bytes": 5432,
-        "loc": 117,
+        "size_bytes": 5655,
+        "loc": 120,
         "todo_count": 0
       }
     },
@@ -459,8 +459,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 27854,
-        "loc": 608,
+        "size_bytes": 28514,
+        "loc": 619,
         "todo_count": 0
       }
     },
@@ -487,8 +487,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 4467,
-        "loc": 85,
+        "size_bytes": 5097,
+        "loc": 95,
         "todo_count": 0
       }
     },
@@ -711,8 +711,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 6464,
-        "loc": 147,
+        "size_bytes": 7190,
+        "loc": 159,
         "todo_count": 0
       }
     },
@@ -725,8 +725,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 19495,
-        "loc": 376,
+        "size_bytes": 2200,
+        "loc": 37,
         "todo_count": 0
       }
     },

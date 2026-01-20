@@ -24,10 +24,8 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "asyncio",
           "datetime.datetime",
           "datetime.timezone",
-          "json",
           "math",
           "re",
           "time",
@@ -37,7 +35,6 @@
           "fastapi.APIRouter",
           "fastapi.Depends",
           "fastapi.HTTPException",
-          "fastapi.responses.StreamingResponse",
           "fastapi.status",
           "httpx.AsyncClient"
         ]
@@ -250,8 +247,6 @@
         "stdlib": [
           "asyncio",
           "time",
-          "typing.AsyncIterator",
-          "typing.Callable",
           "typing.Optional",
           "typing.Protocol"
         ],
@@ -778,14 +773,8 @@
       "path": "tests/test_streaming_integration.py",
       "type": "file",
       "external_dependencies": {
-        "stdlib": [
-          "json",
-          "unittest.mock.AsyncMock",
-          "unittest.mock.MagicMock",
-          "unittest.mock.patch"
-        ],
+        "stdlib": [],
         "third-party": [
-          "httpx.Response",
           "pytest"
         ]
       }
@@ -866,10 +855,6 @@
     {
       "source": "app/api/routes.py",
       "target": "app/metrics.py"
-    },
-    {
-      "source": "app/api/routes.py",
-      "target": "app/streaming/__init__.py"
     },
     {
       "source": "app/api/routes.py",
@@ -1436,18 +1421,6 @@
       "target": "app/streaming/transport.py"
     },
     {
-      "source": "tests/test_streaming_integration.py",
-      "target": "app/services/llm_client.py"
-    },
-    {
-      "source": "tests/test_streaming_integration.py",
-      "target": "app/services/journey_log_client.py"
-    },
-    {
-      "source": "tests/test_streaming_integration.py",
-      "target": "app/metrics.py"
-    },
-    {
       "source": "tests/test_turn_integration.py",
       "target": "app/services/llm_client.py"
     },
@@ -1522,7 +1495,6 @@
       "threading.Lock",
       "time",
       "typing.Any",
-      "typing.AsyncIterator",
       "typing.Callable",
       "typing.Dict",
       "typing.List",
@@ -1547,7 +1519,6 @@
       "fastapi.Request",
       "fastapi.Response",
       "fastapi.middleware.cors.CORSMiddleware",
-      "fastapi.responses.StreamingResponse",
       "fastapi.status",
       "fastapi.testclient.TestClient",
       "httpx.AsyncClient",
@@ -1568,7 +1539,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 44,
-    "third-party_count": 27
+    "stdlib_count": 43,
+    "third-party_count": 26
   }
 }

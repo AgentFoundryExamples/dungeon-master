@@ -9,15 +9,15 @@ Includes classification of external dependencies as stdlib vs third-party.
 ## Statistics
 
 - **Total files**: 55
-- **Intra-repo dependencies**: 164
-- **External stdlib dependencies**: 44
-- **External third-party dependencies**: 27
+- **Intra-repo dependencies**: 160
+- **External stdlib dependencies**: 43
+- **External third-party dependencies**: 26
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 44 unique modules
+Total: 43 unique modules
 
 - `abc.ABC`
 - `abc.abstractmethod`
@@ -39,11 +39,11 @@ Total: 44 unique modules
 - `logging`
 - `math`
 - `os`
-- ... and 24 more (see JSON for full list)
+- ... and 23 more (see JSON for full list)
 
 ### Third-Party Packages
 
-Total: 27 unique packages
+Total: 26 unique packages
 
 - `fastapi.APIRouter`
 - `fastapi.Depends`
@@ -52,7 +52,6 @@ Total: 27 unique packages
 - `fastapi.Request`
 - `fastapi.Response`
 - `fastapi.middleware.cors.CORSMiddleware`
-- `fastapi.responses.StreamingResponse`
 - `fastapi.status`
 - `fastapi.testclient.TestClient`
 - `httpx.AsyncClient`
@@ -65,25 +64,26 @@ Total: 27 unique packages
 - `openai.OpenAI`
 - `pydantic.BaseModel`
 - `pydantic.Field`
-- ... and 7 more (see JSON for full list)
+- `pydantic.ValidationError`
+- ... and 6 more (see JSON for full list)
 
 ## Most Depended Upon Files (Intra-Repo)
 
 - `app/models.py` (26 dependents)
-- `app/services/journey_log_client.py` (14 dependents)
-- `app/services/llm_client.py` (14 dependents)
 - `app/services/outcome_parser.py` (14 dependents)
 - `app/services/policy_engine.py` (14 dependents)
+- `app/services/journey_log_client.py` (13 dependents)
+- `app/services/llm_client.py` (13 dependents)
 - `app/logging.py` (13 dependents)
 - `app/prompting/prompt_builder.py` (12 dependents)
-- `app/metrics.py` (11 dependents)
 - `app/services/turn_orchestrator.py` (10 dependents)
+- `app/metrics.py` (10 dependents)
 - `app/config.py` (8 dependents)
 
 ## Files with Most Dependencies (Intra-Repo)
 
 - `app/main.py` (13 dependencies)
-- `app/api/routes.py` (12 dependencies)
+- `app/api/routes.py` (11 dependencies)
 - `tests/test_acceptance_criteria.py` (10 dependencies)
 - `tests/test_api.py` (10 dependencies)
 - `tests/conftest.py` (9 dependencies)

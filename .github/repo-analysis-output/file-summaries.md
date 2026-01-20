@@ -29,8 +29,8 @@ Total files: 55
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 66.21 KB  
-**LOC:** 1426  
+**Size:** 49.86 KB  
+**LOC:** 1147  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -47,8 +47,8 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for logging  
-**Size:** 20.95 KB  
-**LOC:** 483  
+**Size:** 16.27 KB  
+**LOC:** 363  
 **TODOs/FIXMEs:** 0  
 
 ## app/main.py
@@ -65,8 +65,8 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for metrics  
-**Size:** 14.34 KB  
-**LOC:** 308  
+**Size:** 12.41 KB  
+**LOC:** 270  
 **TODOs/FIXMEs:** 0  
 
 ## app/middleware.py
@@ -146,8 +146,8 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for llm client  
-**Size:** 32.35 KB  
-**LOC:** 599  
+**Size:** 18.06 KB  
+**LOC:** 348  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/outcome_parser.py
@@ -173,8 +173,8 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for turn orchestrator  
-**Size:** 58.48 KB  
-**LOC:** 1094  
+**Size:** 44.59 KB  
+**LOC:** 830  
 **TODOs/FIXMEs:** 0  
 
 ## app/streaming/__init__.py
@@ -182,8 +182,8 @@ Total files: 55
 **Role:** module-init  
 **Role Justification:** module initialization file '__init__'  
 **Summary:** Python module initialization (role: module-init)  
-**Size:** 0.95 KB  
-**LOC:** 16  
+**Size:** 1.15 KB  
+**LOC:** 20  
 **TODOs/FIXMEs:** 0  
 
 ## app/streaming/buffer.py
@@ -191,8 +191,8 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for buffer  
-**Size:** 4.53 KB  
-**LOC:** 86  
+**Size:** 4.66 KB  
+**LOC:** 88  
 **TODOs/FIXMEs:** 0  
 
 ## app/streaming/transport.py
@@ -200,8 +200,8 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for transport  
-**Size:** 5.30 KB  
-**LOC:** 117  
+**Size:** 5.52 KB  
+**LOC:** 120  
 **TODOs/FIXMEs:** 0  
 
 ## app/turn_storage.py
@@ -299,8 +299,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 27.20 KB  
-**LOC:** 608  
+**Size:** 27.85 KB  
+**LOC:** 619  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_metrics.py
@@ -317,8 +317,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 4.36 KB  
-**LOC:** 85  
+**Size:** 4.98 KB  
+**LOC:** 95  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_outcome_models.py
@@ -461,8 +461,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 6.31 KB  
-**LOC:** 147  
+**Size:** 7.02 KB  
+**LOC:** 159  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_streaming_integration.py
@@ -470,8 +470,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 19.04 KB  
-**LOC:** 376  
+**Size:** 2.15 KB  
+**LOC:** 37  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_turn_integration.py
