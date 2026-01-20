@@ -108,7 +108,9 @@ def client(test_env):
             get_journey_log_client,
             get_llm_client,
             get_policy_engine,
-            get_turn_orchestrator
+            get_turn_orchestrator,
+            get_character_rate_limiter,
+            get_llm_semaphore
         )
         
         from app.main import app
@@ -118,6 +120,7 @@ def client(test_env):
         from app.services.policy_engine import PolicyEngine
         from app.services.turn_orchestrator import TurnOrchestrator
         from app.prompting.prompt_builder import PromptBuilder
+        from app.resilience import RateLimiter
         
         # Create test HTTP client
         test_http_client = AsyncClient()
@@ -151,6 +154,8 @@ def client(test_env):
                 journey_log_client=test_journey_log_client,
                 prompt_builder=test_prompt_builder
             )
+            test_rate_limiter = RateLimiter(max_rate=10.0)  # 10 requests per second
+            test_llm_semaphore = asyncio.Semaphore(5)  # Allow 5 concurrent LLM calls
             
             # Override dependencies (don't clear - just overwrite the ones from main.py)
             app.dependency_overrides[get_http_client] = lambda: test_http_client
@@ -158,6 +163,8 @@ def client(test_env):
             app.dependency_overrides[get_llm_client] = lambda: test_llm_client
             app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
             app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
+            app.dependency_overrides[get_character_rate_limiter] = lambda: test_rate_limiter
+            app.dependency_overrides[get_llm_semaphore] = lambda: test_llm_semaphore
             
             with TestClient(app) as client:
                 yield client
@@ -215,7 +222,9 @@ def client_with_failed_quest_roll(test_env):
             get_journey_log_client,
             get_llm_client,
             get_policy_engine,
-            get_turn_orchestrator
+            get_turn_orchestrator,
+            get_character_rate_limiter,
+            get_llm_semaphore
         )
         from app.main import app
         from httpx import AsyncClient
@@ -224,6 +233,7 @@ def client_with_failed_quest_roll(test_env):
         from app.services.policy_engine import PolicyEngine
         from app.services.turn_orchestrator import TurnOrchestrator
         from app.prompting.prompt_builder import PromptBuilder
+        from app.resilience import RateLimiter
         
         test_http_client = AsyncClient()
         
@@ -256,12 +266,16 @@ def client_with_failed_quest_roll(test_env):
                 journey_log_client=test_journey_log_client,
                 prompt_builder=test_prompt_builder
             )
+            test_rate_limiter = RateLimiter(max_rate=10.0)
+            test_llm_semaphore = asyncio.Semaphore(5)
             
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
             app.dependency_overrides[get_llm_client] = lambda: test_llm_client
             app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
             app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
+            app.dependency_overrides[get_character_rate_limiter] = lambda: test_rate_limiter
+            app.dependency_overrides[get_llm_semaphore] = lambda: test_llm_semaphore
             
             with TestClient(app) as client:
                 yield client
@@ -290,7 +304,9 @@ def client_with_failed_poi_roll(test_env):
             get_journey_log_client,
             get_llm_client,
             get_policy_engine,
-            get_turn_orchestrator
+            get_turn_orchestrator,
+            get_character_rate_limiter,
+            get_llm_semaphore
         )
         from app.main import app
         from httpx import AsyncClient
@@ -299,6 +315,7 @@ def client_with_failed_poi_roll(test_env):
         from app.services.policy_engine import PolicyEngine
         from app.services.turn_orchestrator import TurnOrchestrator
         from app.prompting.prompt_builder import PromptBuilder
+        from app.resilience import RateLimiter
         
         test_http_client = AsyncClient()
         
@@ -331,12 +348,16 @@ def client_with_failed_poi_roll(test_env):
                 journey_log_client=test_journey_log_client,
                 prompt_builder=test_prompt_builder
             )
+            test_rate_limiter = RateLimiter(max_rate=10.0)
+            test_llm_semaphore = asyncio.Semaphore(5)
             
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
             app.dependency_overrides[get_llm_client] = lambda: test_llm_client
             app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
             app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
+            app.dependency_overrides[get_character_rate_limiter] = lambda: test_rate_limiter
+            app.dependency_overrides[get_llm_semaphore] = lambda: test_llm_semaphore
             
             with TestClient(app) as client:
                 yield client
@@ -365,7 +386,9 @@ def client_with_deterministic_seed(test_env):
             get_journey_log_client,
             get_llm_client,
             get_policy_engine,
-            get_turn_orchestrator
+            get_turn_orchestrator,
+            get_character_rate_limiter,
+            get_llm_semaphore
         )
         from app.main import app
         from httpx import AsyncClient
@@ -374,6 +397,7 @@ def client_with_deterministic_seed(test_env):
         from app.services.policy_engine import PolicyEngine
         from app.services.turn_orchestrator import TurnOrchestrator
         from app.prompting.prompt_builder import PromptBuilder
+        from app.resilience import RateLimiter
         
         test_http_client = AsyncClient()
         
@@ -406,12 +430,16 @@ def client_with_deterministic_seed(test_env):
                 journey_log_client=test_journey_log_client,
                 prompt_builder=test_prompt_builder
             )
+            test_rate_limiter = RateLimiter(max_rate=10.0)
+            test_llm_semaphore = asyncio.Semaphore(5)
             
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
             app.dependency_overrides[get_llm_client] = lambda: test_llm_client
             app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
             app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
+            app.dependency_overrides[get_character_rate_limiter] = lambda: test_rate_limiter
+            app.dependency_overrides[get_llm_semaphore] = lambda: test_llm_semaphore
             
             with TestClient(app) as client:
                 yield client
