@@ -384,13 +384,14 @@ class PolicyEngine:
         
         quest_decision = self.evaluate_quest_trigger(
             character_id=character_id,
-            policy_state=policy_state,
+            turns_since_last_quest=policy_state.turns_since_last_quest,
+            has_active_quest=policy_state.has_active_quest,
             seed_override=seed_override
         )
         
         poi_decision = self.evaluate_poi_trigger(
             character_id=character_id,
-            policy_state=policy_state,
+            turns_since_last_poi=policy_state.turns_since_last_poi,
             seed_override=seed_override
         )
         
