@@ -179,20 +179,18 @@ class StructuredLogger:
         
         extras.update(kwargs)
         
-        # Create a formatted message with extras
-        if extras:
-            extra_str = ' '.join(f'{k}={v}' for k, v in extras.items() if v is not None)
-            if extra_str:
-                message = f"{message} | {extra_str}"
+        # For structured logging, the formatter should handle the 'extra' dict.
+        # Do not manually format extras into the message string.
         
         # Pass reserved parameters separately from extras
+        # Adjust stacklevel as we are in a wrapper
         self.logger.log(
             level, 
             message, 
             extra=extras,
             exc_info=exc_info,
             stack_info=stack_info,
-            stacklevel=stacklevel
+            stacklevel=stacklevel + 1
         )
     
     def debug(self, message: str, **kwargs) -> None:

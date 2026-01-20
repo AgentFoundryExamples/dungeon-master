@@ -120,7 +120,7 @@ def client(test_env):
         from app.services.policy_engine import PolicyEngine
         from app.services.turn_orchestrator import TurnOrchestrator
         from app.prompting.prompt_builder import PromptBuilder
-        from app.resilience import RateLimiter
+        from app.resilience import RateLimiter, Semaphore
         
         # Create test HTTP client
         test_http_client = AsyncClient()
@@ -155,7 +155,7 @@ def client(test_env):
                 prompt_builder=test_prompt_builder
             )
             test_rate_limiter = RateLimiter(max_rate=10.0)  # 10 requests per second
-            test_llm_semaphore = asyncio.Semaphore(5)  # Allow 5 concurrent LLM calls
+            test_llm_semaphore = Semaphore(5)  # Allow 5 concurrent LLM calls
             
             # Override dependencies (don't clear - just overwrite the ones from main.py)
             app.dependency_overrides[get_http_client] = lambda: test_http_client
@@ -233,7 +233,7 @@ def client_with_failed_quest_roll(test_env):
         from app.services.policy_engine import PolicyEngine
         from app.services.turn_orchestrator import TurnOrchestrator
         from app.prompting.prompt_builder import PromptBuilder
-        from app.resilience import RateLimiter
+        from app.resilience import RateLimiter, Semaphore
         
         test_http_client = AsyncClient()
         
@@ -267,7 +267,7 @@ def client_with_failed_quest_roll(test_env):
                 prompt_builder=test_prompt_builder
             )
             test_rate_limiter = RateLimiter(max_rate=10.0)
-            test_llm_semaphore = asyncio.Semaphore(5)
+            test_llm_semaphore = Semaphore(5)
             
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
@@ -315,7 +315,7 @@ def client_with_failed_poi_roll(test_env):
         from app.services.policy_engine import PolicyEngine
         from app.services.turn_orchestrator import TurnOrchestrator
         from app.prompting.prompt_builder import PromptBuilder
-        from app.resilience import RateLimiter
+        from app.resilience import RateLimiter, Semaphore
         
         test_http_client = AsyncClient()
         
@@ -349,7 +349,7 @@ def client_with_failed_poi_roll(test_env):
                 prompt_builder=test_prompt_builder
             )
             test_rate_limiter = RateLimiter(max_rate=10.0)
-            test_llm_semaphore = asyncio.Semaphore(5)
+            test_llm_semaphore = Semaphore(5)
             
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
@@ -397,7 +397,7 @@ def client_with_deterministic_seed(test_env):
         from app.services.policy_engine import PolicyEngine
         from app.services.turn_orchestrator import TurnOrchestrator
         from app.prompting.prompt_builder import PromptBuilder
-        from app.resilience import RateLimiter
+        from app.resilience import RateLimiter, Semaphore
         
         test_http_client = AsyncClient()
         
@@ -431,7 +431,7 @@ def client_with_deterministic_seed(test_env):
                 prompt_builder=test_prompt_builder
             )
             test_rate_limiter = RateLimiter(max_rate=10.0)
-            test_llm_semaphore = asyncio.Semaphore(5)
+            test_llm_semaphore = Semaphore(5)
             
             app.dependency_overrides[get_http_client] = lambda: test_http_client
             app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client

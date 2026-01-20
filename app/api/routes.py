@@ -224,27 +224,6 @@ def get_policy_engine():
     )
 
 
-def _get_semaphore_active_count(semaphore: asyncio.Semaphore) -> int | str:
-    """Safely calculate the number of active acquisitions on a semaphore.
-    
-    Note: This uses private attributes (_value, _bound_value) as asyncio.Semaphore
-    doesn't expose a public API for this. Returns "unknown" if calculation fails.
-    
-    Args:
-        semaphore: The asyncio.Semaphore instance to inspect
-        
-    Returns:
-        Number of active acquisitions, or "unknown" if cannot be determined
-    """
-    try:
-        current_value = getattr(semaphore, '_value', None)
-        bound_value = getattr(semaphore, '_bound_value', None)
-        
-        if current_value is not None and bound_value is not None:
-            return bound_value - current_value
-        return "unknown"
-    except Exception:
-        return "unknown"
 
 
 def get_turn_orchestrator():
@@ -474,7 +453,7 @@ async def process_turn(
             async with llm_semaphore:
                 logger.debug(
                     "Acquired LLM semaphore",
-                    active_llm_calls=_get_semaphore_active_count(llm_semaphore)
+                    active_llm_calls=llm_semaphore.active_count
                 )
                 
                 narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn(
@@ -903,7 +882,7 @@ async def process_turn_stream(
                     async with llm_semaphore:
                         logger.debug(
                             "Acquired LLM semaphore for streaming",
-                            active_llm_calls=_get_semaphore_active_count(llm_semaphore)
+                            active_llm_calls=llm_semaphore.active_count
                         )
                         
                         narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn_stream(

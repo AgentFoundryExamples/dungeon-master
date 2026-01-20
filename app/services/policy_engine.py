@@ -363,9 +363,9 @@ class PolicyEngine:
     def evaluate_triggers(
         self,
         character_id: str,
-        policy_state: Any,
+        policy_state: "PolicyState",
         seed_override: Optional[int] = None
-    ) -> Any:
+    ) -> "PolicyHints":
         """Evaluate both quest and POI triggers together.
         
         This is a convenience method that evaluates both quest and POI triggers
@@ -380,7 +380,7 @@ class PolicyEngine:
         Returns:
             PolicyHints containing both quest and POI trigger decisions
         """
-        from app.models import PolicyHints
+        from app.models import PolicyHints, PolicyState
         
         quest_decision = self.evaluate_quest_trigger(
             character_id=character_id,
