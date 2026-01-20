@@ -6,30 +6,9 @@ AI-powered narrative generation service for dungeon crawling adventures. The Dun
 
 This service provides a FastAPI backend that:
 - Accepts player turn actions via POST /turn endpoint (synchronous)
-- Accepts player turn actions via POST /turn/stream endpoint (streaming narrative delivery)
 - Fetches character context from the journey-log service
 - Generates AI narrative responses using OpenAI GPT models
 - Provides health check endpoint with optional journey-log connectivity verification
-
-### Streaming vs Synchronous Endpoints
-
-The service offers two ways to process player turns:
-
-**Synchronous (/turn)**: Traditional request-response flow
-- Client waits for complete narrative (~1-3 seconds)
-- Returns narrative, intents, and subsystem summary in single JSON response
-- Simple integration for clients
-
-**Streaming (/turn/stream)**: Progressive narrative delivery via Server-Sent Events (SSE)
-- Client receives narrative tokens as they're generated (~50-200ms to first token)
-- Improved perceived latency through progressive display
-- Two-phase architecture:
-  - **Phase 1**: Stream tokens to client in real-time
-  - **Phase 2**: Validate complete narrative, execute subsystem writes, send completion event
-- Same validation guarantees and write ordering as synchronous endpoint
-- Requires SSE-capable client (EventSource API, etc.)
-
-See [Streaming Architecture](#streaming-architecture) for detailed design.
 
 ## Character Status Transitions and Game Over Rules
 
@@ -261,7 +240,7 @@ The service implements comprehensive safeguards to prevent runaway resource usag
 - Prevents API rate limit exhaustion from concurrent requests
 - Configured via `MAX_CONCURRENT_LLM_CALLS` (default: 10)
 - Queues requests when limit is reached (FIFO)
-- Applies across all characters and both `/turn` and `/turn/stream` endpoints
+- Applies across all characters
 
 **Rate Limit Response (HTTP 429)**:
 ```json
@@ -353,9 +332,9 @@ Access metrics at `/metrics` endpoint (requires `ENABLE_METRICS=true`).
 
 ## API Usage
 
-### Synchronous Turn Processing
+### Turn Processing
 
-Traditional request-response flow for processing player turns:
+Process player turns with synchronous request-response flow:
 
 ```bash
 curl -X POST http://localhost:8080/turn \
@@ -386,118 +365,6 @@ curl -X POST http://localhost:8080/turn \
     "narrative_persisted": true
   }
 }
-```
-
-### Streaming Turn Processing (SSE)
-
-Progressive narrative delivery with Server-Sent Events:
-
-```javascript
-// Client-side JavaScript example
-const eventSource = new EventSource('http://localhost:8080/turn/stream', {
-  method: 'POST',
-  body: JSON.stringify({
-    character_id: '550e8400-e29b-41d4-a716-446655440000',
-    user_action: 'I search the ancient temple'
-  })
-});
-
-let narrative = '';
-
-eventSource.addEventListener('message', (event) => {
-  const data = JSON.parse(event.data);
-  
-  switch (data.type) {
-    case 'token':
-      // Append token to narrative display in real-time
-      narrative += data.content;
-      document.getElementById('narrative').textContent = narrative;
-      break;
-      
-    case 'complete':
-      // Show final intents and subsystem summary
-      console.log('Intents:', data.intents);
-      console.log('Subsystem Summary:', data.subsystem_summary);
-      eventSource.close();
-      break;
-      
-    case 'error':
-      // Handle error
-      console.error('Error:', data.message);
-      eventSource.close();
-      break;
-  }
-});
-```
-
-**SSE Event Stream**:
-```
-data: {"type": "token", "content": "You ", "timestamp": "2026-01-17T05:30:00.000Z"}
-
-data: {"type": "token", "content": "carefully ", "timestamp": "2026-01-17T05:30:00.123Z"}
-
-data: {"type": "token", "content": "search...", "timestamp": "2026-01-17T05:30:00.456Z"}
-
-data: {"type": "complete", "intents": {...}, "subsystem_summary": {...}, "timestamp": "2026-01-17T05:30:02.789Z"}
-
-data: [DONE]
-```
-
-**Event Types**:
-- `token`: Individual narrative token (sent continuously during generation)
-- `complete`: Final event with validated intents and subsystem summary (sent once)
-- `error`: Error event with type, message, and recoverability flag (sent on failure)
-
-**Key Differences**:
-- **Perceived Latency**: ~50-200ms to first token (streaming) vs ~1-3s to complete response (synchronous)
-- **Total Latency**: Same (~1.5-3s) for both endpoints
-- **Client Complexity**: Streaming requires SSE handling; synchronous uses standard fetch
-- **Validation**: Same - both validate DungeonMasterOutcome schema before subsystem writes
-- **Write Ordering**: Same - both execute quest → combat → POI → narrative deterministically
-
-### Python Client Example (Streaming)
-
-```python
-import httpx
-import json
-
-async def stream_turn(character_id: str, user_action: str):
-    """Process a turn with streaming narrative delivery."""
-    url = "http://localhost:8080/turn/stream"
-    payload = {
-        "character_id": character_id,
-        "user_action": user_action
-    }
-    
-    async with httpx.AsyncClient() as client:
-        async with client.stream(
-            "POST",
-            url,
-            json=payload,
-            headers={"Accept": "text/event-stream"}
-        ) as response:
-            async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    data_str = line[6:]  # Remove 'data: ' prefix
-                    
-                    if data_str == "[DONE]":
-                        break
-                    
-                    event = json.loads(data_str)
-                    
-                    if event["type"] == "token":
-                        print(event["content"], end='', flush=True)
-                    elif event["type"] == "complete":
-                        print("\n\nIntents:", event["intents"])
-                        print("Subsystem Summary:", event["subsystem_summary"])
-                    elif event["type"] == "error":
-                        print(f"\nError: {event['message']}")
-
-# Usage
-await stream_turn(
-    character_id="550e8400-e29b-41d4-a716-446655440000",
-    user_action="I search the ancient temple"
-)
 ```
 
 ## Prompt Structure
@@ -1296,7 +1163,6 @@ pytest --cov=app tests/
 - `test_policy_integration.py`: Policy evaluation with turn orchestration
 - `test_quest_integration.py`: Quest lifecycle (offer, progress, complete)
 - `test_poi_memory_sparks.py`: POI memory spark retrieval and trigger frequency
-- `test_streaming_integration.py`: Streaming narrative delivery via SSE
 
 **End-to-End Multi-Turn Tests:**
 - `test_multi_turn_quest_trigger_frequency`: Validates quest trigger rates over 100 turns with statistical bounds
@@ -1515,80 +1381,7 @@ All admin responses include `redacted: true` flag when data is redacted.
 
 
 
-## Streaming Architecture
 
-The Dungeon Master service has a defined architecture for streaming narrative text to clients while preserving the existing `DungeonMasterOutcome` contract and deterministic subsystem write ordering.
-
-### Overview
-
-**Status**: Design phase complete (implementation pending)
-
-The streaming architecture enables progressive narrative delivery where clients see tokens in real-time as the LLM generates them, reducing perceived latency from ~1-2 seconds to ~50-200ms (time to first token).
-
-**Key Features**:
-- **Two-Phase Streaming**: Token delivery (Phase 1) + validation & writes (Phase 2)
-- **Schema Preservation**: `DungeonMasterOutcome` remains authoritative, validated after streaming
-- **Backward Compatible**: Existing `/turn` endpoint unchanged; streaming via new `/turn/stream` endpoint
-- **Multiple Transports**: SSE (Server-Sent Events) and WebSocket support
-- **Graceful Degradation**: Legacy clients unaffected; streaming clients can disconnect mid-stream
-
-### Streaming vs Legacy Flow
-
-| Aspect | Legacy `/turn` | Streaming `/turn/stream` |
-|--------|----------------|-------------------------|
-| **Client Experience** | Blocks 1-2 seconds | Sees first token in ~50-200ms |
-| **Total Latency** | 1.3-2.7 seconds | 1.3-2.7 seconds (same) |
-| **Perceived Latency** | 1.3-2.7 seconds | 50-200ms (much faster) |
-| **Response Format** | Single JSON response | Event stream (SSE/WebSocket) |
-| **Schema Validation** | Before response sent | After streaming complete |
-| **Subsystem Writes** | Before response sent | After streaming complete (Phase 2) |
-| **Client Disconnect** | N/A (short-lived) | Server completes turn anyway |
-
-### When to Use Streaming
-
-**Use `/turn/stream` when**:
-- Client supports SSE or WebSocket
-- User experience prioritizes responsiveness
-- Narrative length is substantial (>100 tokens)
-- Real-time feedback is valuable (typing effect, progress bars)
-
-**Use `/turn` when**:
-- Client is simple (fetch/await pattern)
-- User experience tolerates 1-2s wait
-- Implementation complexity must be minimized
-- Debugging is easier with synchronous flow
-
-### Architecture Details
-
-For complete architectural details, event contracts, buffering mechanisms, failure handling, and implementation roadmap, see:
-
-**[STREAMING_ARCHITECTURE.md](STREAMING_ARCHITECTURE.md)**
-
-Key topics covered:
-- Two-phase streaming model (token stream → validation)
-- StreamTransport abstraction (SSE/WebSocket)
-- Streaming event contracts (token, metadata, complete, error)
-- Buffering and replay for journey-log persistence
-- Failure scenarios (timeout, disconnect, validation error)
-- Integration points with existing code
-- Performance and security considerations
-- Testing strategy and migration path
-
-### Implementation Status
-
-**Current Status**: Architecture defined, implementation not started
-
-**Next Steps**:
-1. Implement `StreamTransport` interface and SSE/WebSocket transports
-2. Implement `NarrativeBuffer` for token buffering
-3. Extend `LLMClient` with streaming support
-4. Add `/turn/stream` endpoint with streaming orchestration
-5. Add comprehensive tests for streaming flow
-6. Load testing and production readiness
-
-See `STREAMING_ARCHITECTURE.md` for detailed migration path.
-
----
 
 ## Turn Lifecycle Documentation
 
@@ -1872,33 +1665,7 @@ In stub mode:
 **Solution:** Check OpenAI API key and model availability. Try stub mode for testing.
 
 **Symptom:** High latency on turns
-**Solution:** Monitor /metrics endpoint for latency breakdown. Consider using streaming endpoint for better perceived performance.
-
-### Streaming Issues
-
-**Symptom:** No token events received on streaming endpoint
-**Solution:** 
-- Verify client supports Server-Sent Events (SSE)
-- Check `Accept: text/event-stream` header is set
-- Ensure no proxy/gateway is buffering SSE streams (set `X-Accel-Buffering: no`)
-- Check for CORS issues if calling from browser
-
-**Symptom:** Client disconnects during streaming but turn not completed
-**Solution:** Server continues processing after disconnect and persists narrative. The turn completes successfully server-side. Check journey-log for the persisted narrative.
-
-**Symptom:** Streaming endpoint returns error event with `llm_response_error`
-**Solution:** 
-- LLM returned invalid JSON that failed schema validation
-- No journey-log write occurs when validation fails (safe failure)
-- Check metrics at `/metrics` for `streaming.parse_failures` count
-- Review logs for `stream_phase=parse_complete` with `is_valid=False`
-
-**Symptom:** High client disconnect rate in metrics
-**Solution:**
-- Check client timeout settings (clients may disconnect before completion)
-- Monitor `/metrics` endpoint `streaming.client_disconnects` counter
-- Review logs for `stream_phase=client_disconnect` entries
-- Note: Server completes turn even after disconnect
+**Solution:** Monitor /metrics endpoint for latency breakdown. Consider increasing timeout values or optimizing prompt size.
 
 ### Observability and Debugging
 
@@ -1948,14 +1715,6 @@ Metrics include comprehensive observability data across all subsystems:
 **LLM Metrics:**
 - `latencies.llm_call`: LLM call latency (avg/min/max)
 - `schema_conformance.conformance_rate`: Schema parse success rate
-
-**Streaming Metrics:**
-- `streaming.total_streams`: Total streaming turns initiated
-- `streaming.completed_streams`: Successfully completed streaming turns
-- `streaming.client_disconnects`: Client disconnects during streaming
-- `streaming.parse_failures`: LLM parse failures after streaming
-- `streaming.tokens_per_stream`: Token count statistics
-- `streaming.stream_duration`: Stream duration statistics
 
 **Enable Structured JSON Logging:**
 ```bash
@@ -2039,18 +1798,6 @@ character_id="550e8400-e29b-41d4-a716-446655440000"
 # Find all failed turns
 log_type="turn" AND outcome="error"
 ```
-
-**Streaming Lifecycle Logs:**
-
-Logs track streaming phases with `stream_phase` field:
-- `start`: Stream started (character_id logged)
-- `token_streaming`: Tokens being streamed (token_count logged)
-- `parse_complete`: Narrative parsing finished (narrative_length, is_valid logged)
-- `writes_start`: Subsystem writes starting
-- `writes_complete`: Subsystem writes finished (quest/combat/POI/narrative flags logged)
-- `client_disconnect`: Client disconnected mid-stream (token_count, duration logged)
-- `complete`: Stream completed successfully (narrative_length, total_tokens, duration logged)
-- `error`: Stream failed (error_type, error_message, token_count, duration logged)
 
 **Enable Debug Logging:**
 ```bash
