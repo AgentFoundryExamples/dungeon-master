@@ -210,7 +210,8 @@ class OutcomeParser:
     def normalize_quest_intent(
         self,
         quest_intent: Optional[QuestIntent],
-        policy_triggered: bool = False
+        policy_triggered: bool = False,
+        poi_reference: Optional[dict] = None
     ) -> Optional[QuestIntent]:
         """Normalize QuestIntent with deterministic fallbacks for missing fields.
         
@@ -223,6 +224,7 @@ class OutcomeParser:
         - If title is missing and action="offer", provide generic fallback title
         - If summary is missing and action="offer", provide generic fallback summary
         - If details is missing and action="offer", provide empty dict
+        - If poi_reference is provided, inject POI context into quest details
         
         Note: The action field is validated by Pydantic as a Literal type, so
         invalid values cannot reach this method.
@@ -230,6 +232,7 @@ class OutcomeParser:
         Args:
             quest_intent: QuestIntent from LLM (may be None or incomplete)
             policy_triggered: Whether policy engine triggered quest opportunity
+            poi_reference: Optional POI to reference in quest context
             
         Returns:
             Normalized QuestIntent with fallbacks applied, or None if not applicable
@@ -240,16 +243,38 @@ class OutcomeParser:
         
         # If no intent but policy triggered, create minimal offer intent
         if quest_intent is None and policy_triggered:
-            logger.info(
-                "Quest policy triggered but no LLM intent - using fallback",
-                action="offer",
-                turn_id=get_turn_id()
-            )
+            title = "A New Opportunity"
+            summary = "An opportunity for adventure presents itself."
+            details = {}
+            
+            # Add POI reference context if available
+            if poi_reference:
+                poi_name = poi_reference.get("name", "Unknown Location")
+                title = f"Quest at {poi_name}"
+                summary = f"An opportunity for adventure at {poi_name}."
+                details["poi_reference"] = {
+                    "id": poi_reference.get("id"),
+                    "name": poi_name,
+                    "description": poi_reference.get("description")
+                }
+                logger.info(
+                    "Quest policy triggered with POI reference",
+                    action="offer",
+                    poi_name=poi_name,
+                    turn_id=get_turn_id()
+                )
+            else:
+                logger.info(
+                    "Quest policy triggered but no LLM intent - using fallback",
+                    action="offer",
+                    turn_id=get_turn_id()
+                )
+            
             return QuestIntent(
                 action="offer",
-                quest_title="A New Opportunity",
-                quest_summary="An opportunity for adventure presents itself.",
-                quest_details={}
+                quest_title=title,
+                quest_summary=summary,
+                quest_details=details
             )
         
         # Get validated action (Pydantic ensures it's valid)
@@ -307,6 +332,20 @@ class OutcomeParser:
             elif not isinstance(details, dict):
                 logger.warning("Quest offer details was non-dict, using empty dict", original_type=type(quest_intent.quest_details).__name__, turn_id=get_turn_id())
                 details = {}
+            
+            # Inject POI reference if provided and not already present
+            if poi_reference and "poi_reference" not in details:
+                poi_name = poi_reference.get("name", "Unknown Location")
+                details["poi_reference"] = {
+                    "id": poi_reference.get("id"),
+                    "name": poi_name,
+                    "description": poi_reference.get("description")
+                }
+                logger.info(
+                    "Injecting POI reference into quest",
+                    poi_name=poi_name,
+                    turn_id=get_turn_id()
+                )
             
             return QuestIntent(
                 action="offer",
