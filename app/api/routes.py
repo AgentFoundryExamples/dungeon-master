@@ -449,9 +449,15 @@ async def process_turn(
             
             # Acquire LLM semaphore to enforce global concurrency limit
             async with llm_semaphore:
+                # Calculate active calls: initial value - current available permits
+                # Note: _value is private but necessary for monitoring
+                active_calls = getattr(llm_semaphore, '_value', None)
+                if active_calls is not None and hasattr(llm_semaphore, '_bound_value'):
+                    active_calls = llm_semaphore._bound_value - active_calls
+                
                 logger.debug(
                     "Acquired LLM semaphore",
-                    active_llm_calls=llm_semaphore.active_count
+                    active_llm_calls=active_calls if active_calls is not None else "unknown"
                 )
                 
                 narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn(
@@ -878,9 +884,15 @@ async def process_turn_stream(
                     
                     # Acquire LLM semaphore to enforce global concurrency limit
                     async with llm_semaphore:
+                        # Calculate active calls: initial value - current available permits
+                        # Note: _value is private but necessary for monitoring
+                        active_calls = getattr(llm_semaphore, '_value', None)
+                        if active_calls is not None and hasattr(llm_semaphore, '_bound_value'):
+                            active_calls = llm_semaphore._bound_value - active_calls
+                        
                         logger.debug(
                             "Acquired LLM semaphore for streaming",
-                            active_llm_calls=llm_semaphore.active_count
+                            active_llm_calls=active_calls if active_calls is not None else "unknown"
                         )
                         
                         narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn_stream(
