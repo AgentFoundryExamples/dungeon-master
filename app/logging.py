@@ -172,6 +172,11 @@ class StructuredLogger:
             **kwargs: Additional fields to include in log
         """
         extras = get_structured_extras()
+        # Extract reserved logging parameters
+        exc_info = kwargs.pop('exc_info', None)
+        stack_info = kwargs.pop('stack_info', None)
+        stacklevel = kwargs.pop('stacklevel', 1)
+        
         extras.update(kwargs)
         
         # Create a formatted message with extras
@@ -180,7 +185,15 @@ class StructuredLogger:
             if extra_str:
                 message = f"{message} | {extra_str}"
         
-        self.logger.log(level, message, extra=extras)
+        # Pass reserved parameters separately from extras
+        self.logger.log(
+            level, 
+            message, 
+            extra=extras,
+            exc_info=exc_info,
+            stack_info=stack_info,
+            stacklevel=stacklevel
+        )
     
     def debug(self, message: str, **kwargs) -> None:
         """Log debug message with correlation IDs."""
