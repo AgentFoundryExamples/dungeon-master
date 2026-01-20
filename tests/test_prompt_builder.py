@@ -658,3 +658,54 @@ def test_memory_sparks_sorts_missing_timestamps_last(prompt_builder):
     
     assert recent_pos < older_pos, "Recent POI should appear before Older POI"
     assert older_pos < no_timestamp_pos, "POI without timestamp should appear last"
+
+
+def test_prompt_includes_status_transition_rules(prompt_builder, sample_context):
+    """Test that system instructions include character status transition rules."""
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=sample_context,
+        user_action="I continue my adventure"
+    )
+    
+    # Should include status transition rules section
+    assert "STATUS TRANSITIONS" in system_instructions or "status transition" in system_instructions.lower()
+    
+    # Should document status ordering
+    assert "Healthy" in system_instructions
+    assert "Wounded" in system_instructions
+    assert "Dead" in system_instructions
+    
+    # Should include healing rules
+    healing_keywords = ["healing", "heal"]
+    has_healing = any(keyword in system_instructions.lower() for keyword in healing_keywords)
+    assert has_healing, "System instructions should mention healing rules"
+    
+    # Should mention death finality
+    death_keywords = ["final", "permanent", "cannot revive", "cannot be revived"]
+    has_death_finality = any(keyword in system_instructions.lower() for keyword in death_keywords)
+    assert has_death_finality, "System instructions should mention death is final"
+    
+    # Should mention game over logic
+    gameover_keywords = ["game over", "session is over", "end of the journey"]
+    has_gameover = any(keyword in system_instructions.lower() for keyword in gameover_keywords)
+    assert has_gameover, "System instructions should mention game over when dead"
+
+
+def test_prompt_instructs_none_intents_on_death(prompt_builder, sample_context):
+    """Test that system instructions tell LLM to set intents to 'none' on death."""
+    system_instructions, user_prompt = prompt_builder.build_prompt(
+        context=sample_context,
+        user_action="I face my fate"
+    )
+    
+    # Should instruct to use "none" for intents when character is Dead
+    instructions_lower = system_instructions.lower()
+    
+    # Check for instructions about Dead status and intents
+    has_dead_intents_instruction = (
+        "dead" in instructions_lower and 
+        "none" in instructions_lower and
+        ("intent" in instructions_lower or "action" in instructions_lower)
+    )
+    
+    assert has_dead_intents_instruction, "System instructions should tell LLM to use 'none' intents when Dead"
