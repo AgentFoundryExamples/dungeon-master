@@ -8,16 +8,16 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 53
-- **Intra-repo dependencies**: 160
-- **External stdlib dependencies**: 43
+- **Total files**: 54
+- **Intra-repo dependencies**: 162
+- **External stdlib dependencies**: 44
 - **External third-party dependencies**: 27
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 43 unique modules
+Total: 44 unique modules
 
 - `abc.ABC`
 - `abc.abstractmethod`
@@ -29,6 +29,7 @@ Total: 43 unique modules
 - `copy.deepcopy`
 - `dataclasses.dataclass`
 - `datetime.datetime`
+- `datetime.timedelta`
 - `datetime.timezone`
 - `enum.Enum`
 - `functools.lru_cache`
@@ -38,8 +39,7 @@ Total: 43 unique modules
 - `logging`
 - `math`
 - `os`
-- `pathlib.Path`
-- ... and 23 more (see JSON for full list)
+- ... and 24 more (see JSON for full list)
 
 ### Third-Party Packages
 
@@ -73,8 +73,8 @@ Total: 27 unique packages
 - `app/services/journey_log_client.py` (14 dependents)
 - `app/services/llm_client.py` (14 dependents)
 - `app/services/outcome_parser.py` (14 dependents)
+- `app/services/policy_engine.py` (14 dependents)
 - `app/logging.py` (13 dependents)
-- `app/services/policy_engine.py` (13 dependents)
 - `app/metrics.py` (11 dependents)
 - `app/prompting/prompt_builder.py` (11 dependents)
 - `app/services/turn_orchestrator.py` (10 dependents)

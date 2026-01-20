@@ -284,6 +284,8 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone",
           "hashlib",
           "random",
           "threading",
@@ -689,6 +691,19 @@
         "third-party": [
           "pytest"
         ]
+      }
+    },
+    {
+      "id": "tests/test_quest_cooldown_timestamps.py",
+      "path": "tests/test_quest_cooldown_timestamps.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timedelta",
+          "datetime.timezone"
+        ],
+        "third-party": []
       }
     },
     {
@@ -1345,6 +1360,14 @@
       "target": "app/models.py"
     },
     {
+      "source": "tests/test_quest_cooldown_timestamps.py",
+      "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "tests/test_quest_cooldown_timestamps.py",
+      "target": "app/turn_storage.py"
+    },
+    {
       "source": "tests/test_quest_integration.py",
       "target": "app/services/turn_orchestrator.py"
     },
@@ -1457,6 +1480,7 @@
       "copy.deepcopy",
       "dataclasses.dataclass",
       "datetime.datetime",
+      "datetime.timedelta",
       "datetime.timezone",
       "enum.Enum",
       "functools.lru_cache",
@@ -1520,7 +1544,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 43,
+    "stdlib_count": 44,
     "third-party_count": 27
   }
 }

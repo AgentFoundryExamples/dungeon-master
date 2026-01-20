@@ -282,6 +282,10 @@
         },
         {
           "type": "file",
+          "name": "test_quest_cooldown_timestamps.py"
+        },
+        {
+          "type": "file",
           "name": "test_quest_integration.py"
         },
         {
