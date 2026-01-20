@@ -6,6 +6,244 @@ Added comprehensive end-to-end multi-turn tests with probabilistic validation an
 ## Status
 **Implementation Complete**
 
+---
+
+# System Prompt and Deployment Guidance Clarification - Implementation Summary
+
+## Overview
+Updated system prompt to explicitly document character status transitions (Healthy → Wounded → Dead) with healing rules and game over logic. Expanded deployment documentation with comprehensive checklists for production deployments to Google Cloud Platform.
+
+## Status
+**Implementation Complete**
+
+## Key Features
+
+### 1. System Prompt Enhancements
+
+**Files Modified:**
+- `app/prompting/prompt_builder.py`: Updated `SYSTEM_INSTRUCTIONS` constant
+
+**Changes:**
+- Added "STATUS TRANSITIONS AND GAME OVER RULES" section to system prompt
+- Documented strict status ordering: Healthy → Wounded → Dead
+- Clarified healing allowances (Wounded → Healthy allowed)
+- Prohibited resurrection (Dead status is final)
+- Specified game over behavior (conclusive narrative, all intents to "none")
+- Instructed LLM to prevent gameplay continuation after death
+
+**Prompt Text (excerpt):**
+```
+STATUS TRANSITIONS AND GAME OVER RULES:
+Characters progress through health statuses in strict order: Healthy -> Wounded -> Dead
+- Healing can move characters from Wounded back to Healthy
+- Healing CANNOT revive characters from Dead status
+- Once a character reaches Dead status, the session is OVER
+- When a character dies, generate a final narrative describing their demise
+- Do NOT continue gameplay, offer new quests, or suggest actions after death
+- The Dead status is permanent and marks the end of the character's journey
+```
+
+**Key Design Decisions:**
+- Arrow notation (`->`) used safely in prompts (does not break JSON parsing)
+- Status rules embedded in system prompt (no new config variables)
+- LLM responsible for compliance through instruction following
+- Game engine (journey-log) tracks status; dungeon-master enforces through prompts
+
+### 2. Documentation Updates
+
+**README.md:**
+- Added "Character Status Transitions and Game Over Rules" section after Overview
+- Documented status ordering with visual diagram
+- Explained healing rules and death finality
+- Provided example status progression across turns
+- Referenced implementation location (prompt_builder.py)
+
+**LLMs.md:**
+- Added "Character Status Transitions and Game Over Rules" subsection
+- Documented prompt implementation details
+- Included JSON escaping notes for arrow notation
+- Added implementation checklist for LLM integration
+- Cross-referenced system prompt location
+
+**.env.example:**
+- Added "CHARACTER STATUS AND GAME OVER RULES" configuration section
+- Documented status transition rules inline
+- Noted no configuration variables required
+- Referenced implementation location
+
+### 3. Deployment Guidance Expansion
+
+**gcp_deployment_reference.md:**
+Added comprehensive "DEPLOYMENT CHECKLIST" section (200+ lines) covering:
+
+**A. Pre-Deployment Preparation:**
+- Dependency and version verification
+- Environment configuration (all variables documented)
+- Secrets management (Secret Manager, no JSON keys)
+- Cloud infrastructure setup
+
+**B. Build and Push:**
+- Docker image build commands
+- Artifact Registry push procedures
+- Local testing instructions
+
+**C. Deployment:**
+- Cloud Run deployment command with all flags
+- Traffic management (gradual rollout)
+- Service account configuration
+
+**D. Post-Deployment Validation:**
+- Health and smoke tests
+- Metrics verification
+- Log verification with gcloud commands
+
+**E. Ongoing Operations:**
+- Monitoring and alerting setup
+- Secret rotation procedures
+- Rollback procedures
+
+**F. Deployment Environment Variables Reference:**
+- Critical variables for production
+- Recommended settings
+- Security configurations
+
+**G. Streaming Mode Considerations:**
+- SSE support requirements
+- Client-side implementation notes
+- Streaming-specific metrics
+
+**H. Character Status and Game Over Logic:**
+- Verification checklist for status rules
+- Testing procedures
+- Client-side handling guidance
+
+**I. Troubleshooting Common Issues:**
+- Service startup failures
+- High latency
+- LLM generation failures
+- Journey-log connectivity errors
+- Rate limiting errors
+- Secret rotation errors
+
+**Deployment Checklist Summary:**
+10-step verified checklist from dependency verification to rollback testing
+
+### 4. Runtime Configuration Verification
+
+**Confirmed Locations Using Prompt Builder:**
+- `app/services/turn_orchestrator.py`: Uses `PromptBuilder` in `__init__` and calls `build_prompt()` in both `orchestrate_turn()` and `orchestrate_turn_stream()`
+- `app/api/routes.py`: Injects `TurnOrchestrator` (which uses `PromptBuilder`) into `/turn` and `/turn/stream` endpoints
+
+**No Additional Locations Found:**
+- Searched codebase for other prompt assembly locations
+- Confirmed single source of truth for system instructions
+- All API routes use TurnOrchestrator → PromptBuilder flow
+
+## Acceptance Criteria Met
+
+- ✅ System prompt explicitly documents status ordering (Healthy → Wounded → Dead)
+- ✅ System prompt explicitly documents healing allowances (Wounded → Healthy allowed, Dead not revivable)
+- ✅ System prompt explicitly documents death ends session (game over logic)
+- ✅ All components that assemble/send prompt use updated copy (verified: turn_orchestrator.py, routes.py)
+- ✅ README.md describes status rules
+- ✅ LLMs.md describes status rules
+- ✅ .env.example describes status rules
+- ✅ gcp_deployment_reference.md includes up-to-date deployment checklist
+- ✅ IMPLEMENTATION_SUMMARY.md updated with deployment checklist summary
+- ✅ Prompt rendering escapes markdown correctly (arrow notation safe)
+- ✅ Healing scenarios explicitly forbid jumping from dead back to wounded
+- ✅ Docs mention secret rotation procedures
+- ✅ Deployment guidance calls out streaming mode expectations
+
+## Edge Cases Addressed
+
+1. **Prompt Rendering:**
+   - Arrow notation (`->`) verified safe for JSON embedding
+   - Alternative notations documented (HTML entity `&rarr;`, Unicode `→`)
+   - No escaping required for current implementation
+
+2. **Healing Restrictions:**
+   - System prompt explicitly states "Healing CANNOT revive characters from Dead status"
+   - LLM instructed to set all intents to "none" when character is Dead
+   - Narrative must be conclusive when character dies
+
+3. **Secret Rotation:**
+   - Comprehensive procedure documented in gcp_deployment_reference.md
+   - Includes Secret Manager commands
+   - Covers verification and cleanup steps
+
+4. **Streaming Mode:**
+   - Deployment guidance includes streaming-specific considerations
+   - Client-side SSE implementation requirements documented
+   - Streaming-specific metrics listed
+
+## Testing Considerations
+
+**Existing Test Infrastructure:**
+- Test files exist in `/tests` directory
+- No new tests added (per minimal changes instruction)
+- Existing tests validate prompt assembly through TurnOrchestrator
+- Integration tests cover `/turn` endpoint using PromptBuilder
+
+**Manual Verification:**
+- System prompt content reviewed in prompt_builder.py
+- Documentation cross-references verified
+- Deployment checklist steps validated against current infrastructure
+
+**Recommended Future Tests:**
+- Unit test validating SYSTEM_INSTRUCTIONS contains status transition text
+- Integration test with "Dead" character status verifying intents are "none"
+- Integration test verifying final narrative on character death
+
+## Deployment Impact
+
+**No Breaking Changes:**
+- System prompt enhancement is additive (more instructions)
+- No API changes or new endpoints
+- No new environment variables required
+- No database schema changes
+- No dependency updates required
+
+**Backward Compatible:**
+- Existing clients unaffected
+- LLM models may improve compliance with explicit instructions
+- Journey-log integration unchanged
+
+**Rollout Strategy:**
+- Deploy as regular update (no special procedures)
+- Monitor LLM compliance with status rules manually
+- No configuration changes required
+
+## Documentation Cross-References
+
+| Document | Section | Content |
+|----------|---------|---------|
+| `prompt_builder.py` | SYSTEM_INSTRUCTIONS | Source of truth for status rules |
+| `README.md` | Character Status Transitions | User-facing status rules |
+| `LLMs.md` | Character Status Transitions | Implementation-facing status rules |
+| `.env.example` | CHARACTER STATUS SECTION | Configuration notes |
+| `gcp_deployment_reference.md` | DEPLOYMENT CHECKLIST | Comprehensive deployment guide |
+| `IMPLEMENTATION_SUMMARY.md` | This Section | Implementation summary |
+
+## Key Deliverables
+
+1. **Enhanced system prompt** with explicit status transition rules (prompt_builder.py)
+2. **User-facing documentation** of status rules (README.md)
+3. **Developer-facing documentation** of status rules (LLMs.md)
+4. **Configuration guidance** for status rules (.env.example)
+5. **Comprehensive deployment checklist** (gcp_deployment_reference.md)
+6. **Implementation summary** documenting changes (IMPLEMENTATION_SUMMARY.md)
+
+---
+
+# End-to-End Tests and Turn Lifecycle Documentation - Implementation Summary (Previous)
+
+## Overview
+Added comprehensive end-to-end multi-turn tests with probabilistic validation and detailed turn lifecycle documentation. These additions enable regression detection in policy probabilities, ordering guarantees, and provide clear documentation for debugging and extending the system.
+
+## Status
+**Implementation Complete**
+
 ## Key Features
 
 ### 1. Multi-Turn End-to-End Tests

@@ -73,6 +73,51 @@ response = client.models.generate_content(
 
 ## Dungeon Master Implementation Specifics
 
+### Character Status Transitions and Game Over Rules
+
+The Dungeon Master service enforces strict character status transitions that govern gameplay logic. These rules are embedded in the system prompt and must be respected by the LLM.
+
+**Status Ordering:**
+```
+Healthy → Wounded → Dead
+```
+
+**Healing Rules:**
+- Characters can be healed from **Wounded** back to **Healthy**
+- Characters **CANNOT** be revived from **Dead** status
+- Death is final and permanent
+
+**Game Over Logic:**
+When a character reaches **Dead** status:
+1. The LLM must generate a final narrative describing their demise
+2. The session is marked as **OVER**
+3. All intents must be set to `"none"` (no quests, combat, POIs)
+4. No further gameplay should be suggested or enabled
+5. The narrative should be conclusive and mark the end of the journey
+
+**Prompt Implementation:**
+Status transition rules are documented in `app/prompting/prompt_builder.py` in the `SYSTEM_INSTRUCTIONS` constant:
+```python
+STATUS TRANSITIONS AND GAME OVER RULES:
+Characters progress through health statuses in strict order: Healthy -> Wounded -> Dead
+- Healing can move characters from Wounded back to Healthy
+- Healing CANNOT revive characters from Dead status
+- Once a character reaches Dead status, the session is OVER
+- When a character dies, generate a final narrative describing their demise
+- Do NOT continue gameplay, offer new quests, or suggest actions after death
+- The Dead status is permanent and marks the end of the character's journey
+```
+
+**JSON Escaping Note:**
+The arrow notation (`->`) is safe for inclusion in system prompts. It does not break JSON parsing when the prompt is embedded in API calls. If you encounter issues, use the HTML entity `&rarr;` or Unicode `→` as alternatives.
+
+**Implementation Checklist:**
+- [ ] LLM receives status transition rules in system prompt
+- [ ] LLM sets all intents to "none" when character status is Dead
+- [ ] LLM generates conclusive narrative on character death
+- [ ] Game client detects Dead status and prevents further turn submissions
+- [ ] Journey-log tracks character status accurately across turns
+
 ### Deterministic Write Order
 
 The DungeonMaster service enforces a strict, deterministic order when writing subsystem changes to the journey-log service. This ensures predictable behavior and simplifies debugging.

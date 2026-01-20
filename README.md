@@ -31,6 +31,51 @@ The service offers two ways to process player turns:
 
 See [Streaming Architecture](#streaming-architecture) for detailed design.
 
+## Character Status Transitions and Game Over Rules
+
+The Dungeon Master service enforces strict character status transitions that govern gameplay:
+
+### Status Ordering
+
+Characters progress through health statuses in strict order:
+```
+Healthy → Wounded → Dead
+```
+
+### Healing Rules
+
+- **Healing Allowed**: Characters can be healed from **Wounded** back to **Healthy** status
+- **Resurrection NOT Allowed**: Once a character reaches **Dead** status, they **CANNOT** be revived or healed
+- **Death is Final**: The Dead status is permanent and marks the end of the character's journey
+
+### Game Over Logic
+
+When a character reaches **Dead** status:
+1. The LLM generates a final narrative describing their demise
+2. The session is marked as **OVER** 
+3. No new quests, combat, or POIs are offered
+4. All intents are set to "none"
+5. Gameplay cannot continue for that character
+
+### Implementation Notes
+
+- Status transition enforcement is handled by the LLM through system prompt instructions
+- The game engine (journey-log) tracks character status and combat state
+- Status rules are documented in `app/prompting/prompt_builder.py` (SYSTEM_INSTRUCTIONS)
+- Clients should detect Dead status in responses and prevent further turn submissions
+
+### Example Status Progression
+
+```
+Turn 1: Healthy → Player enters dungeon
+Turn 5: Healthy → Combat begins
+Turn 7: Wounded → Player takes damage
+Turn 9: Wounded → Player drinks healing potion → Healthy
+Turn 12: Healthy → Player faces boss
+Turn 15: Wounded → Boss critically wounds player
+Turn 17: Dead → Player dies to boss (GAME OVER)
+```
+
 ## Quick Start
 
 ### Prerequisites

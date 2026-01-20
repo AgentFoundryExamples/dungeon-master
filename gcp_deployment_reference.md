@@ -289,3 +289,319 @@ client = error_reporting.Client()
 - Errors grouped by `error_type` field
 - Stack traces extracted from logs
 - Alerts triggered on new error types or volume spikes
+
+## 4. DEPLOYMENT CHECKLIST
+
+### Pre-Deployment Preparation
+
+**A. Dependency and Version Verification**
+- [ ] Verify Python version matches `python_dev_versions.txt` (Python 3.14+)
+- [ ] Verify infrastructure versions match `infrastructure_versions.txt`
+- [ ] Review and pin all dependencies in `requirements.txt`
+- [ ] Generate/update lockfile (`pip freeze > requirements.lock.txt`)
+- [ ] Test build locally with production dependencies
+
+**B. Environment Configuration**
+- [ ] Copy `.env.example` to `.env` and configure all required variables
+- [ ] Set `JOURNEY_LOG_BASE_URL` to production journey-log service
+- [ ] Set `OPENAI_API_KEY` (or other LLM provider API key)
+- [ ] Configure `OPENAI_MODEL` (must match `infrastructure_versions.txt`: gpt-5.1+)
+- [ ] Configure `ENVIRONMENT` label (production/staging/development)
+- [ ] Set appropriate timeouts (`JOURNEY_LOG_TIMEOUT`, `OPENAI_TIMEOUT`)
+- [ ] Configure rate limits (`MAX_TURNS_PER_CHARACTER_PER_SECOND`, `MAX_CONCURRENT_LLM_CALLS`)
+- [ ] Configure retry policies (`LLM_MAX_RETRIES`, `JOURNEY_LOG_MAX_RETRIES`)
+- [ ] Configure policy engine parameters (`QUEST_TRIGGER_PROB`, `POI_TRIGGER_PROB`, etc.)
+- [ ] Enable metrics and logging (`ENABLE_METRICS=true`, `LOG_JSON_FORMAT=true`, `LOG_LEVEL=INFO`)
+- [ ] DISABLE debug endpoints (`ENABLE_DEBUG_ENDPOINTS=false`)
+
+**C. Secrets Management**
+- [ ] Store API keys in Google Secret Manager (do NOT use JSON service account keys)
+- [ ] Grant Cloud Run service account access to secrets
+- [ ] Configure secrets as environment variables or volume mounts in Cloud Run
+- [ ] Document secret rotation procedures
+- [ ] Set up alerts for secret expiration (if applicable)
+
+**D. Cloud Infrastructure Setup**
+- [ ] Create Artifact Registry repository (docker format)
+- [ ] Configure Workload Identity Federation for CI/CD (no JSON keys)
+- [ ] Set up Cloud Run service with appropriate resources (memory, CPU, concurrency)
+- [ ] Configure VPC egress for journey-log connectivity (if needed)
+- [ ] Set up Cloud SQL connection (if journey-log uses Cloud SQL)
+- [ ] Configure IAM roles for service account (minimal permissions)
+
+### Build and Push
+
+**E. Build Docker Image**
+```bash
+# Build image locally (testing)
+docker build -t dungeon-master:local .
+
+# Build and tag for Artifact Registry
+docker build -t us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/app:v1.0.0 .
+
+# Test image locally
+docker run -p 8080:8080 --env-file .env dungeon-master:local
+curl http://localhost:8080/health
+```
+
+**F. Push to Artifact Registry**
+```bash
+# Authenticate docker to Artifact Registry
+gcloud auth configure-docker us-central1-docker.pkg.dev
+
+# Push image
+docker push us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/app:v1.0.0
+```
+
+### Deployment
+
+**G. Deploy to Cloud Run**
+```bash
+# Deploy service
+gcloud run deploy dungeon-master \
+  --image us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/app:v1.0.0 \
+  --region us-central1 \
+  --platform managed \
+  --memory 1Gi \
+  --cpu 2 \
+  --concurrency 80 \
+  --max-instances 100 \
+  --timeout 300s \
+  --set-env-vars "JOURNEY_LOG_BASE_URL=https://journey-log-xyz.a.run.app" \
+  --set-secrets "OPENAI_API_KEY=openai-api-key:latest" \
+  --set-env-vars "ENVIRONMENT=production,ENABLE_METRICS=true,LOG_JSON_FORMAT=true" \
+  --allow-unauthenticated \
+  --service-account dungeon-master@PROJECT_ID.iam.gserviceaccount.com
+```
+
+**H. Traffic Management**
+```bash
+# Deploy with gradual rollout (50% traffic to new revision)
+gcloud run services update-traffic dungeon-master \
+  --to-revisions LATEST=50 \
+  --region us-central1
+
+# Monitor metrics for 10-15 minutes, then complete rollout
+gcloud run services update-traffic dungeon-master \
+  --to-latest \
+  --region us-central1
+```
+
+### Post-Deployment Validation
+
+**I. Health and Smoke Tests**
+```bash
+# Check service health
+curl https://dungeon-master-xyz.a.run.app/health
+
+# Expected response:
+# {"status":"healthy","service":"dungeon-master","journey_log_accessible":true}
+
+# Test turn endpoint (smoke test with test character)
+curl -X POST https://dungeon-master-xyz.a.run.app/turn \
+  -H "Content-Type: application/json" \
+  -d '{
+    "character_id": "test-character-uuid",
+    "user_action": "I look around."
+  }'
+
+# Test streaming endpoint (if applicable)
+curl -N https://dungeon-master-xyz.a.run.app/turn/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "character_id": "test-character-uuid",
+    "user_action": "I explore the dungeon."
+  }'
+```
+
+**J. Metrics Verification**
+```bash
+# Check metrics endpoint (if enabled)
+curl https://dungeon-master-xyz.a.run.app/metrics
+
+# Verify key metrics are present:
+# - uptime_seconds
+# - turns_processed (by outcome)
+# - latencies (avg, min, max for turn, llm_call, journey_log_fetch)
+# - errors (by type)
+```
+
+**K. Log Verification**
+```bash
+# View recent logs
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=dungeon-master" \
+  --limit 50 \
+  --format json
+
+# Check for structured turn logs
+gcloud logging read "resource.type=cloud_run_revision AND jsonPayload.log_type=turn" \
+  --limit 10 \
+  --format json
+
+# Check for errors
+gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" \
+  --limit 20 \
+  --format json
+```
+
+### Ongoing Operations
+
+**L. Monitoring and Alerts**
+- [ ] Set up Cloud Monitoring dashboard for key metrics (turn rate, latency, errors)
+- [ ] Configure alerting policies for:
+  - Turn error rate > 5%
+  - LLM latency p95 > 3000ms
+  - Journey-log latency p95 > 500ms
+  - Service availability < 99.5%
+- [ ] Set up log-based metrics for subsystem failures
+- [ ] Configure error reporting alerts for new error types
+
+**M. Secret Rotation**
+```bash
+# Rotate OpenAI API key (example)
+# 1. Generate new API key in OpenAI dashboard
+# 2. Add new secret version to Secret Manager
+gcloud secrets versions add openai-api-key --data-file=new-key.txt
+
+# 3. Update Cloud Run to use new secret version
+gcloud run services update dungeon-master \
+  --update-secrets "OPENAI_API_KEY=openai-api-key:latest" \
+  --region us-central1
+
+# 4. Verify service health after rotation
+curl https://dungeon-master-xyz.a.run.app/health
+
+# 5. Delete old secret version after verification period
+gcloud secrets versions destroy VERSION_ID --secret openai-api-key
+```
+
+**N. Rollback Procedures**
+```bash
+# List recent revisions
+gcloud run revisions list --service dungeon-master --region us-central1
+
+# Rollback to previous revision
+gcloud run services update-traffic dungeon-master \
+  --to-revisions REVISION_NAME=100 \
+  --region us-central1
+
+# Or rollback to specific tag
+gcloud run services update-traffic dungeon-master \
+  --to-tags stable=100 \
+  --region us-central1
+```
+
+### Deployment Environment Variables Reference
+
+**Critical Environment Variables for Production:**
+```bash
+# Required
+JOURNEY_LOG_BASE_URL=https://journey-log-xyz.a.run.app
+OPENAI_API_KEY=<from-secret-manager>
+OPENAI_MODEL=gpt-5.1
+
+# Recommended
+ENVIRONMENT=production
+LOG_LEVEL=INFO
+LOG_JSON_FORMAT=true
+ENABLE_METRICS=true
+MAX_TURNS_PER_CHARACTER_PER_SECOND=2.0
+MAX_CONCURRENT_LLM_CALLS=10
+
+# Security
+ENABLE_DEBUG_ENDPOINTS=false
+ADMIN_ENDPOINTS_ENABLED=false  # Unless needed with proper IAM
+
+# Timeouts and Retries
+JOURNEY_LOG_TIMEOUT=30
+OPENAI_TIMEOUT=60
+LLM_MAX_RETRIES=3
+JOURNEY_LOG_MAX_RETRIES=3
+
+# Policy Engine (adjust per game design)
+QUEST_TRIGGER_PROB=0.3
+QUEST_COOLDOWN_TURNS=5
+POI_TRIGGER_PROB=0.2
+POI_COOLDOWN_TURNS=3
+POI_MEMORY_SPARK_ENABLED=false  # Optional feature
+```
+
+### Streaming Mode Considerations
+
+When deploying with streaming endpoint support:
+- [ ] Ensure client infrastructure supports Server-Sent Events (SSE)
+- [ ] Configure appropriate timeouts (streaming can take longer than synchronous)
+- [ ] Monitor client disconnect rates and incomplete streams
+- [ ] Test with various network conditions (slow connections, intermittent disconnects)
+- [ ] Document client-side SSE implementation requirements
+
+**Streaming-Specific Metrics:**
+- `stream_starts`: Total streaming requests started
+- `stream_completions`: Streams successfully completed
+- `stream_client_disconnects`: Streams interrupted by client
+- `stream_parse_failures`: Phase 2 validation failures
+
+### Character Status and Game Over Logic
+
+The system enforces strict status transitions (Healthy → Wounded → Dead) with game over logic embedded in the LLM system prompt:
+
+- [ ] Verify status transition rules are present in system prompt (`app/prompting/prompt_builder.py`)
+- [ ] Test that LLM generates conclusive narratives on character death
+- [ ] Test that LLM sets all intents to "none" when character status is Dead
+- [ ] Document client-side handling of Dead status (prevent further turns)
+- [ ] Monitor for instances where LLM violates status rules (manual review)
+
+**No configuration variables are needed** - status rules are embedded in the system prompt and enforced by LLM instruction compliance.
+
+### Troubleshooting Common Deployment Issues
+
+**Issue: Service fails to start**
+- Check Cloud Run logs for startup errors
+- Verify all required environment variables are set
+- Verify secrets are accessible to service account
+- Check journey-log connectivity from Cloud Run
+
+**Issue: High latency (> 3s per turn)**
+- Check LLM API latency metrics
+- Check journey-log latency metrics
+- Verify network connectivity between services
+- Consider increasing Cloud Run CPU allocation
+- Review concurrent request patterns
+
+**Issue: LLM generation failures**
+- Verify OpenAI API key is valid and has quota
+- Check LLM model name matches supported models (gpt-5.1+)
+- Review LLM error logs for specific error types
+- Verify schema compatibility with current model
+
+**Issue: Journey-log connectivity errors**
+- Verify journey-log service is running and healthy
+- Check VPC egress configuration (if applicable)
+- Verify service account has necessary IAM permissions
+- Test journey-log connectivity from Cloud Shell
+
+**Issue: Rate limiting errors**
+- Review rate limit configuration (`MAX_TURNS_PER_CHARACTER_PER_SECOND`)
+- Check LLM API rate limits and quotas
+- Monitor concurrent request patterns
+- Consider increasing limits for high-traffic characters
+
+**Issue: Secret rotation causing errors**
+- Verify new secret version is active in Secret Manager
+- Check Cloud Run service is using latest secret version
+- Allow propagation time (1-2 minutes) after secret update
+- Verify old secret version was not deleted prematurely
+
+---
+
+**Deployment Checklist Summary:**
+1. ✅ Verify dependencies and versions
+2. ✅ Configure environment variables and secrets
+3. ✅ Set up Cloud infrastructure (Artifact Registry, Cloud Run)
+4. ✅ Build and push Docker image
+5. ✅ Deploy to Cloud Run with gradual rollout
+6. ✅ Run health and smoke tests
+7. ✅ Verify metrics and logs
+8. ✅ Set up monitoring and alerts
+9. ✅ Document secret rotation procedures
+10. ✅ Test rollback procedures
