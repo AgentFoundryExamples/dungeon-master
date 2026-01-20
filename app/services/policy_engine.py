@@ -71,6 +71,8 @@ class PolicyEngine:
         quest_cooldown_turns: int = 5,
         poi_trigger_prob: float = 0.2,
         poi_cooldown_turns: int = 3,
+        memory_spark_probability: float = 0.2,
+        quest_poi_reference_probability: float = 0.1,
         rng_seed: Optional[int] = None
     ):
         """Initialize the PolicyEngine.
@@ -80,6 +82,8 @@ class PolicyEngine:
             quest_cooldown_turns: Number of turns between quest triggers
             poi_trigger_prob: Probability of POI trigger (0.0-1.0)
             poi_cooldown_turns: Number of turns between POI triggers
+            memory_spark_probability: Probability of memory spark trigger (0.0-1.0)
+            quest_poi_reference_probability: Probability that a quest references a POI (0.0-1.0)
             rng_seed: Optional global RNG seed for deterministic behavior
             
         Raises:
@@ -94,9 +98,19 @@ class PolicyEngine:
             raise ValueError(
                 f"poi_trigger_prob must be between 0.0 and 1.0, got: {poi_trigger_prob}"
             )
+        if not (0.0 <= memory_spark_probability <= 1.0):
+            raise ValueError(
+                f"memory_spark_probability must be between 0.0 and 1.0, got: {memory_spark_probability}"
+            )
+        if not (0.0 <= quest_poi_reference_probability <= 1.0):
+            raise ValueError(
+                f"quest_poi_reference_probability must be between 0.0 and 1.0, got: {quest_poi_reference_probability}"
+            )
         
         self.quest_trigger_prob = quest_trigger_prob
         self.poi_trigger_prob = poi_trigger_prob
+        self.memory_spark_probability = memory_spark_probability
+        self.quest_poi_reference_probability = quest_poi_reference_probability
         
         # Cooldown turns (allow zero or negative - they skip waiting periods)
         self.quest_cooldown_turns = quest_cooldown_turns
@@ -117,6 +131,8 @@ class PolicyEngine:
             f"quest_cooldown={self.quest_cooldown_turns}, "
             f"poi_prob={self.poi_trigger_prob}, "
             f"poi_cooldown={self.poi_cooldown_turns}, "
+            f"memory_spark_prob={self.memory_spark_probability}, "
+            f"quest_poi_ref_prob={self.quest_poi_reference_probability}, "
             f"rng_seed={'<set>' if rng_seed is not None else '<none>'}"
         )
     
@@ -125,7 +141,9 @@ class PolicyEngine:
         quest_trigger_prob: Optional[float] = None,
         quest_cooldown_turns: Optional[int] = None,
         poi_trigger_prob: Optional[float] = None,
-        poi_cooldown_turns: Optional[int] = None
+        poi_cooldown_turns: Optional[int] = None,
+        memory_spark_probability: Optional[float] = None,
+        quest_poi_reference_probability: Optional[float] = None
     ) -> None:
         """Update policy configuration at runtime.
         
@@ -138,6 +156,8 @@ class PolicyEngine:
             quest_cooldown_turns: Optional new quest cooldown turns
             poi_trigger_prob: Optional new POI trigger probability
             poi_cooldown_turns: Optional new POI cooldown turns
+            memory_spark_probability: Optional new memory spark trigger probability
+            quest_poi_reference_probability: Optional new quest POI reference probability
             
         Raises:
             ValueError: If any provided parameter fails validation
@@ -151,6 +171,14 @@ class PolicyEngine:
             if poi_trigger_prob is not None and not (0.0 <= poi_trigger_prob <= 1.0):
                 raise ValueError(
                     f"poi_trigger_prob must be between 0.0 and 1.0, got: {poi_trigger_prob}"
+                )
+            if memory_spark_probability is not None and not (0.0 <= memory_spark_probability <= 1.0):
+                raise ValueError(
+                    f"memory_spark_probability must be between 0.0 and 1.0, got: {memory_spark_probability}"
+                )
+            if quest_poi_reference_probability is not None and not (0.0 <= quest_poi_reference_probability <= 1.0):
+                raise ValueError(
+                    f"quest_poi_reference_probability must be between 0.0 and 1.0, got: {quest_poi_reference_probability}"
                 )
             
             # Validate cooldowns if provided (must be non-negative)
@@ -177,6 +205,12 @@ class PolicyEngine:
             if poi_cooldown_turns is not None and poi_cooldown_turns != self.poi_cooldown_turns:
                 changes.append(f"poi_cooldown: {self.poi_cooldown_turns} -> {poi_cooldown_turns}")
                 self.poi_cooldown_turns = poi_cooldown_turns
+            if memory_spark_probability is not None and memory_spark_probability != self.memory_spark_probability:
+                changes.append(f"memory_spark_prob: {self.memory_spark_probability} -> {memory_spark_probability}")
+                self.memory_spark_probability = memory_spark_probability
+            if quest_poi_reference_probability is not None and quest_poi_reference_probability != self.quest_poi_reference_probability:
+                changes.append(f"quest_poi_ref_prob: {self.quest_poi_reference_probability} -> {quest_poi_reference_probability}")
+                self.quest_poi_reference_probability = quest_poi_reference_probability
             
             if changes:
                 logger.info(
@@ -360,6 +394,129 @@ class PolicyEngine:
         
         return decision
 
+    def evaluate_memory_spark_trigger(
+        self,
+        character_id: str,
+        seed_override: Optional[int] = None
+    ) -> "MemorySparkDecision":
+        """Evaluate whether to trigger memory spark fetching for the character.
+        
+        Memory sparks are always eligible (no cooldown or state requirements).
+        The probabilistic roll determines whether random POIs should be fetched
+        to provide context to the LLM.
+        
+        Args:
+            character_id: Character UUID for tracking
+            seed_override: Optional seed for deterministic debugging
+            
+        Returns:
+            MemorySparkDecision with eligibility, probability, and roll result
+        """
+        from app.models import MemorySparkDecision
+        
+        # Read config values under lock for thread-safety
+        with self._config_lock:
+            memory_spark_probability = self.memory_spark_probability
+        
+        # Memory sparks are always eligible (no state requirements)
+        eligible = True
+        
+        # Perform probabilistic roll
+        roll_passed = self._roll(memory_spark_probability, character_id, seed_override)
+        
+        decision = MemorySparkDecision(
+            eligible=eligible,
+            probability=memory_spark_probability,
+            roll_passed=roll_passed
+        )
+        
+        # Record metrics
+        collector = get_metrics_collector()
+        if collector:
+            if roll_passed:
+                collector.record_policy_trigger("memory_spark", "triggered")
+            else:
+                collector.record_policy_trigger("memory_spark", "skipped")
+        
+        logger.debug(
+            f"Memory spark evaluation: character_id={character_id}, "
+            f"eligible={eligible}, roll_passed={roll_passed}",
+            turn_id=get_turn_id()
+        )
+        
+        return decision
+
+    def evaluate_quest_poi_reference_trigger(
+        self,
+        character_id: str,
+        available_pois: list,
+        seed_override: Optional[int] = None
+    ) -> "QuestPOIReferenceDecision":
+        """Evaluate whether a triggered quest should reference a prior POI.
+        
+        This is called when a quest is about to be triggered. The probabilistic
+        roll determines whether the quest should reference a previously
+        discovered POI for additional context.
+        
+        Args:
+            character_id: Character UUID for tracking
+            available_pois: List of available POIs to select from
+            seed_override: Optional seed for deterministic debugging
+            
+        Returns:
+            QuestPOIReferenceDecision with probability, roll result, and selected POI
+        """
+        from app.models import QuestPOIReferenceDecision
+        
+        # Read config values under lock for thread-safety
+        with self._config_lock:
+            quest_poi_reference_probability = self.quest_poi_reference_probability
+        
+        # Perform probabilistic roll
+        roll_passed = self._roll(quest_poi_reference_probability, character_id, seed_override)
+        
+        # Select a POI if roll passed and POIs are available
+        selected_poi = None
+        if roll_passed and available_pois:
+            # Select a random POI from available ones (preferring recent ones)
+            # Use the same RNG for consistency
+            rng = self._get_rng(character_id, seed_override)
+            selected_poi = rng.choice(available_pois)
+            logger.info(
+                f"Quest POI reference selected: {selected_poi.get('name', 'Unknown')}",
+                poi_id=selected_poi.get('id'),
+                turn_id=get_turn_id()
+            )
+        elif roll_passed and not available_pois:
+            logger.debug(
+                "Quest POI reference roll passed but no POIs available",
+                turn_id=get_turn_id()
+            )
+        
+        decision = QuestPOIReferenceDecision(
+            probability=quest_poi_reference_probability,
+            roll_passed=roll_passed,
+            selected_poi=selected_poi
+        )
+        
+        # Record metrics
+        collector = get_metrics_collector()
+        if collector:
+            if roll_passed and selected_poi:
+                collector.record_policy_trigger("quest_poi_reference", "triggered")
+            elif roll_passed:
+                collector.record_policy_trigger("quest_poi_reference", "no_pois")
+            else:
+                collector.record_policy_trigger("quest_poi_reference", "skipped")
+        
+        logger.debug(
+            f"Quest POI reference evaluation: character_id={character_id}, "
+            f"roll_passed={roll_passed}, selected={selected_poi is not None}",
+            turn_id=get_turn_id()
+        )
+        
+        return decision
+
     def evaluate_triggers(
         self,
         character_id: str,
@@ -411,6 +568,8 @@ class PolicyEngine:
             "quest_cooldown_turns": self.quest_cooldown_turns,
             "poi_trigger_prob": self.poi_trigger_prob,
             "poi_cooldown_turns": self.poi_cooldown_turns,
+            "memory_spark_probability": self.memory_spark_probability,
+            "quest_poi_reference_probability": self.quest_poi_reference_probability,
             "rng_seed_set": self.rng_seed is not None,
             "character_rngs_count": len(self._character_rngs)
         }

@@ -2,5 +2,7 @@
   "quest_trigger_prob": 0.3,
   "quest_cooldown_turns": 5,
   "poi_trigger_prob": 0.2,
-  "poi_cooldown_turns": 3
+  "poi_cooldown_turns": 3,
+  "memory_spark_probability": 0.2,
+  "quest_poi_reference_probability": 0.1
 }
