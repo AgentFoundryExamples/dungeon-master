@@ -149,6 +149,8 @@ async def lifespan(app: FastAPI):
         quest_cooldown_turns=final_config.quest_cooldown_turns,
         poi_trigger_prob=final_config.poi_trigger_prob,
         poi_cooldown_turns=final_config.poi_cooldown_turns,
+        memory_spark_probability=final_config.memory_spark_probability,
+        quest_poi_reference_probability=final_config.quest_poi_reference_probability,
         rng_seed=settings.rng_seed
     )
     logger.info(

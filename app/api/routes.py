@@ -1330,6 +1330,8 @@ async def get_policy_config(
             quest_cooldown_turns=settings.quest_cooldown_turns,
             poi_trigger_prob=settings.poi_trigger_prob,
             poi_cooldown_turns=settings.poi_cooldown_turns,
+            memory_spark_probability=settings.memory_spark_probability,
+            quest_poi_reference_probability=settings.quest_poi_reference_probability,
             last_updated=None
         )
     
@@ -1342,6 +1344,8 @@ async def get_policy_config(
         quest_cooldown_turns=current_config.quest_cooldown_turns,
         poi_trigger_prob=current_config.poi_trigger_prob,
         poi_cooldown_turns=current_config.poi_cooldown_turns,
+        memory_spark_probability=current_config.memory_spark_probability,
+        quest_poi_reference_probability=current_config.quest_poi_reference_probability,
         last_updated=last_updated
     )
 
@@ -1439,7 +1443,9 @@ async def reload_policy_config(
             quest_trigger_prob=current_config.quest_trigger_prob,
             quest_cooldown_turns=current_config.quest_cooldown_turns,
             poi_trigger_prob=current_config.poi_trigger_prob,
-            poi_cooldown_turns=current_config.poi_cooldown_turns
+            poi_cooldown_turns=current_config.poi_cooldown_turns,
+            memory_spark_probability=current_config.memory_spark_probability,
+            quest_poi_reference_probability=current_config.quest_poi_reference_probability
         )
     
     logger.info(
@@ -1459,6 +1465,8 @@ async def reload_policy_config(
             quest_cooldown_turns=current_config.quest_cooldown_turns,
             poi_trigger_prob=current_config.poi_trigger_prob,
             poi_cooldown_turns=current_config.poi_cooldown_turns,
+            memory_spark_probability=current_config.memory_spark_probability,
+            quest_poi_reference_probability=current_config.quest_poi_reference_probability,
             last_updated=last_updated
         )
     
