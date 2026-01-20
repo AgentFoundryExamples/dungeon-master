@@ -11,92 +11,54 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Integration tests for streaming /turn endpoint."""
+"""Integration tests for streaming /turn endpoint (DEPRECATED).
+
+The streaming endpoint has been disabled and returns HTTP 410 Gone.
+These tests verify that clients receive appropriate error messages.
+"""
 
 import pytest
-import json
-from unittest.mock import patch, AsyncMock, MagicMock
-
-
-def parse_sse_events(stream_content: bytes) -> list:
-    """Parse SSE stream content into individual events."""
-    events = []
-    lines = stream_content.decode('utf-8').split('\n')
-    
-    for line in lines:
-        if line.startswith('data: '):
-            data_str = line[6:]  # Remove 'data: ' prefix
-            if data_str == '[DONE]':
-                events.append({"type": "done"})
-            else:
-                try:
-                    events.append(json.loads(data_str))
-                except json.JSONDecodeError:
-                    pass  # Skip malformed events
-    
-    return events
 
 
 @pytest.mark.asyncio
-async def test_turn_stream_endpoint_basic_flow(client):
-    """Test streaming endpoint returns SSE events."""
-    from httpx import Response
+async def test_turn_stream_endpoint_returns_410_gone(client):
+    """Test that streaming endpoint returns 410 Gone with migration guidance."""
+    response = client.post(
+        "/turn/stream",
+        json={
+            "character_id": "550e8400-e29b-41d4-a716-446655440000",
+            "user_action": "I search the room"
+        }
+    )
     
-    # Mock journey-log context response
-    mock_context_response = MagicMock(spec=Response)
-    mock_context_response.json.return_value = {
-        "character_id": "550e8400-e29b-41d4-a716-446655440000",
-        "player_state": {
-            "status": "Alive",
-            "location": {"id": "tavern", "display_name": "The Rusty Tankard"},
-            "additional_fields": {}
-        },
-        "narrative": {"recent_turns": []},
-        "combat": {"active": False},
-        "quest": None
-    }
-    mock_context_response.raise_for_status = MagicMock()
+    # Should return 410 Gone
+    assert response.status_code == 410
     
-    # Mock journey-log persist response
-    mock_persist_response = MagicMock(spec=Response)
-    mock_persist_response.raise_for_status = MagicMock()
+    # Should have error details with migration guidance
+    data = response.json()
+    assert "error" in data
     
-    with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get, \
-         patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
-        
-        mock_get.return_value = mock_context_response
-        mock_post.return_value = mock_persist_response
-        
-        # Make streaming request
-        response = client.post(
-            "/turn/stream",
-            json={
-                "character_id": "550e8400-e29b-41d4-a716-446655440000",
-                "user_action": "I search the room"
-            }
-        )
-        
-        assert response.status_code == 200
-        assert "text/event-stream" in response.headers["content-type"]
-        
-        # Parse SSE events
-        events = parse_sse_events(response.content)
-        
-        # Should have at least: some tokens + complete event + done marker
-        assert len(events) >= 2
-        
-        # First events should be tokens
-        token_events = [e for e in events if e.get("type") == "token"]
-        assert len(token_events) > 0
-        
-        # Should have exactly one complete event
-        complete_events = [e for e in events if e.get("type") == "complete"]
-        assert len(complete_events) == 1
-        
-        # Complete event should have intents and subsystem_summary
-        complete_event = complete_events[0]
-        assert "intents" in complete_event
-        assert "subsystem_summary" in complete_event
+    error = data["error"]
+    assert error["type"] == "endpoint_removed"
+    assert "POST /turn" in error["message"]
+    assert "streaming" in error["message"].lower() or "removed" in error["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_turn_stream_endpoint_any_request_returns_410(client):
+    """Test that any streaming request returns 410 Gone regardless of payload."""
+    # Try with minimal payload
+    response = client.post(
+        "/turn/stream",
+        json={
+            "character_id": "test-id",
+            "user_action": "test"
+        }
+    )
+    
+    assert response.status_code == 410
+    data = response.json()
+    assert data["error"]["type"] == "endpoint_removed"
         
         # Should have done marker
         done_events = [e for e in events if e.get("type") == "done"]

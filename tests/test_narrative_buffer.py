@@ -17,6 +17,7 @@ import pytest
 from app.streaming.buffer import NarrativeBuffer, BufferError
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_basic_append():
     """Test basic token appending to buffer."""
     buffer = NarrativeBuffer()
@@ -30,6 +31,7 @@ def test_narrative_buffer_basic_append():
     assert not buffer.is_finalized()
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_finalization():
     """Test buffer finalization."""
     buffer = NarrativeBuffer()
@@ -43,6 +45,7 @@ def test_narrative_buffer_finalization():
     assert buffer.get_duration_ms() >= 0
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_cannot_append_after_finalize():
     """Test that appending after finalization raises error."""
     buffer = NarrativeBuffer()
@@ -54,6 +57,7 @@ def test_narrative_buffer_cannot_append_after_finalize():
         buffer.append("More")
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_finalize_idempotent():
     """Test that finalize() can be called multiple times safely."""
     buffer = NarrativeBuffer()
@@ -70,6 +74,7 @@ def test_narrative_buffer_finalize_idempotent():
     assert duration1 == duration2
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_empty():
     """Test empty buffer behavior."""
     buffer = NarrativeBuffer()
@@ -79,6 +84,7 @@ def test_narrative_buffer_empty():
     assert not buffer.is_finalized()
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_unicode():
     """Test buffer with unicode characters."""
     buffer = NarrativeBuffer()
@@ -91,6 +97,7 @@ def test_narrative_buffer_unicode():
     assert buffer.get_token_count() == 3
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_size_limit():
     """Test buffer size limit enforcement."""
     buffer = NarrativeBuffer()
@@ -107,6 +114,7 @@ def test_narrative_buffer_size_limit():
     assert buffer.is_finalized()
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_exact_limit():
     """Test buffer at exact size limit."""
     buffer = NarrativeBuffer()
@@ -120,6 +128,7 @@ def test_narrative_buffer_exact_limit():
         buffer.append(token)
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_preserves_whitespace():
     """Test that buffer preserves all whitespace."""
     buffer = NarrativeBuffer()
@@ -135,6 +144,7 @@ def test_narrative_buffer_preserves_whitespace():
     assert "\t" in narrative
 
 
+@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_narrative_buffer_many_small_tokens():
     """Test buffer with many small tokens."""
     buffer = NarrativeBuffer()
