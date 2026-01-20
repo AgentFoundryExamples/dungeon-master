@@ -47,18 +47,23 @@ handleIntents(data.intents);
 
 ### Re-enabling Streaming (Future)
 
-To re-enable streaming in the future:
+To re-enable streaming in the future, you will need to **re-implement** the removed streaming functionality:
 
-1. **Remove 410 Gone endpoint** from `app/api/routes.py`
-2. **Restore streaming methods**:
-   - `LLMClient.generate_narrative_stream()` in `app/services/llm_client.py`
-   - `TurnOrchestrator.orchestrate_turn_stream()` in `app/services/turn_orchestrator.py`
-3. **Restore streaming metrics**: `MetricsCollector` methods in `app/metrics.py`
-4. **Restore StreamLifecycleLogger**: In `app/logging.py`
-5. **Update tests**: Re-enable streaming test suites
+1. **Remove 410 Gone endpoint** from `app/api/routes.py` and restore the full streaming endpoint implementation
+2. **Re-implement streaming methods** (these were removed, not just deprecated):
+   - `LLMClient.generate_narrative_stream()` in `app/services/llm_client.py` (~290 lines)
+   - `TurnOrchestrator.orchestrate_turn_stream()` in `app/services/turn_orchestrator.py` (~280 lines)
+   - `StreamingCallback` protocol in `app/services/llm_client.py`
+3. **Re-implement streaming metrics**: `MetricsCollector` methods in `app/metrics.py`:
+   - `record_stream_start()`
+   - `record_stream_complete()`
+   - `record_stream_client_disconnect()`
+   - `record_stream_parse_failure()`
+4. **Re-implement StreamLifecycleLogger**: In `app/logging.py` (~140 lines)
+5. **Update tests**: Re-enable and update streaming test suites
 6. **Update documentation**: Restore streaming sections in README.md
 
-All streaming infrastructure classes remain in the codebase for reference.
+**Note**: The streaming infrastructure classes in `app/streaming/` (transport, buffer) are deprecated but remain in the codebase for reference. However, the actual streaming implementation in services, metrics, and logging was **removed entirely** and will need to be re-implemented from the git history or the historical documentation below.
 
 ---
 

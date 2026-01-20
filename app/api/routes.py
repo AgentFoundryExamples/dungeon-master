@@ -696,13 +696,18 @@ async def process_turn_stream_removed(
     MVP architecture. All clients should migrate to the POST /turn endpoint which
     provides the same functionality with a simpler, synchronous response model.
     
+    Note: This endpoint still validates the TurnRequest model to provide better
+    error messages for clients. If the request is malformed, FastAPI will return
+    422 Unprocessable Entity before reaching this handler. Valid requests receive
+    410 Gone with migration guidance.
+    
     Migration:
     - Replace POST /turn/stream calls with POST /turn
     - Expect a single JSON response with narrative, intents, and subsystem_summary
     - Remove SSE/EventSource client code
     
     Args:
-        request: Turn request (same model as /turn endpoint)
+        request: Turn request (same model as /turn endpoint) - validated for better errors
         settings: Application settings (injected)
         
     Returns:

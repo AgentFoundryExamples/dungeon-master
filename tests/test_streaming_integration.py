@@ -44,8 +44,7 @@ async def test_turn_stream_endpoint_returns_410_gone(client):
     
     error = error_detail["error"]
     assert error["type"] == "endpoint_removed"
-    assert "POST /turn" in error["message"]
-    assert "streaming" in error["message"].lower() or "removed" in error["message"].lower()
+    assert "Please use the synchronous POST /turn endpoint instead" in error["message"]
 
 
 @pytest.mark.asyncio
