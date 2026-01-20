@@ -167,6 +167,34 @@ class TurnOrchestrator:
         from app.services.outcome_parser import OutcomeParser
         self.outcome_parser = OutcomeParser()
     
+    def _get_last_quest_completion_time(
+        self,
+        character_id: str,
+        context: JourneyLogContext
+    ) -> Optional[str]:
+        """Get the last quest completion timestamp with fallback logic.
+        
+        Retrieves completion timestamp from in-memory storage first, then falls back
+        to additional_fields from context if available.
+        
+        Args:
+            character_id: Character UUID
+            context: Journey log context containing policy state
+            
+        Returns:
+            ISO 8601 timestamp of last completion, or None if not available
+        """
+        # Try in-memory storage first (populated during current server session)
+        last_quest_completed_at = None
+        if self.turn_storage:
+            last_quest_completed_at = self.turn_storage.get_quest_completion(character_id)
+        
+        # Fallback to additional_fields from journey-log context
+        if not last_quest_completed_at and context.policy_state.last_quest_completed_at:
+            last_quest_completed_at = context.policy_state.last_quest_completed_at
+        
+        return last_quest_completed_at
+    
     async def orchestrate_turn(
         self,
         character_id: str,
@@ -236,14 +264,10 @@ class TurnOrchestrator:
         # Step 1: Compute policy decisions
         logger.debug("Step 1: Computing policy decisions")
         
-        # Get quest completion timestamp from turn_storage (in-memory, lost on restart)
-        last_quest_completed_at = None
-        if self.turn_storage:
-            last_quest_completed_at = self.turn_storage.get_quest_completion(character_id)
-        
-        # If no in-memory completion timestamp, check additional_fields
-        if not last_quest_completed_at and context.policy_state.last_quest_completed_at:
-            last_quest_completed_at = context.policy_state.last_quest_completed_at
+        # Get quest completion timestamp from in-memory storage or context
+        last_quest_completed_at = self._get_last_quest_completion_time(
+            character_id, context
+        )
         
         quest_decision = self.policy_engine.evaluate_quest_trigger(
             character_id=character_id,
@@ -519,14 +543,10 @@ class TurnOrchestrator:
         # Step 1: Compute policy decisions (same as synchronous)
         logger.debug("Step 1: Computing policy decisions")
         
-        # Get quest completion timestamp from turn_storage (in-memory, lost on restart)
-        last_quest_completed_at = None
-        if self.turn_storage:
-            last_quest_completed_at = self.turn_storage.get_quest_completion(character_id)
-        
-        # If no in-memory completion timestamp, check additional_fields
-        if not last_quest_completed_at and context.policy_state.last_quest_completed_at:
-            last_quest_completed_at = context.policy_state.last_quest_completed_at
+        # Get quest completion timestamp from in-memory storage or context
+        last_quest_completed_at = self._get_last_quest_completion_time(
+            character_id, context
+        )
         
         quest_decision = self.policy_engine.evaluate_quest_trigger(
             character_id=character_id,

@@ -322,6 +322,7 @@ class PolicyEngine:
         
         # Cooldown check: prefer timestamp-based over turn-based
         cooldown_met = False
+        timestamp_cooldown_checked = False
         
         # Try timestamp-based cooldown first (completion takes precedence over offer)
         timestamp_to_use = last_quest_completed_at or last_quest_offered_at
@@ -332,10 +333,10 @@ class PolicyEngine:
                 elapsed_seconds = (now - last_event_time).total_seconds()
                 
                 # Convert turn-based cooldown to seconds using estimated turn duration
-                # This rough conversion maintains backward compatibility
                 cooldown_seconds = quest_cooldown_turns * ESTIMATED_SECONDS_PER_TURN
                 
                 cooldown_met = elapsed_seconds >= cooldown_seconds
+                timestamp_cooldown_checked = True
                 
                 if not cooldown_met:
                     eligible = False
@@ -359,14 +360,9 @@ class PolicyEngine:
                     timestamp=timestamp_to_use,
                     error=str(e)
                 )
-                cooldown_met = turns_since_last_quest >= quest_cooldown_turns
-                if not cooldown_met:
-                    eligible = False
-                    reasons.append(
-                        f"turn_cooldown_not_met (turns={turns_since_last_quest}, required={quest_cooldown_turns})"
-                    )
-        else:
-            # No timestamp available - use turn-based cooldown
+        
+        # Fallback to turn-based cooldown if timestamp check was not performed or failed
+        if not timestamp_cooldown_checked:
             cooldown_met = turns_since_last_quest >= quest_cooldown_turns
             if not cooldown_met:
                 eligible = False
