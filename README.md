@@ -31,6 +31,78 @@ The service offers two ways to process player turns:
 
 See [Streaming Architecture](#streaming-architecture) for detailed design.
 
+## Character Status Transitions and Game Over Rules
+
+The Dungeon Master service enforces strict character status transitions that govern gameplay:
+
+### Status Ordering
+
+Characters progress through health statuses in strict order:
+```
+Healthy → Wounded → Dead
+```
+
+### Healing Rules
+
+- **Healing Allowed**: Characters can be healed from **Wounded** back to **Healthy** status
+- **Resurrection NOT Allowed**: Once a character reaches **Dead** status, they **CANNOT** be revived or healed
+- **Death is Final**: The Dead status is permanent and marks the end of the character's journey
+
+### Game Over Logic
+
+When a character reaches **Dead** status:
+1. The LLM generates a final narrative describing their demise
+2. The session is marked as **OVER** 
+3. No new quests, combat, or POIs are offered
+4. All intents are set to "none"
+5. Gameplay cannot continue for that character
+
+### Enforcement Mechanism
+
+**INSTRUCTION-BASED, Not Validated:**
+
+The Dead status game-over logic relies on **LLM compliance with system prompt instructions**, NOT on deterministic validation by the game engine. This is an intentional design decision.
+
+**How It Works:**
+1. **System Prompt Instructions** (`app/prompting/prompt_builder.py`):
+   - Explicitly instructs the LLM to set all intents to "none" when status is Dead
+   - Instructs the LLM to generate a conclusive, game-over narrative
+   - Forbids suggesting new quests, combat, or POIs after death
+
+2. **No Hard Validation:**
+   - The game engine does NOT validate that intents are "none" for Dead characters
+   - The game engine does NOT prevent quest/combat/POI actions for Dead characters
+   - This trusts modern LLMs (GPT-5.1+) to follow explicit instructions
+
+3. **Why Instruction-Based?**
+   - ✅ Provides maximum flexibility for narrative generation
+   - ✅ Allows LLM to craft appropriate, story-driven game-over scenarios
+   - ✅ Simpler architecture (no status-based validation layer)
+   - ⚠️ Relies on LLM compliance (may occasionally fail with weaker models)
+
+4. **Client Responsibilities:**
+   - Detect Dead status in character context
+   - Prevent further turn submissions for Dead characters
+   - Display appropriate game-over UI
+   - Do not rely solely on intent values to detect game-over state
+
+**Testing:**
+- Integration tests in `tests/test_dead_status_integration.py` verify instruction delivery
+- Production LLM compliance depends on prompt quality and model capabilities
+- See test file documentation for detailed enforcement mechanism explanation
+
+### Example Status Progression
+
+```
+Turn 1: Healthy → Player enters dungeon
+Turn 5: Healthy → Combat begins
+Turn 7: Wounded → Player takes damage
+Turn 9: Wounded → Player drinks healing potion → Healthy
+Turn 12: Healthy → Player faces boss
+Turn 15: Wounded → Boss critically wounds player
+Turn 17: Dead → Player dies to boss (GAME OVER)
+```
+
 ## Quick Start
 
 ### Prerequisites

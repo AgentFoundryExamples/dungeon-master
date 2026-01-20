@@ -73,6 +73,85 @@ response = client.models.generate_content(
 
 ## Dungeon Master Implementation Specifics
 
+### Character Status Transitions and Game Over Rules
+
+The Dungeon Master service enforces strict character status transitions that govern gameplay logic. These rules are embedded in the system prompt and must be respected by the LLM.
+
+**Status Ordering:**
+```
+Healthy → Wounded → Dead
+```
+
+**Healing Rules:**
+- Characters can be healed from **Wounded** back to **Healthy**
+- Characters **CANNOT** be revived from **Dead** status
+- Death is final and permanent
+
+**Game Over Logic:**
+When a character reaches **Dead** status:
+1. The LLM must generate a final narrative describing their demise
+2. The session is marked as **OVER**
+3. All intents must be set to `"none"` (no quests, combat, POIs)
+4. No further gameplay should be suggested or enabled
+5. The narrative should be conclusive and mark the end of the journey
+
+**Prompt Implementation:**
+Status transition rules are documented in `app/prompting/prompt_builder.py` in the `SYSTEM_INSTRUCTIONS` constant:
+```python
+STATUS TRANSITIONS AND GAME OVER RULES:
+Characters progress through health statuses in strict order: Healthy -> Wounded -> Dead
+- Healing can move characters from Wounded back to Healthy
+- Healing CANNOT revive characters from Dead status
+- Once a character reaches Dead status, the session is OVER
+- When a character dies, generate a final narrative describing their demise
+- Do NOT continue gameplay, offer new quests, or suggest actions after death
+- The Dead status is permanent and marks the end of the character's journey
+```
+
+**JSON Escaping Note:**
+The arrow notation (`->`) is safe for inclusion in system prompts. It does not break JSON parsing when the prompt is embedded in API calls. If you encounter issues, use the HTML entity `&rarr;` or Unicode `→` as alternatives.
+
+**Enforcement Mechanism:**
+
+The Dead status game-over logic is **INSTRUCTION-BASED, not validated** by the game engine. This is an intentional design decision.
+
+1. **Instruction Layer (System Prompt):**
+   - The system prompt explicitly instructs the LLM to set all intents to "none"
+   - The LLM is instructed to generate a conclusive narrative
+   - These instructions are in `app/prompting/prompt_builder.py`
+
+2. **No Hard Validation:**
+   - The game engine does NOT validate that intents are "none" for Dead status
+   - The game engine does NOT prevent quest/combat/POI actions for Dead characters
+   - This trusts modern LLMs (GPT-5.1+) to follow explicit instructions
+
+3. **Why Instruction-Based?**
+   - Provides maximum flexibility for narrative generation
+   - Allows LLM to craft appropriate game-over scenarios
+   - Simpler architecture (no status-based validation layer)
+   - Avoids rigid deterministic constraints that might limit storytelling
+
+4. **Trade-offs:**
+   - ✅ Natural, story-driven game-over experiences
+   - ✅ Simpler architecture and easier to maintain
+   - ⚠️ Relies on LLM compliance (may occasionally fail to follow rules with weaker models)
+   - ⚠️ Clients must handle edge cases where LLM suggests invalid intents
+
+5. **Testing:**
+   - Integration tests in `tests/test_dead_status_integration.py` verify instruction delivery
+   - These tests validate the system prompt includes Dead status rules
+   - Production LLM compliance depends on prompt quality and model capabilities
+   - See test file for comprehensive documentation of enforcement mechanism
+
+**Implementation Checklist:**
+- [ ] LLM receives status transition rules in system prompt
+- [ ] LLM sets all intents to "none" when character status is Dead
+- [ ] LLM generates conclusive narrative on character death
+- [ ] Game client detects Dead status and prevents further turn submissions
+- [ ] Journey-log tracks character status accurately across turns
+- [ ] Clients implement UI to display game-over state
+- [ ] Clients do not rely solely on intent values to detect game-over (check status field)
+
 ### Deterministic Write Order
 
 The DungeonMaster service enforces a strict, deterministic order when writing subsystem changes to the journey-log service. This ensures predictable behavior and simplifies debugging.
