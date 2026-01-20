@@ -673,11 +673,12 @@ async def process_turn(
             "content": {
                 "application/json": {
                     "example": {
-                        "error": {
-                            "type": "endpoint_removed",
-                            "message": "Streaming endpoints have been removed. Use POST /turn instead.",
-                            "migration_guide": "Replace calls to /turn/stream with /turn. The synchronous endpoint returns the complete narrative in a single response.",
-                            "request_id": None
+                        "detail": {
+                            "error": {
+                                "type": "endpoint_removed",
+                                "message": "Streaming endpoints have been removed. Use POST /turn instead.",
+                                "request_id": None
+                            }
                         }
                     }
                 }
