@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests for quest completion timestamp-based cooldowns."""
 
-import pytest
 from datetime import datetime, timezone, timedelta
 from app.services.policy_engine import PolicyEngine
 from app.turn_storage import TurnStorage

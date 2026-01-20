@@ -284,7 +284,11 @@ class TurnOrchestrator:
         logger.info(
             f"Policy decisions evaluated quest_eligible={quest_decision.eligible} "
             f"quest_roll_passed={quest_decision.roll_passed} "
-            f"poi_eligible={poi_decision.eligible} poi_roll_passed={poi_decision.roll_passed}"
+            f"poi_eligible={poi_decision.eligible} poi_roll_passed={poi_decision.roll_passed}",
+            quest_eligible=quest_decision.eligible,
+            quest_roll_passed=quest_decision.roll_passed,
+            poi_eligible=poi_decision.eligible,
+            poi_roll_passed=poi_decision.roll_passed
         )
         
         # Step 2: Build prompt and call LLM
@@ -563,7 +567,11 @@ class TurnOrchestrator:
         logger.info(
             f"Policy decisions evaluated quest_eligible={quest_decision.eligible} "
             f"quest_roll_passed={quest_decision.roll_passed} "
-            f"poi_eligible={poi_decision.eligible} poi_roll_passed={poi_decision.roll_passed}"
+            f"poi_eligible={poi_decision.eligible} poi_roll_passed={poi_decision.roll_passed}",
+            quest_eligible=quest_decision.eligible,
+            quest_roll_passed=quest_decision.roll_passed,
+            poi_eligible=poi_decision.eligible,
+            poi_roll_passed=poi_decision.roll_passed
         )
         
         # Step 2: Build prompt and call LLM with streaming
