@@ -478,8 +478,9 @@ class PolicyEngine:
         # Select a POI if roll passed and POIs are available
         selected_poi = None
         if roll_passed and available_pois:
-            # Select a random POI from available ones (preferring recent ones)
-            # Use the same RNG for consistency
+            # Select a random POI from available ones
+            # Note: POIs are already sorted by timestamp descending in memory_sparks,
+            # so the list is biased toward recent POIs
             rng = self._get_rng(character_id, seed_override)
             selected_poi = rng.choice(available_pois)
             logger.info(
