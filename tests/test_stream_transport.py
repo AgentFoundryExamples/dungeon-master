@@ -52,7 +52,6 @@ def test_stream_event_auto_timestamp():
 
 
 @pytest.mark.skip(reason="Streaming functionality deprecated")
-@pytest.mark.skip(reason="Streaming functionality deprecated")
 def test_stream_event_various_types():
     """Test StreamEvent with different event types."""
     types = ["token", "metadata", "complete", "error"]
