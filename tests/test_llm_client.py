@@ -401,6 +401,7 @@ async def test_generate_narrative_with_provided_schema():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_stub_mode():
     """Test streaming narrative generation in stub mode."""
     client = LLMClient(
@@ -429,6 +430,7 @@ async def test_generate_narrative_stream_stub_mode():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_success():
     """Test successful streaming narrative generation."""
     client = LLMClient(
@@ -483,6 +485,7 @@ async def test_generate_narrative_stream_success():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_no_callback():
     """Test streaming without callback still buffers and returns outcome."""
     client = LLMClient(
@@ -522,6 +525,7 @@ async def test_generate_narrative_stream_no_callback():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_callback_exception():
     """Test that callback exceptions are logged but don't interrupt streaming."""
     client = LLMClient(
@@ -571,6 +575,7 @@ async def test_generate_narrative_stream_callback_exception():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_empty_response():
     """Test streaming with empty response."""
     client = LLMClient(
@@ -596,6 +601,7 @@ async def test_generate_narrative_stream_empty_response():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_invalid_json():
     """Test streaming with invalid JSON returns fallback."""
     client = LLMClient(
@@ -632,6 +638,7 @@ async def test_generate_narrative_stream_invalid_json():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_missing_narrative_field():
     """Test streaming with missing narrative field uses fallback."""
     client = LLMClient(
@@ -672,6 +679,7 @@ async def test_generate_narrative_stream_missing_narrative_field():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_timeout():
     """Test streaming timeout."""
     import openai
@@ -693,6 +701,7 @@ async def test_generate_narrative_stream_timeout():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_authentication_error():
     """Test streaming with authentication error."""
     import openai
@@ -718,6 +727,7 @@ async def test_generate_narrative_stream_authentication_error():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_with_full_outcome():
     """Test streaming with full DungeonMasterOutcome including intents."""
     client = LLMClient(
@@ -766,6 +776,7 @@ async def test_generate_narrative_stream_with_full_outcome():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="Streaming functionality removed")
 async def test_generate_narrative_stream_with_trace_id():
     """Test streaming with trace_id for correlation."""
     client = LLMClient(
