@@ -29,8 +29,8 @@ Total files: 53
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 65.55 KB  
-**LOC:** 1417  
+**Size:** 65.56 KB  
+**LOC:** 1418  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -47,8 +47,8 @@ Total files: 53
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for logging  
-**Size:** 20.59 KB  
-**LOC:** 477  
+**Size:** 20.95 KB  
+**LOC:** 483  
 **TODOs/FIXMEs:** 0  
 
 ## app/main.py
@@ -164,8 +164,8 @@ Total files: 53
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for policy engine  
-**Size:** 15.50 KB  
-**LOC:** 278  
+**Size:** 17.02 KB  
+**LOC:** 311  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/turn_orchestrator.py
@@ -236,8 +236,8 @@ Total files: 53
 **Role:** test  
 **Role Justification:** located in 'tests' directory  
 **Summary:** Python test implementation (role: test)  
-**Size:** 16.38 KB  
-**LOC:** 343  
+**Size:** 18.05 KB  
+**LOC:** 371  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_acceptance_criteria.py
@@ -461,7 +461,7 @@ Total files: 53
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 50.04 KB  
+**Size:** 50.05 KB  
 **LOC:** 991  
 **TODOs/FIXMEs:** 0  
 

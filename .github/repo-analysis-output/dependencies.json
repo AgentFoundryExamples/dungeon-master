@@ -1065,6 +1065,10 @@
       "target": "app/prompting/prompt_builder.py"
     },
     {
+      "source": "tests/conftest.py",
+      "target": "app/resilience.py"
+    },
+    {
       "source": "tests/test_acceptance_criteria.py",
       "target": "app/services/llm_client.py"
     },

@@ -9,7 +9,7 @@ Includes classification of external dependencies as stdlib vs third-party.
 ## Statistics
 
 - **Total files**: 53
-- **Intra-repo dependencies**: 159
+- **Intra-repo dependencies**: 160
 - **External stdlib dependencies**: 43
 - **External third-party dependencies**: 27
 
@@ -86,9 +86,9 @@ Total: 27 unique packages
 - `app/api/routes.py` (12 dependencies)
 - `tests/test_acceptance_criteria.py` (10 dependencies)
 - `tests/test_api.py` (10 dependencies)
+- `tests/conftest.py` (9 dependencies)
 - `tests/test_policy_integration.py` (9 dependencies)
 - `app/services/turn_orchestrator.py` (8 dependencies)
-- `tests/conftest.py` (8 dependencies)
 - `tests/test_turn_integration.py` (8 dependencies)
 - `tests/test_combat_integration.py` (7 dependencies)
 - `tests/test_poi_memory_sparks.py` (7 dependencies)

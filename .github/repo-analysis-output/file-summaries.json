@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 67127,
-        "loc": 1417,
+        "size_bytes": 67137,
+        "loc": 1418,
         "todo_count": 0
       }
     },
@@ -67,8 +67,8 @@
       "summary": "Python module for logging",
       "summary_text": "Python module for logging",
       "metrics": {
-        "size_bytes": 21080,
-        "loc": 477,
+        "size_bytes": 21455,
+        "loc": 483,
         "todo_count": 0
       }
     },
@@ -123,7 +123,7 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 39339,
+        "size_bytes": 39337,
         "loc": 894,
         "todo_count": 0
       }
@@ -249,8 +249,8 @@
       "summary": "Python module for policy engine",
       "summary_text": "Python module for policy engine",
       "metrics": {
-        "size_bytes": 15869,
-        "loc": 278,
+        "size_bytes": 17430,
+        "loc": 311,
         "todo_count": 0
       }
     },
@@ -263,7 +263,7 @@
       "summary": "Python module for turn orchestrator",
       "summary_text": "Python module for turn orchestrator",
       "metrics": {
-        "size_bytes": 53618,
+        "size_bytes": 53612,
         "loc": 994,
         "todo_count": 0
       }
@@ -361,8 +361,8 @@
       "summary": "Python test implementation (role: test)",
       "summary_text": "Python test implementation (role: test)",
       "metrics": {
-        "size_bytes": 16777,
-        "loc": 343,
+        "size_bytes": 18483,
+        "loc": 371,
         "todo_count": 0
       }
     },
@@ -515,7 +515,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 17837,
+        "size_bytes": 17835,
         "loc": 408,
         "todo_count": 0
       }
@@ -641,7 +641,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 24724,
+        "size_bytes": 24720,
         "loc": 563,
         "todo_count": 0
       }
@@ -711,7 +711,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 51242,
+        "size_bytes": 51250,
         "loc": 991,
         "todo_count": 0
       }
