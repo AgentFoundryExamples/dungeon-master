@@ -125,7 +125,9 @@ async def lifespan(app: FastAPI):
         quest_trigger_prob=settings.quest_trigger_prob,
         quest_cooldown_turns=settings.quest_cooldown_turns,
         poi_trigger_prob=settings.poi_trigger_prob,
-        poi_cooldown_turns=settings.poi_cooldown_turns
+        poi_cooldown_turns=settings.poi_cooldown_turns,
+        memory_spark_probability=settings.memory_spark_probability,
+        quest_poi_reference_probability=settings.quest_poi_reference_probability
     )
     
     app.state.policy_config_manager = PolicyConfigManager(
