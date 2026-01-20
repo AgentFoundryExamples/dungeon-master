@@ -780,6 +780,61 @@ class POITriggerDecision(BaseModel):
     )
 
 
+class MemorySparkDecision(BaseModel):
+    """Decision model for memory spark trigger evaluation.
+    
+    Represents the result of evaluating whether to fetch memory sparks
+    (random POIs) for a character, including eligibility, probability,
+    and roll outcome.
+    
+    Attributes:
+        eligible: Whether the character is eligible for memory spark trigger
+        probability: The probability used for the roll (0.0-1.0)
+        roll_passed: Whether the probabilistic roll succeeded
+    """
+    eligible: bool = Field(
+        ...,
+        description="Whether the character is eligible for memory spark trigger"
+    )
+    probability: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="The probability used for the roll"
+    )
+    roll_passed: bool = Field(
+        ...,
+        description="Whether the probabilistic roll succeeded"
+    )
+
+
+class QuestPOIReferenceDecision(BaseModel):
+    """Decision model for quest POI reference trigger evaluation.
+    
+    Represents the result of evaluating whether a triggered quest should
+    reference a prior POI, including probability and roll outcome.
+    
+    Attributes:
+        probability: The probability used for the roll (0.0-1.0)
+        roll_passed: Whether the probabilistic roll succeeded
+        selected_poi: Optional POI selected for reference (if roll passed)
+    """
+    probability: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="The probability used for the roll"
+    )
+    roll_passed: bool = Field(
+        ...,
+        description="Whether the probabilistic roll succeeded"
+    )
+    selected_poi: Optional[dict] = Field(
+        None,
+        description="Optional POI selected for reference (if roll passed)"
+    )
+
+
 class PolicyHints(BaseModel):
     """Policy hints containing policy decisions to inform LLM narrative generation.
     
@@ -790,6 +845,8 @@ class PolicyHints(BaseModel):
     Attributes:
         quest_trigger_decision: Decision about whether to trigger a quest
         poi_trigger_decision: Decision about whether to trigger a POI
+        memory_spark_decision: Optional decision about whether to fetch memory sparks
+        quest_poi_reference_decision: Optional decision about whether quest references a POI
     """
     quest_trigger_decision: QuestTriggerDecision = Field(
         ...,
@@ -798,6 +855,14 @@ class PolicyHints(BaseModel):
     poi_trigger_decision: POITriggerDecision = Field(
         ...,
         description="POI trigger decision from PolicyEngine"
+    )
+    memory_spark_decision: Optional["MemorySparkDecision"] = Field(
+        None,
+        description="Memory spark trigger decision from PolicyEngine (optional)"
+    )
+    quest_poi_reference_decision: Optional["QuestPOIReferenceDecision"] = Field(
+        None,
+        description="Quest POI reference decision from PolicyEngine (optional)"
     )
 
 
@@ -1011,6 +1076,8 @@ class PolicyConfigResponse(BaseModel):
         quest_cooldown_turns: Current quest cooldown in turns
         poi_trigger_prob: Current POI trigger probability
         poi_cooldown_turns: Current POI cooldown in turns
+        memory_spark_probability: Current memory spark trigger probability
+        quest_poi_reference_probability: Current quest POI reference probability
         last_updated: ISO 8601 timestamp of last config change
     """
     quest_trigger_prob: float = Field(
@@ -1028,6 +1095,14 @@ class PolicyConfigResponse(BaseModel):
     poi_cooldown_turns: int = Field(
         ...,
         description="Current POI cooldown in turns"
+    )
+    memory_spark_probability: float = Field(
+        ...,
+        description="Current memory spark trigger probability (0.0-1.0)"
+    )
+    quest_poi_reference_probability: float = Field(
+        ...,
+        description="Current quest POI reference probability (0.0-1.0)"
     )
     last_updated: Optional[str] = Field(
         None,

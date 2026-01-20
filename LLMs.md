@@ -151,7 +151,10 @@ POLICY HINTS:
 
 **Memory Sparks (POI Injection):**
 
-When `POI_MEMORY_SPARK_ENABLED=true`, the service fetches random POIs at the start of each turn and injects them into the prompt to help the LLM recall previously discovered locations.
+When `POI_MEMORY_SPARK_ENABLED=true`, the service probabilistically fetches random POIs at the start of each turn and injects them into the prompt to help the LLM recall previously discovered locations. The memory spark feature is controlled by two probabilities:
+
+1. **Per-turn memory spark probability** (default 0.2): Each turn has a 20% chance of fetching random POIs
+2. **Quest POI reference probability** (default 0.1): When a quest triggers and memory sparks are available, there's a 10% chance the quest will reference one of the POIs
 
 **Memory Spark Format:**
 ```
@@ -168,11 +171,15 @@ MEMORY SPARKS (Previously Discovered Locations):
 ```
 
 **Memory Spark Behavior:**
+- Probabilistic fetching controlled by `MEMORY_SPARK_PROBABILITY` (0.0-1.0, default 0.2)
+- Quest POI references controlled by `QUEST_POI_REFERENCE_PROBABILITY` (0.0-1.0, default 0.1)
+- When a quest references a POI, the POI context is injected into the quest's details
 - Sorted by timestamp descending (newest first) for determinism
 - Descriptions truncated to 200 characters to manage token usage
 - Tags limited to 5 per POI
-- Section hidden completely if no POIs available
+- Section hidden completely if no POIs available or roll fails
 - Non-fatal errors during fetch (empty list returned on failure)
+- Set probabilities to 0.0 to disable without turning off the feature entirely
 
 **Token Budget:**
 - System instructions + schema: ~2,250 tokens
@@ -181,7 +188,9 @@ MEMORY SPARKS (Previously Discovered Locations):
 
 **Configuring Token Usage:**
 - `JOURNEY_LOG_RECENT_N`: Control history turns (default 20, range 1-100)
-- `POI_MEMORY_SPARK_COUNT`: Control POI count (default 3, range 1-20)
+- `POI_MEMORY_SPARK_COUNT`: Control POI count when fetched (default 3, range 1-20)
+- `MEMORY_SPARK_PROBABILITY`: Control fetch frequency (default 0.2, range 0.0-1.0)
+- `QUEST_POI_REFERENCE_PROBABILITY`: Control quest-POI connection frequency (default 0.1, range 0.0-1.0)
 - Automatic truncation for long descriptions and responses
 
 ### Structured Output Schema

@@ -148,6 +148,18 @@ class Settings(BaseSettings):
         le=20,
         description="Number of random POIs to fetch as memory sparks (1-20)"
     )
+    memory_spark_probability: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=1.0,
+        description="Probability of memory spark trigger per eligible turn (0.0-1.0)"
+    )
+    quest_poi_reference_probability: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Probability that a triggered quest references a prior POI (0.0-1.0)"
+    )
 
     # Admin and Policy Configuration
     policy_config_file: Optional[str] = Field(

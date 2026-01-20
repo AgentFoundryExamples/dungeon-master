@@ -47,6 +47,8 @@ class PolicyConfigSchema(BaseModel):
         quest_cooldown_turns: Number of turns between quest triggers (>= 0)
         poi_trigger_prob: Probability of POI trigger (0.0-1.0)
         poi_cooldown_turns: Number of turns between POI triggers (>= 0)
+        memory_spark_probability: Probability of memory spark trigger (0.0-1.0)
+        quest_poi_reference_probability: Probability that a quest references a POI (0.0-1.0)
     """
     quest_trigger_prob: float = Field(
         ...,
@@ -70,8 +72,20 @@ class PolicyConfigSchema(BaseModel):
         ge=0,
         description="Number of turns between POI triggers (must be >= 0)"
     )
+    memory_spark_probability: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Probability of memory spark trigger (0.0-1.0)"
+    )
+    quest_poi_reference_probability: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Probability that a quest references a POI (0.0-1.0)"
+    )
 
-    @field_validator('quest_trigger_prob', 'poi_trigger_prob')
+    @field_validator('quest_trigger_prob', 'poi_trigger_prob', 'memory_spark_probability', 'quest_poi_reference_probability')
     @classmethod
     def validate_probability(cls, v: float) -> float:
         """Validate probability is in valid range."""

@@ -121,16 +121,19 @@ The PolicyEngine provides deterministic quest and POI trigger evaluation with co
 | `QUEST_COOLDOWN_TURNS` | `5` | Turns between quest triggers (0 or greater) |
 | `POI_TRIGGER_PROB` | `0.2` | POI trigger probability (0.0-1.0) |
 | `POI_COOLDOWN_TURNS` | `3` | Turns between POI triggers (0 or greater) |
+| `MEMORY_SPARK_PROBABILITY` | `0.2` | Memory spark trigger probability per turn (0.0-1.0) |
+| `QUEST_POI_REFERENCE_PROBABILITY` | `0.1` | Probability that a quest references a POI (0.0-1.0) |
 | `POI_MEMORY_SPARK_ENABLED` | `false` | Enable fetching random POIs as memory sparks |
 | `POI_MEMORY_SPARK_COUNT` | `3` | Number of random POIs to fetch (1-20) |
 | `RNG_SEED` | (unset) | Optional RNG seed for deterministic behavior |
 
 ### POI Memory Sparks
 
-POI Memory Sparks is an optional feature that fetches random POIs from a character's history at the start of each turn and injects them into the LLM prompt. This helps the LLM:
+POI Memory Sparks is an optional feature that probabilistically fetches random POIs from a character's history at the start of turns and injects them into the LLM prompt. This helps the LLM:
 - Recall previously discovered locations
 - Reference past POIs in narratives naturally
 - Create more connected and immersive storytelling
+- Optionally connect quests to prior POIs for deeper world building
 
 **Configuration:**
 
@@ -138,15 +141,31 @@ POI Memory Sparks is an optional feature that fetches random POIs from a charact
 # Enable memory sparks
 POI_MEMORY_SPARK_ENABLED=true
 
-# Number of random POIs to fetch (1-20, default: 3)
+# Number of random POIs to fetch when triggered (1-20, default: 3)
 POI_MEMORY_SPARK_COUNT=5
+
+# Probability of fetching memory sparks per turn (0.0-1.0, default: 0.2)
+MEMORY_SPARK_PROBABILITY=0.2
+
+# Probability that a triggered quest references a prior POI (0.0-1.0, default: 0.1)
+QUEST_POI_REFERENCE_PROBABILITY=0.1
 ```
 
 **How it works:**
-1. At the start of each turn, before building the prompt, the orchestrator fetches N random POIs from journey-log
-2. These POIs are stored in `context.memory_sparks` for prompt injection
-3. The prompt builder includes these in a "MEMORY SPARKS" section of the LLM context
-4. Errors are non-fatal - if the fetch fails, memory_sparks will be empty and the turn continues
+1. At the start of each turn, the PolicyEngine evaluates whether to fetch memory sparks using a probabilistic roll
+2. If the roll passes (20% chance by default), N random POIs are fetched from journey-log
+3. These POIs are stored in `context.memory_sparks` for prompt injection
+4. The prompt builder includes these in a "MEMORY SPARKS" section of the LLM context
+5. When a quest is triggered and memory sparks are available, a second roll (10% chance by default) determines if the quest should reference one of the POIs
+6. If the quest POI reference roll passes, a random POI is selected and injected into the quest's details for narrative context
+7. Errors are non-fatal - if the fetch fails, memory_sparks will be empty and the turn continues
+
+**Tuning Guidance:**
+- Set `MEMORY_SPARK_PROBABILITY=0.0` to disable memory sparks without disabling the feature entirely
+- Set `QUEST_POI_REFERENCE_PROBABILITY=0.0` to disable POI references in quests while keeping memory sparks
+- Higher probabilities (e.g., 0.5-1.0) create denser connections between quests and locations
+- Lower probabilities (e.g., 0.05-0.15) create occasional but memorable callbacks
+- Use `RNG_SEED` in tests for deterministic behavior
 
 **Performance considerations:**
 - Memory spark retrieval adds ~50-100ms to turn latency

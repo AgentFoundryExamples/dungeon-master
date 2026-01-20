@@ -195,26 +195,38 @@ class TurnOrchestrator:
         
         summary = TurnSubsystemSummary()
         
-        # Step 0: Fetch memory sparks (random POIs) if enabled
+        # Step 0: Evaluate and fetch memory sparks (random POIs) probabilistically
+        memory_spark_decision = None
         if self.poi_memory_spark_enabled and not dry_run:
-            logger.debug("Step 0: Fetching memory sparks (random POIs)")
-            memory_sparks = await self.journey_log_client.get_random_pois(
-                character_id=character_id,
-                n=self.poi_memory_spark_count,
-                trace_id=trace_id
+            logger.debug("Step 0: Evaluating memory spark trigger")
+            memory_spark_decision = self.policy_engine.evaluate_memory_spark_trigger(
+                character_id=character_id
             )
-            context.memory_sparks = memory_sparks
-            logger.info(
-                "Memory sparks fetched",
-                count=len(memory_sparks),
-                enabled=self.poi_memory_spark_enabled
-            )
+            
+            if memory_spark_decision.roll_passed:
+                logger.debug("Memory spark roll passed - fetching random POIs")
+                memory_sparks = await self.journey_log_client.get_random_pois(
+                    character_id=character_id,
+                    n=self.poi_memory_spark_count,
+                    trace_id=trace_id
+                )
+                context.memory_sparks = memory_sparks
+                logger.info(
+                    "Memory sparks fetched",
+                    count=len(memory_sparks),
+                    enabled=self.poi_memory_spark_enabled,
+                    roll_passed=True
+                )
+            else:
+                logger.debug("Memory spark roll failed - skipping POI fetch")
+                context.memory_sparks = []
         else:
             logger.debug(
                 "Memory sparks skipped",
                 enabled=self.poi_memory_spark_enabled,
                 dry_run=dry_run
             )
+            context.memory_sparks = []
         
         # Step 1: Compute policy decisions
         logger.debug("Step 1: Computing policy decisions")
@@ -229,9 +241,24 @@ class TurnOrchestrator:
             turns_since_last_poi=context.policy_state.turns_since_last_poi
         )
         
+        # Evaluate quest POI reference if quest trigger passed and POIs available
+        quest_poi_reference_decision = None
+        if quest_decision.roll_passed and context.memory_sparks:
+            quest_poi_reference_decision = self.policy_engine.evaluate_quest_poi_reference_trigger(
+                character_id=character_id,
+                available_pois=context.memory_sparks
+            )
+            logger.info(
+                "Quest POI reference evaluated",
+                roll_passed=quest_poi_reference_decision.roll_passed,
+                poi_selected=quest_poi_reference_decision.selected_poi is not None
+            )
+        
         policy_hints = PolicyHints(
             quest_trigger_decision=quest_decision,
-            poi_trigger_decision=poi_decision
+            poi_trigger_decision=poi_decision,
+            memory_spark_decision=memory_spark_decision,
+            quest_poi_reference_decision=quest_poi_reference_decision
         )
         
         # Inject policy hints into context
@@ -271,9 +298,15 @@ class TurnOrchestrator:
         
         # Step 2b: Normalize quest and POI intents with fallbacks
         if intents:
+            # Extract POI reference if quest POI reference decision passed
+            poi_reference = None
+            if quest_poi_reference_decision and quest_poi_reference_decision.selected_poi:
+                poi_reference = quest_poi_reference_decision.selected_poi
+            
             normalized_quest = self.outcome_parser.normalize_quest_intent(
                 quest_intent=intents.quest_intent,
-                policy_triggered=quest_decision.roll_passed
+                policy_triggered=quest_decision.roll_passed,
+                poi_reference=poi_reference
             )
             if normalized_quest != intents.quest_intent:
                 logger.info(
@@ -431,26 +464,38 @@ class TurnOrchestrator:
         
         summary = TurnSubsystemSummary()
         
-        # Step 0: Fetch memory sparks (random POIs) if enabled
+        # Step 0: Evaluate and fetch memory sparks (random POIs) probabilistically
+        memory_spark_decision = None
         if self.poi_memory_spark_enabled and not dry_run:
-            logger.debug("Step 0: Fetching memory sparks (random POIs)")
-            memory_sparks = await self.journey_log_client.get_random_pois(
-                character_id=character_id,
-                n=self.poi_memory_spark_count,
-                trace_id=trace_id
+            logger.debug("Step 0: Evaluating memory spark trigger")
+            memory_spark_decision = self.policy_engine.evaluate_memory_spark_trigger(
+                character_id=character_id
             )
-            context.memory_sparks = memory_sparks
-            logger.info(
-                "Memory sparks fetched",
-                count=len(memory_sparks),
-                enabled=self.poi_memory_spark_enabled
-            )
+            
+            if memory_spark_decision.roll_passed:
+                logger.debug("Memory spark roll passed - fetching random POIs")
+                memory_sparks = await self.journey_log_client.get_random_pois(
+                    character_id=character_id,
+                    n=self.poi_memory_spark_count,
+                    trace_id=trace_id
+                )
+                context.memory_sparks = memory_sparks
+                logger.info(
+                    "Memory sparks fetched",
+                    count=len(memory_sparks),
+                    enabled=self.poi_memory_spark_enabled,
+                    roll_passed=True
+                )
+            else:
+                logger.debug("Memory spark roll failed - skipping POI fetch")
+                context.memory_sparks = []
         else:
             logger.debug(
                 "Memory sparks skipped",
                 enabled=self.poi_memory_spark_enabled,
                 dry_run=dry_run
             )
+            context.memory_sparks = []
         
         # Step 1: Compute policy decisions (same as synchronous)
         logger.debug("Step 1: Computing policy decisions")
@@ -465,9 +510,24 @@ class TurnOrchestrator:
             turns_since_last_poi=context.policy_state.turns_since_last_poi
         )
         
+        # Evaluate quest POI reference if quest trigger passed and POIs available
+        quest_poi_reference_decision = None
+        if quest_decision.roll_passed and context.memory_sparks:
+            quest_poi_reference_decision = self.policy_engine.evaluate_quest_poi_reference_trigger(
+                character_id=character_id,
+                available_pois=context.memory_sparks
+            )
+            logger.info(
+                "Quest POI reference evaluated",
+                roll_passed=quest_poi_reference_decision.roll_passed,
+                poi_selected=quest_poi_reference_decision.selected_poi is not None
+            )
+        
         policy_hints = PolicyHints(
             quest_trigger_decision=quest_decision,
-            poi_trigger_decision=poi_decision
+            poi_trigger_decision=poi_decision,
+            memory_spark_decision=memory_spark_decision,
+            quest_poi_reference_decision=quest_poi_reference_decision
         )
         
         # Inject policy hints into context
@@ -514,9 +574,15 @@ class TurnOrchestrator:
         
         # Step 2b: Normalize quest and POI intents with fallbacks (same as synchronous)
         if intents:
+            # Extract POI reference if quest POI reference decision passed
+            poi_reference = None
+            if quest_poi_reference_decision and quest_poi_reference_decision.selected_poi:
+                poi_reference = quest_poi_reference_decision.selected_poi
+            
             normalized_quest = self.outcome_parser.normalize_quest_intent(
                 quest_intent=intents.quest_intent,
-                policy_triggered=quest_decision.roll_passed
+                policy_triggered=quest_decision.roll_passed,
+                poi_reference=poi_reference
             )
             if normalized_quest != intents.quest_intent:
                 logger.info(

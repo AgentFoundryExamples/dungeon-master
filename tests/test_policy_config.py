@@ -27,7 +27,9 @@ def test_policy_config_schema_valid():
         quest_trigger_prob=0.5,
         quest_cooldown_turns=10,
         poi_trigger_prob=0.3,
-        poi_cooldown_turns=5
+        poi_cooldown_turns=5,
+        memory_spark_probability=0.2,
+        quest_poi_reference_probability=0.1
     )
     
     assert config.quest_trigger_prob == 0.5
@@ -46,7 +48,9 @@ def test_policy_config_schema_invalid_probability():
             quest_trigger_prob=1.5,
             quest_cooldown_turns=5,
             poi_trigger_prob=0.2,
-            poi_cooldown_turns=3
+            poi_cooldown_turns=3,
+            memory_spark_probability=0.2,
+            quest_poi_reference_probability=0.1
         )
     
     # Test negative probability
@@ -55,7 +59,9 @@ def test_policy_config_schema_invalid_probability():
             quest_trigger_prob=0.3,
             quest_cooldown_turns=5,
             poi_trigger_prob=-0.1,
-            poi_cooldown_turns=3
+            poi_cooldown_turns=3,
+            memory_spark_probability=0.2,
+            quest_poi_reference_probability=0.1
         )
 
 
@@ -68,7 +74,9 @@ def test_policy_config_schema_invalid_cooldown():
             quest_trigger_prob=0.3,
             quest_cooldown_turns=-5,
             poi_trigger_prob=0.2,
-            poi_cooldown_turns=3
+            poi_cooldown_turns=3,
+            memory_spark_probability=0.2,
+            quest_poi_reference_probability=0.1
         )
 
 
@@ -78,7 +86,9 @@ def test_policy_config_manager_init_with_initial_config():
         quest_trigger_prob=0.4,
         quest_cooldown_turns=8,
         poi_trigger_prob=0.25,
-        poi_cooldown_turns=4
+        poi_cooldown_turns=4,
+        memory_spark_probability=0.2,
+        quest_poi_reference_probability=0.1
     )
     
     manager = PolicyConfigManager(initial_config=initial_config)
@@ -97,7 +107,9 @@ def test_policy_config_manager_load_from_dict():
         "quest_trigger_prob": 0.6,
         "quest_cooldown_turns": 12,
         "poi_trigger_prob": 0.35,
-        "poi_cooldown_turns": 6
+        "poi_cooldown_turns": 6,
+        "memory_spark_probability": 0.2,
+        "quest_poi_reference_probability": 0.1
     }
     
     success, error = manager.load_config(actor="test", config_dict=config_dict)
@@ -119,7 +131,9 @@ def test_policy_config_manager_load_invalid_config():
         "quest_trigger_prob": 2.0,  # Invalid: > 1.0
         "quest_cooldown_turns": 5,
         "poi_trigger_prob": 0.2,
-        "poi_cooldown_turns": 3
+        "poi_cooldown_turns": 3,
+        "memory_spark_probability": 0.2,
+        "quest_poi_reference_probability": 0.1
     }
     
     success, error = manager.load_config(actor="test", config_dict=invalid_config)
@@ -140,7 +154,9 @@ def test_policy_config_manager_load_from_file():
             "quest_trigger_prob": 0.7,
             "quest_cooldown_turns": 15,
             "poi_trigger_prob": 0.4,
-            "poi_cooldown_turns": 8
+            "poi_cooldown_turns": 8,
+            "memory_spark_probability": 0.2,
+            "quest_poi_reference_probability": 0.1
         }
         json.dump(config_data, f)
         temp_file = f.name
@@ -168,7 +184,9 @@ def test_policy_config_manager_audit_logs():
         "quest_trigger_prob": 0.5,
         "quest_cooldown_turns": 10,
         "poi_trigger_prob": 0.3,
-        "poi_cooldown_turns": 5
+        "poi_cooldown_turns": 5,
+        "memory_spark_probability": 0.2,
+        "quest_poi_reference_probability": 0.1
     }
     
     success, error = manager.load_config(actor="admin_user", config_dict=config_dict)
@@ -191,7 +209,9 @@ def test_policy_config_manager_rollback_on_error():
         quest_trigger_prob=0.3,
         quest_cooldown_turns=5,
         poi_trigger_prob=0.2,
-        poi_cooldown_turns=3
+        poi_cooldown_turns=3,
+        memory_spark_probability=0.2,
+        quest_poi_reference_probability=0.1
     )
     
     manager = PolicyConfigManager(initial_config=initial_config)
@@ -201,7 +221,9 @@ def test_policy_config_manager_rollback_on_error():
         "quest_trigger_prob": -0.5,  # Invalid
         "quest_cooldown_turns": 5,
         "poi_trigger_prob": 0.2,
-        "poi_cooldown_turns": 3
+        "poi_cooldown_turns": 3,
+        "memory_spark_probability": 0.2,
+        "quest_poi_reference_probability": 0.1
     }
     
     success, error = manager.load_config(actor="test", config_dict=invalid_config)
@@ -221,7 +243,9 @@ def test_policy_config_manager_delta_summary():
         quest_trigger_prob=0.3,
         quest_cooldown_turns=5,
         poi_trigger_prob=0.2,
-        poi_cooldown_turns=3
+        poi_cooldown_turns=3,
+        memory_spark_probability=0.2,
+        quest_poi_reference_probability=0.1
     )
     
     manager = PolicyConfigManager(initial_config=initial_config)
@@ -231,7 +255,9 @@ def test_policy_config_manager_delta_summary():
         "quest_trigger_prob": 0.5,  # Changed
         "quest_cooldown_turns": 5,  # Unchanged
         "poi_trigger_prob": 0.2,    # Unchanged
-        "poi_cooldown_turns": 7     # Changed
+        "poi_cooldown_turns": 7,    # Changed
+        "memory_spark_probability": 0.2,
+        "quest_poi_reference_probability": 0.1
     }
     
     success, error = manager.load_config(actor="admin", config_dict=new_config)
