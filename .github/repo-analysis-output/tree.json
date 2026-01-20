@@ -222,6 +222,10 @@
         },
         {
           "type": "file",
+          "name": "test_dead_status_integration.py"
+        },
+        {
+          "type": "file",
           "name": "test_journey_log_client.py"
         },
         {

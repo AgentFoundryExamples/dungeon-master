@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 54
+Total files: 55
 
 ## app/__init__.py
 **Language:** Python  
@@ -110,8 +110,8 @@ Total files: 54
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for prompt builder  
-**Size:** 13.95 KB  
-**LOC:** 260  
+**Size:** 14.62 KB  
+**LOC:** 270  
 **TODOs/FIXMEs:** 0  
 
 ## app/resilience.py
@@ -276,6 +276,15 @@ Total files: 54
 **LOC:** 127  
 **TODOs/FIXMEs:** 0  
 
+## tests/test_dead_status_integration.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 13.52 KB  
+**LOC:** 250  
+**TODOs/FIXMEs:** 0  
+
 ## tests/test_journey_log_client.py
 **Language:** Python  
 **Role:** test  
@@ -407,8 +416,8 @@ Total files: 54
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 22.30 KB  
-**LOC:** 508  
+**Size:** 24.56 KB  
+**LOC:** 540  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_quest_cooldown_timestamps.py

@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 54,
+  "total_files": 55,
   "files": [
     {
       "schema_version": "2.0",
@@ -165,8 +165,8 @@
       "summary": "Python module for prompt builder",
       "summary_text": "Python module for prompt builder",
       "metrics": {
-        "size_bytes": 14285,
-        "loc": 260,
+        "size_bytes": 14972,
+        "loc": 270,
         "todo_count": 0
       }
     },
@@ -424,6 +424,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "tests/test_dead_status_integration.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 13840,
+        "loc": 250,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "tests/test_journey_log_client.py",
       "language": "Python",
       "role": "test",
@@ -627,8 +641,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 22838,
-        "loc": 508,
+        "size_bytes": 25146,
+        "loc": 540,
         "todo_count": 0
       }
     },

@@ -485,6 +485,22 @@
       }
     },
     {
+      "id": "tests/test_dead_status_integration.py",
+      "path": "tests/test_dead_status_integration.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "unittest.mock.AsyncMock",
+          "unittest.mock.MagicMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "httpx.Response",
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_journey_log_client.py",
       "path": "tests/test_journey_log_client.py",
       "type": "file",
@@ -1198,6 +1214,14 @@
     {
       "source": "tests/test_config.py",
       "target": "app/services/policy_engine.py"
+    },
+    {
+      "source": "tests/test_dead_status_integration.py",
+      "target": "app/prompting/prompt_builder.py"
+    },
+    {
+      "source": "tests/test_dead_status_integration.py",
+      "target": "app/models.py"
     },
     {
       "source": "tests/test_journey_log_client.py",

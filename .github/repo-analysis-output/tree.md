@@ -50,6 +50,7 @@
   ├── test_api.py
   ├── test_combat_integration.py
   ├── test_config.py
+  ├── test_dead_status_integration.py
   ├── test_journey_log_client.py
   ├── test_llm_client.py
   ├── test_metrics.py
