@@ -360,6 +360,46 @@ class PolicyEngine:
         
         return decision
 
+    def evaluate_triggers(
+        self,
+        character_id: str,
+        policy_state: "PolicyState",
+        seed_override: Optional[int] = None
+    ) -> "PolicyHints":
+        """Evaluate both quest and POI triggers together.
+        
+        This is a convenience method that evaluates both quest and POI triggers
+        and returns them bundled in a PolicyHints object. It's equivalent to
+        calling evaluate_quest_trigger and evaluate_poi_trigger separately.
+        
+        Args:
+            character_id: Unique identifier for character (for per-character RNG)
+            policy_state: PolicyState containing turn counters, combat flags, timestamps
+            seed_override: Optional seed to override per-character determinism
+            
+        Returns:
+            PolicyHints containing both quest and POI trigger decisions
+        """
+        from app.models import PolicyHints, PolicyState
+        
+        quest_decision = self.evaluate_quest_trigger(
+            character_id=character_id,
+            turns_since_last_quest=policy_state.turns_since_last_quest,
+            has_active_quest=policy_state.has_active_quest,
+            seed_override=seed_override
+        )
+        
+        poi_decision = self.evaluate_poi_trigger(
+            character_id=character_id,
+            turns_since_last_poi=policy_state.turns_since_last_poi,
+            seed_override=seed_override
+        )
+        
+        return PolicyHints(
+            quest_trigger_decision=quest_decision,
+            poi_trigger_decision=poi_decision
+        )
+
     def get_debug_metadata(self) -> Dict[str, Any]:
         """Get debug metadata about the policy engine state.
         

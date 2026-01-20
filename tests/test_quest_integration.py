@@ -595,7 +595,7 @@ async def test_quest_lifecycle_across_multiple_turns():
     outcome_progress = DungeonMasterOutcome(
         narrative="You search the ruins.",
         intents=IntentsBlock(
-            quest_intent=QuestIntent(action="progress"),
+            quest_intent=QuestIntent(action="none"),
             combat_intent=CombatIntent(action="none"),
             poi_intent=POIIntent(action="none")
         )

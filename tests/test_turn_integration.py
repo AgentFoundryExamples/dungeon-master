@@ -984,7 +984,7 @@ async def test_multi_turn_poi_trigger_frequency():
         )
         
         # Check if POI was triggered
-        if summary.poi_change.action == "created" and summary.poi_change.success:
+        if summary.poi_change.action == "create" and summary.poi_change.success:
             poi_trigger_turns.append(turn_num)
             turns_since_last_poi = 0
         else:
@@ -1053,7 +1053,7 @@ async def test_multi_turn_narrative_history_ordering():
         narrative_calls.append({
             'character_id': kwargs.get('character_id'),
             'user_action': kwargs.get('user_action'),
-            'ai_response': kwargs.get('ai_response'),
+            'ai_response': kwargs.get('narrative'),  # Parameter is 'narrative' not 'ai_response'
             'turn_num': len(narrative_calls)
         })
     
@@ -1261,7 +1261,7 @@ async def test_multi_turn_metrics_capture():
     num_turns = 5
     
     # Create a real metrics collector for testing
-    metrics = MetricsCollector(enabled=True, environment="test")
+    metrics = MetricsCollector()
     
     # Create dependencies
     policy_engine = PolicyEngine(
@@ -1331,5 +1331,5 @@ async def test_multi_turn_metrics_capture():
     assert metrics is not None
     
     # Export metrics to verify format
-    metrics_output = metrics.export_metrics()
+    metrics_output = metrics.get_metrics()
     assert metrics_output is not None

@@ -417,7 +417,7 @@ async def test_poi_trigger_frequency_over_multiple_turns():
             trace_id=f"trace-{turn_num}"
         )
         
-        if summary.poi_change.action == "created" and summary.poi_change.success:
+        if summary.poi_change.action == "create" and summary.poi_change.success:
             poi_created_count += 1
             turns_since_last_poi = 0
         else:
@@ -548,4 +548,4 @@ async def test_poi_memory_sparks_integration_with_triggers():
     assert narrative is not None
     
     # Verify new POI was created
-    assert summary.poi_change.action == "created"
+    assert summary.poi_change.action == "create"

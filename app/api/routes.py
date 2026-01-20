@@ -224,6 +224,8 @@ def get_policy_engine():
     )
 
 
+
+
 def get_turn_orchestrator():
     """Dependency that provides a TurnOrchestrator for turn processing.
     
@@ -496,7 +498,7 @@ async def process_turn(
             has_intents=intents is not None,
             quest_change=subsystem_summary.quest_change.action,
             combat_change=subsystem_summary.combat_change.action,
-            poi_change=subsystem_summary.poi_created.action,
+            poi_change=subsystem_summary.poi_change.action,
             narrative_persisted=subsystem_summary.narrative_persisted
         )
         
@@ -620,7 +622,7 @@ async def process_turn(
             subsystem_actions={
                 "quest": subsystem_summary.quest_change.action if subsystem_summary else "none",
                 "combat": subsystem_summary.combat_change.action if subsystem_summary else "none",
-                "poi": subsystem_summary.poi_created.action if subsystem_summary else "none",
+                "poi": subsystem_summary.poi_change.action if subsystem_summary else "none",
                 "narrative": "persisted" if subsystem_summary and subsystem_summary.narrative_persisted else "failed"
             },
             policy_decisions=policy_decisions,
@@ -665,8 +667,8 @@ async def process_turn(
                             "success": subsystem_summary.combat_change.success
                         },
                         "poi": {
-                            "action": subsystem_summary.poi_created.action,
-                            "success": subsystem_summary.poi_created.success
+                            "action": subsystem_summary.poi_change.action,
+                            "success": subsystem_summary.poi_change.success
                         },
                         "narrative": {
                             "persisted": subsystem_summary.narrative_persisted
@@ -902,7 +904,7 @@ async def process_turn_stream(
                 stream_logger.log_writes_complete(
                     quest_written=subsystem_summary.quest_change.action != "none",
                     combat_written=subsystem_summary.combat_change.action != "none",
-                    poi_written=subsystem_summary.poi_created.action != "none",
+                    poi_written=subsystem_summary.poi_change.action != "none",
                     narrative_written=subsystem_summary.narrative_persisted
                 )
                 
@@ -913,7 +915,7 @@ async def process_turn_stream(
                     has_intents=intents is not None,
                     quest_change=subsystem_summary.quest_change.action,
                     combat_change=subsystem_summary.combat_change.action,
-                    poi_change=subsystem_summary.poi_created.action,
+                    poi_change=subsystem_summary.poi_change.action,
                     narrative_persisted=subsystem_summary.narrative_persisted
                 )
                 
@@ -1466,6 +1468,8 @@ async def reload_policy_config(
         error=None,
         config=config_response
     )
+
+@router.get(
     "/health",
     response_model=HealthResponse,
     status_code=status.HTTP_200_OK,
