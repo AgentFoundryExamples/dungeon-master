@@ -29,8 +29,8 @@ Total files: 53
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 65.56 KB  
-**LOC:** 1418  
+**Size:** 66.21 KB  
+**LOC:** 1426  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -38,8 +38,8 @@ Total files: 53
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 9.33 KB  
-**LOC:** 238  
+**Size:** 9.71 KB  
+**LOC:** 250  
 **TODOs/FIXMEs:** 0  
 
 ## app/logging.py
@@ -56,8 +56,8 @@ Total files: 53
 **Role:** entry-point  
 **Role Justification:** common entry point name 'main'  
 **Summary:** Python main entry point (role: entry-point)  
-**Size:** 14.38 KB  
-**LOC:** 315  
+**Size:** 14.68 KB  
+**LOC:** 319  
 **TODOs/FIXMEs:** 0  
 
 ## app/metrics.py
@@ -83,8 +83,8 @@ Total files: 53
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 38.42 KB  
-**LOC:** 894  
+**Size:** 41.07 KB  
+**LOC:** 961  
 **TODOs/FIXMEs:** 0  
 
 ## app/policy_config.py
@@ -92,8 +92,8 @@ Total files: 53
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for policy config  
-**Size:** 13.31 KB  
-**LOC:** 292  
+**Size:** 13.88 KB  
+**LOC:** 306  
 **TODOs/FIXMEs:** 0  
 
 ## app/prompting/__init__.py
@@ -155,8 +155,8 @@ Total files: 53
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for outcome parser  
-**Size:** 22.77 KB  
-**LOC:** 395  
+**Size:** 24.51 KB  
+**LOC:** 430  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/policy_engine.py
@@ -164,8 +164,8 @@ Total files: 53
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for policy engine  
-**Size:** 17.02 KB  
-**LOC:** 311  
+**Size:** 24.44 KB  
+**LOC:** 438  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/turn_orchestrator.py
@@ -173,8 +173,8 @@ Total files: 53
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for turn orchestrator  
-**Size:** 52.36 KB  
-**LOC:** 994  
+**Size:** 55.69 KB  
+**LOC:** 1050  
 **TODOs/FIXMEs:** 0  
 
 ## app/streaming/__init__.py
@@ -335,8 +335,8 @@ Total files: 53
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 17.42 KB  
-**LOC:** 408  
+**Size:** 29.67 KB  
+**LOC:** 685  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_poi_normalization.py
@@ -353,8 +353,8 @@ Total files: 53
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 7.55 KB  
-**LOC:** 169  
+**Size:** 8.67 KB  
+**LOC:** 195  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_policy_context_integration.py

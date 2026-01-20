@@ -39,8 +39,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 67137,
-        "loc": 1418,
+        "size_bytes": 67797,
+        "loc": 1426,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 9552,
-        "loc": 238,
+        "size_bytes": 9943,
+        "loc": 250,
         "todo_count": 0
       }
     },
@@ -81,8 +81,8 @@
       "summary": "Python main entry point (role: entry-point)",
       "summary_text": "Python main entry point (role: entry-point)",
       "metrics": {
-        "size_bytes": 14725,
-        "loc": 315,
+        "size_bytes": 15033,
+        "loc": 319,
         "todo_count": 0
       }
     },
@@ -123,8 +123,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 39337,
-        "loc": 894,
+        "size_bytes": 42060,
+        "loc": 961,
         "todo_count": 0
       }
     },
@@ -137,8 +137,8 @@
       "summary": "Python module for policy config",
       "summary_text": "Python module for policy config",
       "metrics": {
-        "size_bytes": 13631,
-        "loc": 292,
+        "size_bytes": 14208,
+        "loc": 306,
         "todo_count": 0
       }
     },
@@ -235,8 +235,8 @@
       "summary": "Python module for outcome parser",
       "summary_text": "Python module for outcome parser",
       "metrics": {
-        "size_bytes": 23313,
-        "loc": 395,
+        "size_bytes": 25101,
+        "loc": 430,
         "todo_count": 0
       }
     },
@@ -249,8 +249,8 @@
       "summary": "Python module for policy engine",
       "summary_text": "Python module for policy engine",
       "metrics": {
-        "size_bytes": 17430,
-        "loc": 311,
+        "size_bytes": 25029,
+        "loc": 438,
         "todo_count": 0
       }
     },
@@ -263,8 +263,8 @@
       "summary": "Python module for turn orchestrator",
       "summary_text": "Python module for turn orchestrator",
       "metrics": {
-        "size_bytes": 53612,
-        "loc": 994,
+        "size_bytes": 57026,
+        "loc": 1050,
         "todo_count": 0
       }
     },
@@ -515,8 +515,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 17835,
-        "loc": 408,
+        "size_bytes": 30381,
+        "loc": 685,
         "todo_count": 0
       }
     },
@@ -543,8 +543,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 7735,
-        "loc": 169,
+        "size_bytes": 8881,
+        "loc": 195,
         "todo_count": 0
       }
     },
