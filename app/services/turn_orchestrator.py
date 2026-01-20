@@ -139,6 +139,7 @@ class TurnOrchestrator:
         llm_client: LLMClient,
         journey_log_client: JourneyLogClient,
         prompt_builder: PromptBuilder,
+        turn_storage: Optional["TurnStorage"] = None,
         poi_memory_spark_enabled: bool = False,
         poi_memory_spark_count: int = 3
     ):
@@ -149,6 +150,7 @@ class TurnOrchestrator:
             llm_client: LLMClient for narrative generation
             journey_log_client: JourneyLogClient for subsystem writes
             prompt_builder: PromptBuilder for prompt construction
+            turn_storage: Optional TurnStorage for quest completion timestamp tracking
             poi_memory_spark_enabled: Enable fetching random POIs as memory sparks
             poi_memory_spark_count: Number of random POIs to fetch (1-20)
         """
@@ -156,6 +158,7 @@ class TurnOrchestrator:
         self.llm_client = llm_client
         self.journey_log_client = journey_log_client
         self.prompt_builder = prompt_builder
+        self.turn_storage = turn_storage
         self.poi_memory_spark_enabled = poi_memory_spark_enabled
         self.poi_memory_spark_count = poi_memory_spark_count
         # Import and instantiate parser once to avoid repeated instantiation
@@ -230,10 +233,22 @@ class TurnOrchestrator:
         
         # Step 1: Compute policy decisions
         logger.debug("Step 1: Computing policy decisions")
+        
+        # Get quest completion timestamp from turn_storage (in-memory, lost on restart)
+        last_quest_completed_at = None
+        if self.turn_storage:
+            last_quest_completed_at = self.turn_storage.get_quest_completion(character_id)
+        
+        # If no in-memory completion timestamp, check additional_fields
+        if not last_quest_completed_at and context.policy_state.last_quest_completed_at:
+            last_quest_completed_at = context.policy_state.last_quest_completed_at
+        
         quest_decision = self.policy_engine.evaluate_quest_trigger(
             character_id=character_id,
             turns_since_last_quest=context.policy_state.turns_since_last_quest,
-            has_active_quest=context.policy_state.has_active_quest
+            has_active_quest=context.policy_state.has_active_quest,
+            last_quest_completed_at=last_quest_completed_at,
+            last_quest_offered_at=context.policy_state.last_quest_offered_at
         )
         
         poi_decision = self.policy_engine.evaluate_poi_trigger(
@@ -499,10 +514,22 @@ class TurnOrchestrator:
         
         # Step 1: Compute policy decisions (same as synchronous)
         logger.debug("Step 1: Computing policy decisions")
+        
+        # Get quest completion timestamp from turn_storage (in-memory, lost on restart)
+        last_quest_completed_at = None
+        if self.turn_storage:
+            last_quest_completed_at = self.turn_storage.get_quest_completion(character_id)
+        
+        # If no in-memory completion timestamp, check additional_fields
+        if not last_quest_completed_at and context.policy_state.last_quest_completed_at:
+            last_quest_completed_at = context.policy_state.last_quest_completed_at
+        
         quest_decision = self.policy_engine.evaluate_quest_trigger(
             character_id=character_id,
             turns_since_last_quest=context.policy_state.turns_since_last_quest,
-            has_active_quest=context.policy_state.has_active_quest
+            has_active_quest=context.policy_state.has_active_quest,
+            last_quest_completed_at=last_quest_completed_at,
+            last_quest_offered_at=context.policy_state.last_quest_offered_at
         )
         
         poi_decision = self.policy_engine.evaluate_poi_trigger(
@@ -966,6 +993,18 @@ class TurnOrchestrator:
                     character_id=character_id,
                     trace_id=trace_id
                 )
+                
+                # Store completion timestamp for cooldown tracking
+                from datetime import datetime, timezone
+                completed_at = datetime.now(timezone.utc).isoformat()
+                if self.turn_storage:
+                    self.turn_storage.store_quest_completion(character_id, completed_at)
+                    logger.debug(
+                        "Stored quest completion timestamp",
+                        character_id=character_id,
+                        completed_at=completed_at
+                    )
+                
                 action_label = "completed" if action.action_type == "complete" else "abandoned"
                 summary.quest_change = SubsystemActionType(
                     action=action_label,

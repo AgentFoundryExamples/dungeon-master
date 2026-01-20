@@ -154,6 +154,7 @@ class TurnStorage:
         self.ttl_seconds = ttl_seconds
         self._turns: OrderedDict[str, tuple[TurnDetail, float]] = OrderedDict()
         self._character_turns: Dict[str, List[str]] = {}  # character_id -> list of turn_ids
+        self._quest_completions: Dict[str, str] = {}  # character_id -> ISO 8601 timestamp of last completion
         self._lock = threading.Lock()
         
         logger.info(
@@ -337,6 +338,34 @@ class TurnStorage:
                 "total_turns_stored": len(self._turns),
                 "active_turns": active_turns,
                 "tracked_characters": len(self._character_turns),
+                "quest_completion_tracked": len(self._quest_completions),
                 "max_size": self.max_size,
                 "ttl_seconds": self.ttl_seconds
             }
+    
+    def store_quest_completion(self, character_id: str, completed_at: str) -> None:
+        """Store quest completion timestamp for a character.
+        
+        This timestamp is used for cooldown calculations. It persists in memory
+        for the server's lifetime but is lost on restart (falls back to last_offered).
+        
+        Args:
+            character_id: Character UUID
+            completed_at: ISO 8601 timestamp of quest completion
+        """
+        with self._lock:
+            self._quest_completions[character_id] = completed_at
+            logger.debug(
+                "Stored quest completion timestamp",
+                character_id=character_id,
+                completed_at=completed_at
+            )
+    
+    def get_quest_completion(self, character_id: str) -> Optional[str]:
+        """Get last quest completion timestamp for a character.
+        
+        Returns:
+            ISO 8601 timestamp of last completion, or None if not tracked
+        """
+        with self._lock:
+            return self._quest_completions.get(character_id)

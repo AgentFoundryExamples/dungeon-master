@@ -192,6 +192,7 @@ async def lifespan(app: FastAPI):
         llm_client=app.state.llm_client,
         journey_log_client=app.state.journey_log_client,
         prompt_builder=app.state.prompt_builder,
+        turn_storage=app.state.turn_storage,
         poi_memory_spark_enabled=settings.poi_memory_spark_enabled,
         poi_memory_spark_count=settings.poi_memory_spark_count
     )

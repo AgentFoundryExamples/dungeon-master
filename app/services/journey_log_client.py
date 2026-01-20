@@ -173,6 +173,7 @@ class JourneyLogClient:
         - has_active_quest: Derived from journey-log quest field (authoritative)
         - combat_active: Derived from journey-log combat.active field (authoritative)
         - last_quest_offered_at: DM-managed in additional_fields (interim until journey-log support)
+        - last_quest_completed_at: DM-managed in additional_fields (interim until journey-log support)
         - last_poi_created_at: DM-managed in additional_fields (interim until journey-log support)
         - turns_since_last_quest: DM-managed in additional_fields (interim until journey-log support)
         - turns_since_last_poi: DM-managed in additional_fields (interim until journey-log support)
@@ -183,7 +184,7 @@ class JourneyLogClient:
         The DM service currently manages quest/POI timestamps and turn counters in
         additional_fields as a temporary storage solution. Future journey-log enhancements
         will provide first-class fields for:
-        - Quest history timestamps (last_quest_offered_at, quest_completed_at)
+        - Quest history timestamps (last_quest_offered_at, last_quest_completed_at)
         - POI creation timestamps (last_poi_created_at)
         - Turn counter tracking (turns_since_last_quest, turns_since_last_poi)
         
@@ -213,6 +214,9 @@ class JourneyLogClient:
         last_quest_offered_at = self._validate_timestamp(
             additional_fields.get("last_quest_offered_at"), "last_quest_offered_at"
         )
+        last_quest_completed_at = self._validate_timestamp(
+            additional_fields.get("last_quest_completed_at"), "last_quest_completed_at"
+        )
         last_poi_created_at = self._validate_timestamp(
             additional_fields.get("last_poi_created_at"), "last_poi_created_at"
         )
@@ -235,6 +239,7 @@ class JourneyLogClient:
         
         return PolicyState(
             last_quest_offered_at=last_quest_offered_at,
+            last_quest_completed_at=last_quest_completed_at,
             last_poi_created_at=last_poi_created_at,
             turns_since_last_quest=turns_since_last_quest,
             turns_since_last_poi=turns_since_last_poi,
