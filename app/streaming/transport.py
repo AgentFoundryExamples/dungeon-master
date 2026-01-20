@@ -13,7 +13,11 @@
 # limitations under the License.
 """Streaming transport abstractions for SSE and WebSocket delivery.
 
-This module provides transport layer abstractions for streaming narrative tokens
+**DEPRECATED**: Streaming functionality has been removed to simplify the MVP.
+These classes are kept for reference but are no longer used by the service.
+All clients should use the synchronous POST /turn endpoint instead.
+
+This module provided transport layer abstractions for streaming narrative tokens
 to clients via Server-Sent Events (SSE) or WebSocket connections.
 """
 

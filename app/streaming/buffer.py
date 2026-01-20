@@ -13,9 +13,12 @@
 # limitations under the License.
 """Narrative buffer for accumulating streamed tokens and replay to journey-log.
 
-This module provides the NarrativeBuffer class that accumulates tokens during
-streaming and provides replay functionality for journey-log persistence. The buffer
-ensures that the exact narrative streamed to clients is persisted.
+**DEPRECATED**: Streaming functionality has been removed to simplify the MVP.
+This class is kept for reference but is no longer used by the service.
+All clients should use the synchronous POST /turn endpoint instead.
+
+This module provided the NarrativeBuffer class that accumulated tokens during
+streaming and provided replay functionality for journey-log persistence.
 """
 
 from typing import List, Optional

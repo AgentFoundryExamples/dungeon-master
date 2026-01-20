@@ -168,33 +168,6 @@ class MetricsCollector:
         with self._lock:
             self._latencies[operation].record(duration_ms)
     
-    def record_stream_start(self) -> None:
-        """Record the start of a streaming turn."""
-        with self._lock:
-            self._stream_counts["total"] += 1
-    
-    def record_stream_complete(self, token_count: int, duration_ms: float) -> None:
-        """Record successful completion of a streaming turn.
-        
-        Args:
-            token_count: Number of tokens streamed
-            duration_ms: Total stream duration in milliseconds
-        """
-        with self._lock:
-            self._stream_counts["completed"] += 1
-            self._stream_token_stats.record(float(token_count))
-            self._stream_duration_stats.record(duration_ms)
-    
-    def record_stream_client_disconnect(self) -> None:
-        """Record a client disconnect during streaming."""
-        with self._lock:
-            self._stream_counts["client_disconnects"] += 1
-    
-    def record_stream_parse_failure(self) -> None:
-        """Record a parse failure after streaming."""
-        with self._lock:
-            self._stream_counts["parse_failures"] += 1
-    
     def record_turn_processed(
         self, 
         environment: str = "unknown",
@@ -308,14 +281,6 @@ class MetricsCollector:
                     endpoint: stats.to_dict(unit="ms")
                     for endpoint, stats in self._journey_log_latencies.items()
                 },
-                "streaming": {
-                    "total_streams": self._stream_counts["total"],
-                    "completed_streams": self._stream_counts["completed"],
-                    "client_disconnects": self._stream_counts["client_disconnects"],
-                    "parse_failures": self._stream_counts["parse_failures"],
-                    "tokens_per_stream": self._stream_token_stats.to_dict(unit="") if self._stream_token_stats.count > 0 else {},
-                    "stream_duration": self._stream_duration_stats.to_dict(unit="ms") if self._stream_duration_stats.count > 0 else {}
-                }
             }
     
     def reset(self) -> None:
@@ -324,14 +289,6 @@ class MetricsCollector:
             self._request_counts.clear()
             self._error_counts.clear()
             self._latencies.clear()
-            self._stream_counts = {
-                "total": 0,
-                "completed": 0,
-                "client_disconnects": 0,
-                "parse_failures": 0
-            }
-            self._stream_token_stats = LatencyStats()
-            self._stream_duration_stats = LatencyStats()
             self._turn_counts.clear()
             self._policy_triggers.clear()
             self._subsystem_deltas.clear()
