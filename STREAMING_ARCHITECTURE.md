@@ -1,8 +1,79 @@
 # Narrative Streaming Architecture
 
-## Implementation Status
+## ⚠️ STREAMING FUNCTIONALITY SUSPENDED ⚠️
 
-**Phase 1 Complete (January 2026)**: ✅ Two-phase streaming LLM client implemented
+**Status**: Streaming endpoints have been **disabled** as of January 2026 to simplify the MVP and maintain a synchronous-only architecture.
+
+### Current State
+
+- **Streaming endpoint (`POST /turn/stream`)**: Returns **HTTP 410 Gone**
+- **Synchronous endpoint (`POST /turn`)**: ✅ **Active and recommended**
+- **Streaming classes**: Deprecated but preserved for future re-enablement
+
+### For Existing Clients
+
+If you were using the streaming endpoint:
+
+1. **Migrate to synchronous endpoint**: Use `POST /turn` instead of `POST /turn/stream`
+2. **Update client code**: Remove SSE/EventSource code and handle single JSON response
+3. **Expected behavior**: Same narrative quality, intents, and subsystem actions - just delivered synchronously
+
+### Migration Example
+
+**Before (Streaming):**
+```javascript
+const eventSource = new EventSource('/turn/stream');
+eventSource.addEventListener('token', (e) => {
+  const data = JSON.parse(e.data);
+  displayToken(data.content);
+});
+eventSource.addEventListener('complete', (e) => {
+  const data = JSON.parse(e.data);
+  handleIntents(data.intents);
+});
+```
+
+**After (Synchronous):**
+```javascript
+const response = await fetch('/turn', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({character_id, user_action})
+});
+const data = await response.json();
+displayNarrative(data.narrative);
+handleIntents(data.intents);
+```
+
+### Re-enabling Streaming (Future)
+
+To re-enable streaming in the future, you will need to **re-implement** the removed streaming functionality:
+
+1. **Remove 410 Gone endpoint** from `app/api/routes.py` and restore the full streaming endpoint implementation
+2. **Re-implement streaming methods** (these were removed, not just deprecated):
+   - `LLMClient.generate_narrative_stream()` in `app/services/llm_client.py` (~290 lines)
+   - `TurnOrchestrator.orchestrate_turn_stream()` in `app/services/turn_orchestrator.py` (~280 lines)
+   - `StreamingCallback` protocol in `app/services/llm_client.py`
+3. **Re-implement streaming metrics**: `MetricsCollector` methods in `app/metrics.py`:
+   - `record_stream_start()`
+   - `record_stream_complete()`
+   - `record_stream_client_disconnect()`
+   - `record_stream_parse_failure()`
+4. **Re-implement StreamLifecycleLogger**: In `app/logging.py` (~140 lines)
+5. **Update tests**: Re-enable and update streaming test suites
+6. **Update documentation**: Restore streaming sections in README.md
+
+**Note**: The streaming infrastructure classes in `app/streaming/` (transport, buffer) are deprecated but remain in the codebase for reference. However, the actual streaming implementation in services, metrics, and logging was **removed entirely** and will need to be re-implemented from the git history or the historical documentation below.
+
+---
+
+## Historical Documentation
+
+The following sections document the original streaming architecture design. This is preserved for future reference and re-enablement efforts.
+
+## Implementation Status (Historical)
+
+**Phase 1 Complete (January 2026)**: ✅ Two-phase streaming LLM client was implemented
 
 The LLM client layer now supports streaming narrative generation with the following features:
 

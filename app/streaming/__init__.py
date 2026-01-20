@@ -11,7 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Streaming transport and buffer modules for progressive narrative delivery."""
+"""Streaming transport and buffer modules (DEPRECATED).
+
+**DEPRECATED**: Streaming functionality has been removed to simplify the MVP.
+These classes are kept for reference but are no longer used by the service.
+All clients should use the synchronous POST /turn endpoint instead.
+"""
 
 from app.streaming.transport import (
     StreamEvent,

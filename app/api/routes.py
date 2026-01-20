@@ -15,63 +15,17 @@
 
 This module defines the HTTP endpoints for the Dungeon Master service:
 - POST /turn: Process a player turn and generate narrative response (synchronous)
-- POST /turn/stream: Process a turn with streaming narrative delivery (PLANNED - see below)
 - GET /health: Service health check with optional journey-log ping
 - GET /metrics: Service metrics (optional, requires ENABLE_METRICS=true)
 - POST /debug/parse_llm: Debug endpoint for LLM parsing (optional, requires ENABLE_DEBUG_ENDPOINTS=true)
 
-STREAMING ENDPOINT INTEGRATION NOTES (PLANNED):
----------------------------------------------
-A future streaming endpoint (POST /turn/stream) will be added to support progressive
-narrative delivery via Server-Sent Events (SSE) or WebSocket.
-
-Planned endpoint signature:
-    @router.post("/turn/stream")
-    async def process_turn_stream(
-        request: TurnRequest,
-        transport_type: TransportType = TransportType.SSE
-    ) -> StreamingResponse | WebSocketConnection
-
-Streaming flow:
-1. Accept same TurnRequest as /turn endpoint (backward compatible request model)
-2. Fetch context from journey-log (same as /turn)
-3. Evaluate policy decisions (same as /turn)
-4. Stream narrative tokens to client in real-time via StreamTransport
-   - Send "token" events as LLM generates text
-   - Buffer tokens internally for validation and journey-log persistence
-5. After streaming complete, validate DungeonMasterOutcome schema
-6. Execute subsystem writes in deterministic order (quest → combat → POI → narrative)
-7. Send "complete" event with intents and subsystem_summary
-8. Close transport connection
-
-Key differences from /turn:
-- Progressive narrative delivery (tokens streamed in real-time)
-- Event-based protocol (token, metadata, complete, error events)
-- Long-lived connection (SSE/WebSocket vs single HTTP response)
-- Same validation and write logic (deferred to Phase 2 after streaming)
-
-Backward compatibility:
-- Existing /turn endpoint remains unchanged
-- Legacy clients unaffected
-- Same TurnRequest model used
-- Same DungeonMasterOutcome schema enforced
-
-When implementing:
-- Use StreamTransport abstraction (SSETransport or WebSocketTransport)
-- Use NarrativeBuffer to accumulate tokens for replay to journey-log
-- Use StreamingLLMClient.generate_narrative_stream() for token streaming
-- Reuse existing TurnOrchestrator subsystem write logic (Phase 2)
-- Follow event contracts defined in STREAMING_ARCHITECTURE.md
-
-See STREAMING_ARCHITECTURE.md for complete design, event contracts, and failure handling.
+Note: Streaming endpoints have been removed to simplify the MVP.
+The service now operates in synchronous mode only.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
 from httpx import AsyncClient
 import re
-import asyncio
-import json
 import time
 import math
 
@@ -98,11 +52,9 @@ from app.logging import (
     get_request_id,
     get_turn_id,
     TurnLogger,
-    StreamLifecycleLogger,
     sanitize_for_log as sanitize_text
 )
 from app.metrics import get_metrics_collector, MetricsTimer
-from app.streaming import StreamEvent, SSETransport, TransportError
 
 logger = StructuredLogger(__name__)
 
@@ -708,385 +660,80 @@ async def process_turn(
 
 @router.post(
     "/turn/stream",
-    status_code=status.HTTP_200_OK,
-    summary="Process a player turn with streaming narrative delivery",
+    status_code=status.HTTP_410_GONE,
+    summary="Streaming endpoint removed",
     description=(
-        "Process a player's turn action and stream the AI narrative response progressively. "
-        "This endpoint streams narrative tokens to the client using Server-Sent Events (SSE) "
-        "while buffering tokens internally for validation and persistence. After streaming "
-        "completes, the endpoint validates the complete narrative, executes subsystem writes "
-        "in deterministic order (quest → combat → POI → narrative), and sends a final "
-        "completion event with intents and subsystem summary."
+        "The streaming narrative endpoint has been removed to simplify the MVP. "
+        "All clients should use the synchronous POST /turn endpoint instead. "
+        "This endpoint returns HTTP 410 Gone to indicate permanent removal."
     ),
     responses={
-        200: {
-            "description": "Streaming narrative generation with SSE",
+        410: {
+            "description": "Streaming endpoint permanently removed",
             "content": {
-                "text/event-stream": {
-                    "example": (
-                        'data: {"type":"token","content":"You ","timestamp":"2025-01-17T..."}\n\n'
-                        'data: {"type":"token","content":"enter ","timestamp":"2025-01-17T..."}\n\n'
-                        'data: {"type":"complete","intents":{...},"subsystem_summary":{...}}\n\n'
-                        'data: [DONE]\n\n'
-                    )
+                "application/json": {
+                    "example": {
+                        "detail": {
+                            "error": {
+                                "type": "endpoint_removed",
+                                "message": "Streaming endpoints have been removed. Use POST /turn instead.",
+                                "request_id": None
+                            }
+                        }
+                    }
                 }
             }
-        },
-        400: {"description": "Invalid request (malformed UUID, etc.)"},
-        404: {"description": "Character not found"},
-        500: {"description": "Internal server error"},
+        }
     }
 )
-async def process_turn_stream(
+async def process_turn_stream_removed(
     request: TurnRequest,
-    journey_log_client: JourneyLogClient = Depends(get_journey_log_client),
-    turn_orchestrator: TurnOrchestrator = Depends(get_turn_orchestrator),
-    character_rate_limiter = Depends(get_character_rate_limiter),
-    llm_semaphore = Depends(get_llm_semaphore),
     settings: Settings = Depends(get_settings)
-) -> StreamingResponse:
-    """Process a player turn with streaming narrative delivery.
+):
+    """Streaming endpoint removed - returns 410 Gone.
     
-    This endpoint implements the two-phase streaming architecture:
+    The streaming narrative endpoint has been disabled to maintain a synchronous
+    MVP architecture. All clients should migrate to the POST /turn endpoint which
+    provides the same functionality with a simpler, synchronous response model.
     
-    Phase 0 (Rate Limiting):
-    - Check per-character rate limit (429 if exceeded)
-    - Acquire global LLM concurrency semaphore
+    Note: This endpoint still validates the TurnRequest model to provide better
+    error messages for clients. If the request is malformed, FastAPI will return
+    422 Unprocessable Entity before reaching this handler. Valid requests receive
+    410 Gone with migration guidance.
     
-    Phase 1 (Token Streaming):
-    - Fetch context from journey-log
-    - Evaluate PolicyEngine for quest and POI trigger decisions
-    - Stream narrative tokens to client via SSE as they're generated
-    - Buffer tokens internally for Phase 2 validation
-    
-    Phase 2 (Validation & Writes):
-    - Parse complete narrative against DungeonMasterOutcome schema
-    - Normalize intents with quest/POI fallbacks
-    - Execute subsystem writes in deterministic order (quest → combat → POI → narrative)
-    - Send complete event with intents and subsystem summary
-    
-    The endpoint maintains the same validation guarantees and subsystem write ordering
-    as the synchronous /turn endpoint, but provides progressive narrative delivery for
-    improved perceived latency.
+    Migration:
+    - Replace POST /turn/stream calls with POST /turn
+    - Expect a single JSON response with narrative, intents, and subsystem_summary
+    - Remove SSE/EventSource client code
     
     Args:
-        request: Turn request with character_id and user_action
-        journey_log_client: JourneyLogClient for journey-log communication (injected)
-        turn_orchestrator: TurnOrchestrator for turn processing (injected)
-        character_rate_limiter: RateLimiter for per-character throttling (injected)
-        llm_semaphore: Semaphore for global LLM concurrency control (injected)
+        request: Turn request (same model as /turn endpoint) - validated for better errors
         settings: Application settings (injected)
         
     Returns:
-        StreamingResponse with SSE events (tokens, complete, error)
+        HTTPException with 410 Gone status
         
     Raises:
-        HTTPException: If request validation fails or processing error occurs
+        HTTPException: Always raises 410 Gone with migration guidance
     """
-    # Set character_id in context for logging correlation
-    set_character_id(request.character_id)
-    
-    # Sanitize inputs for logging to prevent log injection
-    safe_character_id = sanitize_for_log(request.character_id, 36)
-    safe_action = sanitize_for_log(request.user_action, 50)
-
-    # Step 0: Check per-character rate limit
-    from app.resilience import RateLimiter
-    if not await character_rate_limiter.acquire(request.character_id):
-        # Rate limit exceeded
-        retry_after = character_rate_limiter.get_retry_after(request.character_id)
-        
-        logger.warning(
-            "Rate limit exceeded for character (streaming)",
-            character_id=safe_character_id,
-            retry_after_seconds=retry_after
-        )
-        
-        # Record metrics
-        collector = get_metrics_collector()
-        if collector:
-            collector.record_error("rate_limit_exceeded_stream")
-            collector.record_turn_processed(
-                environment=settings.environment,
-                character_id=request.character_id,
-                outcome="rate_limited"
-            )
-        
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "error": "rate_limit_exceeded",
-                "message": f"Too many requests for this character. Please wait {retry_after:.1f} seconds.",
-                "retry_after_seconds": round(retry_after, 1),
-                "character_id": request.character_id
-            },
-            headers={"Retry-After": str(math.ceil(retry_after))}
-        )
-
     logger.info(
-        "Processing streaming turn request",
-        character_id=safe_character_id,
-        action_preview=safe_action
+        "Streaming endpoint called but disabled",
+        character_id=request.character_id,
+        action_preview=sanitize_for_log(request.user_action, 50)
     )
     
-    # Define the async generator for SSE streaming
-    async def event_stream():
-        """Async generator that yields SSE-formatted events."""
-        # Initialize stream lifecycle logger
-        stream_logger = StreamLifecycleLogger(logger, request.character_id)
-        stream_start_time = time.time()
-        token_count = 0
-        
-        # Record stream start in metrics
-        if (collector := get_metrics_collector()):
-            collector.record_stream_start()
-        
-        # Helper function to format SSE events
-        def format_sse_event(event: StreamEvent) -> bytes:
-            """Format StreamEvent as SSE message."""
-            payload = {"type": event.type, "timestamp": event.timestamp}
-            payload.update(event.data)
-            return f"data: {json.dumps(payload)}\n\n".encode('utf-8')
-        
-        # Queue for passing events from callback to generator
-        event_queue = asyncio.Queue()
-        transport_error = None
-        
-        # Callback for receiving tokens from LLM streaming
-        async def token_callback(token: str):
-            """Callback invoked by LLM client for each token."""
-            nonlocal token_count
-            token_count += 1
-            await event_queue.put(("token", token))
-        
-        # Background task to orchestrate turn and stream events
-        async def orchestrate_and_stream():
-            nonlocal transport_error
-            try:
-                # Log stream start
-                stream_logger.log_stream_start()
-                
-                # Step 1: Fetch context from journey-log
-                with PhaseTimer("context_fetch", logger), MetricsTimer("journey_log_fetch"):
-                    logger.debug("Fetching context from journey-log")
-                    context = await journey_log_client.get_context(
-                        character_id=request.character_id,
-                        trace_id=request.trace_id
-                    )
-
-                # Step 2: Orchestrate turn with streaming (Phase 1 + Phase 2)
-                with PhaseTimer("turn_orchestration_stream", logger), MetricsTimer("turn_stream"):
-                    logger.debug("Orchestrating streaming turn with TurnOrchestrator")
-                    
-                    # Acquire LLM semaphore to enforce global concurrency limit
-                    async with llm_semaphore:
-                        logger.debug(
-                            "Acquired LLM semaphore for streaming",
-                            active_llm_calls=llm_semaphore.active_count
-                        )
-                        
-                        narrative, intents, subsystem_summary = await turn_orchestrator.orchestrate_turn_stream(
-                            character_id=request.character_id,
-                            user_action=request.user_action,
-                            context=context,
-                            callback=token_callback,
-                            trace_id=request.trace_id,
-                            dry_run=False
-                        )
-                
-                # Log parse completion
-                stream_logger.log_parse_complete(
-                    narrative_length=len(narrative),
-                    is_valid=True
-                )
-                
-                # Log writes completion
-                stream_logger.log_writes_complete(
-                    quest_written=subsystem_summary.quest_change.action != "none",
-                    combat_written=subsystem_summary.combat_change.action != "none",
-                    poi_written=subsystem_summary.poi_change.action != "none",
-                    narrative_written=subsystem_summary.narrative_persisted
-                )
-                
-                # Log orchestration results
-                logger.info(
-                    "Successfully processed streaming turn",
-                    narrative_length=len(narrative),
-                    has_intents=intents is not None,
-                    quest_change=subsystem_summary.quest_change.action,
-                    combat_change=subsystem_summary.combat_change.action,
-                    poi_change=subsystem_summary.poi_change.action,
-                    narrative_persisted=subsystem_summary.narrative_persisted
-                )
-                
-                # Calculate timing info for optional preview
-                stream_duration_ms = (time.time() - stream_start_time) * 1000
-                
-                # Send complete event with optional timing hints
-                complete_data = {
-                    "intents": intents.model_dump() if intents else None,
-                    "subsystem_summary": subsystem_summary.model_dump(),
-                    "timing": {
-                        "total_duration_ms": round(stream_duration_ms, 2),
-                        "total_tokens": token_count
-                    }
-                }
-                await event_queue.put(("complete", complete_data))
-                
-                # Log stream completion
-                stream_logger.log_stream_complete(
-                    narrative_length=len(narrative),
-                    total_tokens=token_count
-                )
-                
-                # Record successful completion in metrics
-                if (collector := get_metrics_collector()):
-                    collector.record_stream_complete(token_count, stream_duration_ms)
-                
-            except JourneyLogNotFoundError as e:
-                stream_logger.log_stream_error("character_not_found", str(e))
-                logger.error("Character not found", error=str(e))
-                if (collector := get_metrics_collector()):
-                    collector.record_error("character_not_found")
-                await event_queue.put(("error", {
-                    "error_type": "character_not_found",
-                    "message": f"Character {request.character_id} not found in journey-log",
-                    "recoverable": False
-                }))
-            except JourneyLogTimeoutError as e:
-                stream_logger.log_stream_error("journey_log_timeout", str(e))
-                logger.error("Journey-log timeout", error=str(e))
-                if (collector := get_metrics_collector()):
-                    collector.record_error("journey_log_timeout")
-                await event_queue.put(("error", {
-                    "error_type": "journey_log_timeout",
-                    "message": "Journey-log service timed out. Please try again.",
-                    "recoverable": True
-                }))
-            except JourneyLogClientError as e:
-                stream_logger.log_stream_error("journey_log_error", str(e))
-                logger.error("Journey-log client error", error=str(e))
-                if (collector := get_metrics_collector()):
-                    collector.record_error("journey_log_error")
-                await event_queue.put(("error", {
-                    "error_type": "journey_log_error",
-                    "message": f"Failed to communicate with journey-log: {str(e)}",
-                    "recoverable": False
-                }))
-            except LLMTimeoutError as e:
-                stream_logger.log_stream_error("llm_timeout", str(e))
-                logger.error("LLM timeout", error=str(e))
-                if (collector := get_metrics_collector()):
-                    collector.record_error("llm_timeout")
-                await event_queue.put(("error", {
-                    "error_type": "llm_timeout",
-                    "message": "LLM service timed out. Please try again.",
-                    "recoverable": True
-                }))
-            except LLMResponseError as e:
-                stream_logger.log_stream_error("llm_response_error", str(e))
-                stream_logger.log_parse_complete(narrative_length=0, is_valid=False)
-                logger.error("LLM response error", error=str(e))
-                if (collector := get_metrics_collector()):
-                    collector.record_error("llm_response_error")
-                    collector.record_stream_parse_failure()
-                await event_queue.put(("error", {
-                    "error_type": "llm_response_error",
-                    "message": f"LLM returned invalid response: {str(e)}",
-                    "recoverable": False
-                }))
-            except LLMClientError as e:
-                stream_logger.log_stream_error("llm_error", str(e))
-                logger.error("LLM client error", error=str(e))
-                if (collector := get_metrics_collector()):
-                    collector.record_error("llm_error")
-                await event_queue.put(("error", {
-                    "error_type": "llm_error",
-                    "message": f"Failed to generate narrative: {str(e)}",
-                    "recoverable": False
-                }))
-            except Exception as e:
-                # Catch-all for unexpected errors
-                stream_logger.log_stream_error("internal_error", str(e))
-                logger.error(
-                    "Unexpected error processing streaming turn",
-                    error=str(e),
-                    error_type=type(e).__name__
-                )
-                if (collector := get_metrics_collector()):
-                    collector.record_error("internal_error")
-                await event_queue.put(("error", {
-                    "error_type": "internal_error",
-                    "message": "An unexpected error occurred while processing your turn",
-                    "recoverable": False
-                }))
-            finally:
-                # Signal end of stream
-                await event_queue.put(None)
-        
-        # Start background orchestration task
-        orchestration_task = asyncio.create_task(orchestrate_and_stream())
-        
-        try:
-            # Yield events from queue as they arrive
-            while True:
-                event = await event_queue.get()
-                
-                if event is None:
-                    # End of stream
-                    break
-                
-                event_type, event_data = event
-                
-                if event_type == "token":
-                    # Stream token event
-                    stream_event = StreamEvent(type="token", data={"content": event_data})
-                    yield format_sse_event(stream_event)
-                    
-                elif event_type == "complete":
-                    # Stream complete event
-                    stream_event = StreamEvent(type="complete", data=event_data)
-                    yield format_sse_event(stream_event)
-                    
-                elif event_type == "error":
-                    # Stream error event
-                    stream_event = StreamEvent(type="error", data=event_data)
-                    yield format_sse_event(stream_event)
-            
-            # Send SSE [DONE] marker
-            yield b"data: [DONE]\n\n"
-            
-        except asyncio.CancelledError:
-            # Client disconnected
-            stream_logger.log_client_disconnect()
-            logger.info("Client disconnected during streaming turn")
-            if (collector := get_metrics_collector()):
-                collector.record_stream_client_disconnect()
-            # Cancel orchestration task if still running
-            if not orchestration_task.done():
-                orchestration_task.cancel()
-                try:
-                    await orchestration_task
-                except asyncio.CancelledError:
-                    pass  # Expected cancellation
-            raise
-        except Exception as e:
-            logger.error(
-                "Error in streaming event generator",
-                error=str(e),
-                error_type=type(e).__name__
-            )
-            raise
+    # Record metrics for monitoring deprecated endpoint usage
+    if (collector := get_metrics_collector()):
+        collector.record_error("streaming_endpoint_called_after_removal")
     
-    # Return StreamingResponse with SSE content type
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
-        }
+    raise create_error_response(
+        error_type="endpoint_removed",
+        message=(
+            "Streaming endpoints have been removed to simplify the MVP. "
+            "Please use the synchronous POST /turn endpoint instead. "
+            "See migration guide in response for details."
+        ),
+        status_code=status.HTTP_410_GONE
     )
 
 
