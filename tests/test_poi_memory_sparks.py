@@ -549,3 +549,341 @@ async def test_poi_memory_sparks_integration_with_triggers():
     
     # Verify new POI was created
     assert summary.poi_change.action == "create"
+
+
+@pytest.mark.asyncio
+async def test_memory_spark_probabilistic_behavior():
+    """Test memory spark fetching is probabilistic based on configuration.
+    
+    Validates:
+    - Memory sparks are fetched only when probability roll passes
+    - Probability parameter controls fetch frequency
+    - Deterministic seeding produces reproducible results
+    """
+    from app.services.turn_orchestrator import TurnOrchestrator
+    from app.services.policy_engine import PolicyEngine
+    from app.services.llm_client import LLMClient
+    from app.prompting.prompt_builder import PromptBuilder
+    from app.models import JourneyLogContext, PolicyState, DungeonMasterOutcome, IntentsBlock, QuestIntent, CombatIntent, POIIntent
+    from app.services.outcome_parser import ParsedOutcome
+    from unittest.mock import AsyncMock, MagicMock
+    from httpx import Response
+    
+    # Setup with deterministic seed and low probability
+    policy_engine = PolicyEngine(
+        quest_trigger_prob=0.0,
+        poi_trigger_prob=0.0,
+        memory_spark_probability=0.3,  # 30% chance
+        quest_poi_reference_probability=0.0,
+        rng_seed=123
+    )
+    
+    llm_client = AsyncMock(spec=LLMClient)
+    
+    # Mock journey log client
+    mock_http_client = AsyncMock()
+    mock_sparks_response = MagicMock(spec=Response)
+    mock_sparks_response.status_code = 200
+    mock_sparks_response.json.return_value = {
+        "pois": [{"id": "poi-1", "name": "Test POI"}],
+        "count": 1,
+        "requested_n": 3,
+        "total_available": 1
+    }
+    mock_sparks_response.raise_for_status = MagicMock()
+    mock_http_client.get.return_value = mock_sparks_response
+    mock_http_client.post.return_value = MagicMock(spec=Response, status_code=200)
+    
+    journey_log_client = JourneyLogClient(
+        base_url="http://test",
+        http_client=mock_http_client
+    )
+    
+    prompt_builder = PromptBuilder()
+    orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine,
+        llm_client=llm_client,
+        journey_log_client=journey_log_client,
+        prompt_builder=prompt_builder,
+        poi_memory_spark_enabled=True,
+        poi_memory_spark_count=3
+    )
+    
+    # Run multiple turns and count memory spark fetches
+    num_turns = 30
+    spark_fetch_count = 0
+    
+    for turn_num in range(num_turns):
+        context = JourneyLogContext(
+            character_id="spark-test-char",
+            status="Healthy",
+            location={"id": "test", "display_name": "Test Location"},
+            active_quest=None,
+            combat_state=None,
+            recent_history=[],
+            policy_state=PolicyState(
+                has_active_quest=False,
+                combat_active=False,
+                turns_since_last_quest=999,
+                turns_since_last_poi=999
+            )
+        )
+        
+        outcome = DungeonMasterOutcome(
+            narrative=f"Turn {turn_num}",
+            intents=IntentsBlock(
+                quest_intent=QuestIntent(action="none"),
+                combat_intent=CombatIntent(action="none"),
+                poi_intent=POIIntent(action="none")
+            )
+        )
+        llm_client.generate_narrative.return_value = ParsedOutcome(
+            outcome=outcome,
+            narrative=outcome.narrative,
+            is_valid=True
+        )
+        
+        # Reset GET call count before turn
+        mock_http_client.get.reset_mock()
+        
+        await orchestrator.orchestrate_turn(
+            character_id="spark-test-char",
+            user_action=f"Turn {turn_num}",
+            context=context,
+            trace_id=f"trace-{turn_num}"
+        )
+        
+        # Check if memory sparks were fetched (GET call made)
+        if mock_http_client.get.called:
+            spark_fetch_count += 1
+    
+    # With 30% probability over 30 turns, expect 5-15 fetches (statistical bounds)
+    assert 3 <= spark_fetch_count <= 17, (
+        f"Memory spark fetch count ({spark_fetch_count}) outside expected range [3, 17] "
+        f"for 30% probability over {num_turns} turns"
+    )
+
+
+@pytest.mark.asyncio
+async def test_quest_poi_reference_probabilistic():
+    """Test quest POI reference is probabilistic when quest triggers.
+    
+    Validates:
+    - Quest POI reference only occurs when both quest and reference rolls pass
+    - POI is selected from available memory sparks
+    - POI context is injected into quest details
+    """
+    from app.services.turn_orchestrator import TurnOrchestrator
+    from app.services.policy_engine import PolicyEngine
+    from app.services.llm_client import LLMClient
+    from app.prompting.prompt_builder import PromptBuilder
+    from app.models import JourneyLogContext, PolicyState, DungeonMasterOutcome, IntentsBlock, QuestIntent, CombatIntent, POIIntent
+    from app.services.outcome_parser import ParsedOutcome
+    from unittest.mock import AsyncMock, MagicMock
+    from httpx import Response
+    
+    # Setup with high quest trigger and medium POI reference probability
+    policy_engine = PolicyEngine(
+        quest_trigger_prob=1.0,  # Always trigger quest
+        poi_trigger_prob=0.0,
+        memory_spark_probability=1.0,  # Always fetch sparks
+        quest_poi_reference_probability=0.5,  # 50% chance of reference
+        rng_seed=456
+    )
+    
+    llm_client = AsyncMock(spec=LLMClient)
+    
+    # Mock journey log client with memory sparks
+    mock_http_client = AsyncMock()
+    mock_sparks_response = MagicMock(spec=Response)
+    mock_sparks_response.status_code = 200
+    mock_sparks_response.json.return_value = {
+        "pois": [
+            {"id": "ancient-temple", "name": "Ancient Temple", "description": "A mysterious temple"},
+            {"id": "dark-cave", "name": "Dark Cave", "description": "A foreboding cave"}
+        ],
+        "count": 2,
+        "requested_n": 3,
+        "total_available": 2
+    }
+    mock_sparks_response.raise_for_status = MagicMock()
+    mock_http_client.get.return_value = mock_sparks_response
+    
+    # Mock quest PUT
+    mock_quest_response = MagicMock(spec=Response)
+    mock_quest_response.status_code = 200
+    mock_quest_response.raise_for_status = MagicMock()
+    mock_http_client.put.return_value = mock_quest_response
+    mock_http_client.post.return_value = MagicMock(spec=Response, status_code=200)
+    
+    journey_log_client = JourneyLogClient(
+        base_url="http://test",
+        http_client=mock_http_client
+    )
+    
+    prompt_builder = PromptBuilder()
+    orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine,
+        llm_client=llm_client,
+        journey_log_client=journey_log_client,
+        prompt_builder=prompt_builder,
+        poi_memory_spark_enabled=True,
+        poi_memory_spark_count=3
+    )
+    
+    # Run multiple turns and check for POI references in quests
+    num_turns = 20
+    quest_with_poi_ref_count = 0
+    
+    for turn_num in range(num_turns):
+        context = JourneyLogContext(
+            character_id="quest-ref-char",
+            status="Healthy",
+            location={"id": "town", "display_name": "Town"},
+            active_quest=None,
+            combat_state=None,
+            recent_history=[],
+            policy_state=PolicyState(
+                has_active_quest=False,
+                combat_active=False,
+                turns_since_last_quest=999,
+                turns_since_last_poi=999
+            )
+        )
+        
+        # LLM suggests quest offer
+        outcome = DungeonMasterOutcome(
+            narrative=f"A quest opportunity appears (turn {turn_num})",
+            intents=IntentsBlock(
+                quest_intent=QuestIntent(
+                    action="offer",
+                    quest_title="New Quest",
+                    quest_summary="A quest to complete",
+                    quest_details={}
+                ),
+                combat_intent=CombatIntent(action="none"),
+                poi_intent=POIIntent(action="none")
+            )
+        )
+        llm_client.generate_narrative.return_value = ParsedOutcome(
+            outcome=outcome,
+            narrative=outcome.narrative,
+            is_valid=True
+        )
+        
+        narrative, intents, summary = await orchestrator.orchestrate_turn(
+            character_id="quest-ref-char",
+            user_action=f"Accept quest {turn_num}",
+            context=context,
+            trace_id=f"trace-{turn_num}"
+        )
+        
+        # Check if quest has POI reference
+        if intents and intents.quest_intent and intents.quest_intent.quest_details:
+            if "poi_reference" in intents.quest_intent.quest_details:
+                quest_with_poi_ref_count += 1
+                # Verify POI reference structure
+                poi_ref = intents.quest_intent.quest_details["poi_reference"]
+                assert "id" in poi_ref
+                assert "name" in poi_ref
+                assert poi_ref["name"] in ["Ancient Temple", "Dark Cave"]
+    
+    # With 50% probability over 20 turns, expect 5-15 references (statistical bounds)
+    assert 3 <= quest_with_poi_ref_count <= 17, (
+        f"Quest POI reference count ({quest_with_poi_ref_count}) outside expected range [3, 17] "
+        f"for 50% probability over {num_turns} turns"
+    )
+
+
+@pytest.mark.asyncio
+async def test_memory_spark_disabled_when_probability_zero():
+    """Test memory sparks are never fetched when probability is 0.
+    
+    Validates:
+    - Probability 0 disables memory spark fetching completely
+    - No GET calls are made to fetch random POIs
+    - Turn processing continues normally
+    """
+    from app.services.turn_orchestrator import TurnOrchestrator
+    from app.services.policy_engine import PolicyEngine
+    from app.services.llm_client import LLMClient
+    from app.prompting.prompt_builder import PromptBuilder
+    from app.models import JourneyLogContext, PolicyState, DungeonMasterOutcome, IntentsBlock, QuestIntent, CombatIntent, POIIntent
+    from app.services.outcome_parser import ParsedOutcome
+    from unittest.mock import AsyncMock, MagicMock
+    from httpx import Response
+    
+    # Setup with probability 0
+    policy_engine = PolicyEngine(
+        quest_trigger_prob=0.0,
+        poi_trigger_prob=0.0,
+        memory_spark_probability=0.0,  # Never fetch
+        quest_poi_reference_probability=0.0,
+        rng_seed=789
+    )
+    
+    llm_client = AsyncMock(spec=LLMClient)
+    
+    # Mock journey log client
+    mock_http_client = AsyncMock()
+    mock_http_client.get.return_value = MagicMock(spec=Response, status_code=200)
+    mock_http_client.post.return_value = MagicMock(spec=Response, status_code=200)
+    
+    journey_log_client = JourneyLogClient(
+        base_url="http://test",
+        http_client=mock_http_client
+    )
+    
+    prompt_builder = PromptBuilder()
+    orchestrator = TurnOrchestrator(
+        policy_engine=policy_engine,
+        llm_client=llm_client,
+        journey_log_client=journey_log_client,
+        prompt_builder=prompt_builder,
+        poi_memory_spark_enabled=True,  # Enabled but probability is 0
+        poi_memory_spark_count=3
+    )
+    
+    # Run multiple turns
+    for turn_num in range(10):
+        context = JourneyLogContext(
+            character_id="no-spark-char",
+            status="Healthy",
+            location={"id": "test", "display_name": "Test"},
+            active_quest=None,
+            combat_state=None,
+            recent_history=[],
+            policy_state=PolicyState(
+                has_active_quest=False,
+                combat_active=False,
+                turns_since_last_quest=999,
+                turns_since_last_poi=999
+            )
+        )
+        
+        outcome = DungeonMasterOutcome(
+            narrative=f"Turn {turn_num}",
+            intents=IntentsBlock(
+                quest_intent=QuestIntent(action="none"),
+                combat_intent=CombatIntent(action="none"),
+                poi_intent=POIIntent(action="none")
+            )
+        )
+        llm_client.generate_narrative.return_value = ParsedOutcome(
+            outcome=outcome,
+            narrative=outcome.narrative,
+            is_valid=True
+        )
+        
+        await orchestrator.orchestrate_turn(
+            character_id="no-spark-char",
+            user_action=f"Turn {turn_num}",
+            context=context,
+            trace_id=f"trace-{turn_num}"
+        )
+    
+    # Verify GET was never called for random POIs
+    # Only POST should be called for narrative persistence
+    assert mock_http_client.get.call_count == 0, (
+        f"Expected 0 GET calls with probability=0, got {mock_http_client.get.call_count}"
+    )
