@@ -29,6 +29,7 @@ Key features:
 
 import random
 import hashlib
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 from app.models import QuestTriggerDecision, POITriggerDecision
@@ -42,6 +43,12 @@ logger = StructuredLogger(__name__)
 # This is sufficient for most use cases while keeping seed values manageable.
 # For larger character spaces requiring higher collision resistance, increase this value.
 _SEED_HASH_DIGEST_LENGTH = 8
+
+# Constants for timestamp-based cooldown calculations
+# This is an estimate used to convert turn-based cooldowns (in turns) to time-based cooldowns (in seconds)
+# when comparing against completion timestamps. This rough conversion maintains backward compatibility
+# with existing cooldown configurations while enabling timestamp-based cooldowns.
+ESTIMATED_SECONDS_PER_TURN = 60
 
 
 class PolicyEngine:
@@ -320,14 +327,13 @@ class PolicyEngine:
         timestamp_to_use = last_quest_completed_at or last_quest_offered_at
         if timestamp_to_use:
             try:
-                from datetime import datetime, timezone
                 last_event_time = datetime.fromisoformat(timestamp_to_use.replace('Z', '+00:00'))
                 now = datetime.now(timezone.utc)
                 elapsed_seconds = (now - last_event_time).total_seconds()
                 
-                # Convert turn-based cooldown to seconds (assuming ~60 seconds per turn as estimate)
-                # This is a rough conversion to maintain backward compatibility
-                cooldown_seconds = quest_cooldown_turns * 60
+                # Convert turn-based cooldown to seconds using estimated turn duration
+                # This rough conversion maintains backward compatibility
+                cooldown_seconds = quest_cooldown_turns * ESTIMATED_SECONDS_PER_TURN
                 
                 cooldown_met = elapsed_seconds >= cooldown_seconds
                 

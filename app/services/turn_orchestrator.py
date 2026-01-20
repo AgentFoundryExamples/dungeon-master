@@ -33,6 +33,8 @@ The orchestrator ensures:
 
 from typing import Optional
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import uuid
 
 from app.models import (
     JourneyLogContext,
@@ -915,7 +917,6 @@ class TurnOrchestrator:
             if action.action_type == "offer":
                 # Build payload matching journey-log Quest schema
                 # Map from intent_data {title, summary, details} to API {name, description, requirements, rewards, completion_state, updated_at}
-                from datetime import datetime, timezone
                 
                 # Parser already applied fallbacks, so these should always be present
                 title = action.intent_data["title"]
@@ -991,7 +992,6 @@ class TurnOrchestrator:
                 )
                 
                 # Store completion timestamp for cooldown tracking
-                from datetime import datetime, timezone
                 completed_at = datetime.now(timezone.utc).isoformat()
                 if self.turn_storage:
                     self.turn_storage.store_quest_completion(character_id, completed_at)
@@ -1084,8 +1084,6 @@ class TurnOrchestrator:
             
             if action.action_type == "start":
                 # Build combat_state payload matching CombatState schema
-                from datetime import datetime, timezone
-                import uuid
                 
                 # Extract enemies from intent_data
                 enemies_intent = action.intent_data.get("enemies", []) if action.intent_data else []
