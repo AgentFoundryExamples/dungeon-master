@@ -250,12 +250,13 @@ class OutcomeParser:
             # Add POI reference context if available
             if poi_reference:
                 poi_name = poi_reference.get("name", "Unknown Location")
+                poi_description = poi_reference.get("description", "a mysterious place")
                 title = f"Quest at {poi_name}"
-                summary = f"An opportunity for adventure at {poi_name}."
+                summary = f"An opportunity for adventure at {poi_name}, {poi_description}."
                 details["poi_reference"] = {
                     "id": poi_reference.get("id"),
                     "name": poi_name,
-                    "description": poi_reference.get("description")
+                    "description": poi_description
                 }
                 logger.info(
                     "Quest policy triggered with POI reference",

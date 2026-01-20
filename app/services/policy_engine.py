@@ -472,16 +472,18 @@ class PolicyEngine:
         with self._config_lock:
             quest_poi_reference_probability = self.quest_poi_reference_probability
         
+        # Get RNG instance once to ensure determinism with seed_override
+        rng = self._get_rng(character_id, seed_override)
+        
         # Perform probabilistic roll
-        roll_passed = self._roll(quest_poi_reference_probability, character_id, seed_override)
+        roll_passed = rng.random() < quest_poi_reference_probability
         
         # Select a POI if roll passed and POIs are available
         selected_poi = None
         if roll_passed and available_pois:
-            # Select a random POI from available ones
-            # Note: POIs are already sorted by timestamp descending in memory_sparks,
-            # so the list is biased toward recent POIs
-            rng = self._get_rng(character_id, seed_override)
+            # Select a random POI from available ones with equal probability
+            # Note: While POIs are sorted by timestamp descending in memory_sparks,
+            # random.choice() gives equal probability to all POIs
             selected_poi = rng.choice(available_pois)
             logger.info(
                 f"Quest POI reference selected: {selected_poi.get('name', 'Unknown')}",
