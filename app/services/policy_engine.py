@@ -29,6 +29,7 @@ Key features:
 
 import random
 import hashlib
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 from app.models import QuestTriggerDecision, POITriggerDecision
@@ -42,6 +43,12 @@ logger = StructuredLogger(__name__)
 # This is sufficient for most use cases while keeping seed values manageable.
 # For larger character spaces requiring higher collision resistance, increase this value.
 _SEED_HASH_DIGEST_LENGTH = 8
+
+# Constants for timestamp-based cooldown calculations
+# This is an estimate used to convert turn-based cooldowns (in turns) to time-based cooldowns (in seconds)
+# when comparing against completion timestamps. This rough conversion maintains backward compatibility
+# with existing cooldown configurations while enabling timestamp-based cooldowns.
+ESTIMATED_SECONDS_PER_TURN = 60
 
 
 class PolicyEngine:
@@ -275,14 +282,26 @@ class PolicyEngine:
         character_id: str,
         turns_since_last_quest: int,
         has_active_quest: bool = False,
+        last_quest_completed_at: Optional[str] = None,
+        last_quest_offered_at: Optional[str] = None,
         seed_override: Optional[int] = None
     ) -> QuestTriggerDecision:
         """Evaluate whether to trigger a quest for the character.
         
+        This method supports two cooldown modes:
+        1. Timestamp-based (preferred): Uses last_quest_completed_at to calculate time elapsed
+        2. Turn-based (fallback): Uses turns_since_last_quest counter
+        
+        The timestamp-based approach is preferred as it provides accurate cooldowns
+        regardless of turn frequency. If no completion timestamp exists, it falls back
+        to last_offered timestamp, and finally to turn-based counting.
+        
         Args:
             character_id: Character UUID for tracking
-            turns_since_last_quest: Number of turns since last quest trigger
+            turns_since_last_quest: Number of turns since last quest trigger (fallback)
             has_active_quest: Whether character already has an active quest
+            last_quest_completed_at: ISO 8601 timestamp of last quest completion (preferred)
+            last_quest_offered_at: ISO 8601 timestamp of last quest offer (fallback)
             seed_override: Optional seed for deterministic debugging
             
         Returns:
@@ -301,9 +320,55 @@ class PolicyEngine:
             eligible = False
             reasons.append("already_has_active_quest")
         
-        if turns_since_last_quest < quest_cooldown_turns:
-            eligible = False
-            reasons.append(f"cooldown_not_met (turns={turns_since_last_quest}, required={quest_cooldown_turns})")
+        # Cooldown check: prefer timestamp-based over turn-based
+        cooldown_met = False
+        timestamp_cooldown_checked = False
+        
+        # Try timestamp-based cooldown first (completion takes precedence over offer)
+        timestamp_to_use = last_quest_completed_at or last_quest_offered_at
+        if timestamp_to_use:
+            try:
+                last_event_time = datetime.fromisoformat(timestamp_to_use.replace('Z', '+00:00'))
+                now = datetime.now(timezone.utc)
+                elapsed_seconds = (now - last_event_time).total_seconds()
+                
+                # Convert turn-based cooldown to seconds using estimated turn duration
+                cooldown_seconds = quest_cooldown_turns * ESTIMATED_SECONDS_PER_TURN
+                
+                cooldown_met = elapsed_seconds >= cooldown_seconds
+                timestamp_cooldown_checked = True
+                
+                if not cooldown_met:
+                    eligible = False
+                    source = "completion" if last_quest_completed_at else "offer"
+                    reasons.append(
+                        f"timestamp_cooldown_not_met (source={source}, elapsed={elapsed_seconds:.0f}s, "
+                        f"required={cooldown_seconds}s)"
+                    )
+                    logger.debug(
+                        f"Quest cooldown check: timestamp-based from {source}",
+                        character_id=character_id,
+                        elapsed_seconds=elapsed_seconds,
+                        cooldown_seconds=cooldown_seconds,
+                        cooldown_met=cooldown_met
+                    )
+            except (ValueError, AttributeError) as e:
+                # Invalid timestamp format - fall back to turn-based
+                logger.warning(
+                    f"Invalid timestamp format for quest cooldown, falling back to turn-based",
+                    character_id=character_id,
+                    timestamp=timestamp_to_use,
+                    error=str(e)
+                )
+        
+        # Fallback to turn-based cooldown if timestamp check was not performed or failed
+        if not timestamp_cooldown_checked:
+            cooldown_met = turns_since_last_quest >= quest_cooldown_turns
+            if not cooldown_met:
+                eligible = False
+                reasons.append(
+                    f"turn_cooldown_not_met (turns={turns_since_last_quest}, required={quest_cooldown_turns})"
+                )
         
         # Perform roll if eligible
         roll_passed = False
@@ -546,6 +611,8 @@ class PolicyEngine:
             character_id=character_id,
             turns_since_last_quest=policy_state.turns_since_last_quest,
             has_active_quest=policy_state.has_active_quest,
+            last_quest_completed_at=policy_state.last_quest_completed_at,
+            last_quest_offered_at=policy_state.last_quest_offered_at,
             seed_override=seed_override
         )
         

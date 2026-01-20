@@ -4,5 +4,6 @@
   "poi_trigger_prob": 0.2,
   "poi_cooldown_turns": 3,
   "memory_spark_probability": 0.2,
-  "quest_poi_reference_probability": 0.1
+  "quest_poi_reference_probability": 0.1,
+  "_comment_cooldown": "Quest cooldown is now based on completion timestamp rather than offer timestamp. The cooldown_turns value is converted to seconds (turns * 60s) for timestamp-based checks. When a quest is completed, the timestamp is stored and used for cooldown calculations. Falls back to turn-based cooldown if no completion timestamp is available."
 }

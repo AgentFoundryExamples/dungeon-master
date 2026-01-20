@@ -84,6 +84,7 @@ class PolicyState(BaseModel):
     
     DM-managed via additional_fields (interim storage until journey-log support):
     - last_quest_offered_at: Timestamp when DM last offered a quest
+    - last_quest_completed_at: Timestamp when DM last completed/abandoned a quest
     - last_poi_created_at: Timestamp when DM last created a POI
     - turns_since_last_quest: Turn counter incremented by DM per narrative turn
     - turns_since_last_poi: Turn counter incremented by DM per narrative turn
@@ -115,6 +116,7 @@ class PolicyState(BaseModel):
     
     Attributes:
         last_quest_offered_at: Timestamp when last quest was offered (ISO 8601 or None)
+        last_quest_completed_at: Timestamp when last quest was completed/abandoned (ISO 8601 or None)
         last_poi_created_at: Timestamp when last POI was created (ISO 8601 or None)
         turns_since_last_quest: Number of turns since last quest trigger (0 if no quest history)
         turns_since_last_poi: Number of turns since last POI trigger (0 if no POI history)
@@ -126,6 +128,10 @@ class PolicyState(BaseModel):
     last_quest_offered_at: Optional[str] = Field(
         None,
         description="ISO 8601 timestamp when last quest was offered, or None if no quest history"
+    )
+    last_quest_completed_at: Optional[str] = Field(
+        None,
+        description="ISO 8601 timestamp when last quest was completed/abandoned, or None if no completion history"
     )
     last_poi_created_at: Optional[str] = Field(
         None,
@@ -158,7 +164,7 @@ class PolicyState(BaseModel):
         description="Optional flag indicating player requested help or guidance"
     )
 
-    @field_validator('last_quest_offered_at', 'last_poi_created_at')
+    @field_validator('last_quest_offered_at', 'last_quest_completed_at', 'last_poi_created_at')
     @classmethod
     def validate_timestamp(cls, v: Optional[str]) -> Optional[str]:
         """Validate timestamp is None or valid ISO 8601 format.
