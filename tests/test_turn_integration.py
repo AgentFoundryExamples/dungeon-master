@@ -1053,7 +1053,7 @@ async def test_multi_turn_narrative_history_ordering():
         narrative_calls.append({
             'character_id': kwargs.get('character_id'),
             'user_action': kwargs.get('user_action'),
-            'ai_response': kwargs.get('ai_response'),
+            'ai_response': kwargs.get('narrative'),  # Parameter is 'narrative' not 'ai_response'
             'turn_num': len(narrative_calls)
         })
     
@@ -1261,7 +1261,7 @@ async def test_multi_turn_metrics_capture():
     num_turns = 5
     
     # Create a real metrics collector for testing
-    metrics = MetricsCollector(enabled=True, environment="test")
+    metrics = MetricsCollector()
     
     # Create dependencies
     policy_engine = PolicyEngine(

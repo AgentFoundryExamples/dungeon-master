@@ -868,7 +868,7 @@ class TurnSubsystemSummary(BaseModel):
     Attributes:
         quest_change: Quest action summary (offered/completed/abandoned/none)
         combat_change: Combat action summary (started/continued/ended/none)
-        poi_created: POI action summary (created/referenced/none)
+        poi_change: POI action summary (created/referenced/none)
         narrative_persisted: Whether narrative was successfully persisted
         narrative_error: Error message if narrative persistence failed
     """
@@ -880,7 +880,7 @@ class TurnSubsystemSummary(BaseModel):
         default_factory=lambda: SubsystemActionType(action="none"),
         description="Combat action performed and its result"
     )
-    poi_created: SubsystemActionType = Field(
+    poi_change: SubsystemActionType = Field(
         default_factory=lambda: SubsystemActionType(action="none"),
         description="POI action performed and its result"
     )

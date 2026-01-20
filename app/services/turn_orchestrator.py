@@ -375,7 +375,7 @@ class TurnOrchestrator:
                     error=None
                 )
             if actions["poi"].should_execute:
-                summary.poi_created = SubsystemActionType(
+                summary.poi_change = SubsystemActionType(
                     action=actions["poi"].action_type,
                     success=True,
                     error=None
@@ -386,7 +386,7 @@ class TurnOrchestrator:
             "Turn orchestration complete",
             quest_change=summary.quest_change.action,
             combat_change=summary.combat_change.action,
-            poi_change=summary.poi_created.action,
+            poi_change=summary.poi_change.action,
             narrative_persisted=summary.narrative_persisted
         )
         
@@ -616,7 +616,7 @@ class TurnOrchestrator:
                     error=None
                 )
             if actions["poi"].should_execute:
-                summary.poi_created = SubsystemActionType(
+                summary.poi_change = SubsystemActionType(
                     action=actions["poi"].action_type,
                     success=True,
                     error=None
@@ -627,7 +627,7 @@ class TurnOrchestrator:
             "Streaming turn orchestration complete",
             quest_change=summary.quest_change.action,
             combat_change=summary.combat_change.action,
-            poi_change=summary.poi_created.action,
+            poi_change=summary.poi_change.action,
             narrative_persisted=summary.narrative_persisted
         )
         
@@ -1174,7 +1174,7 @@ class TurnOrchestrator:
                 action_type=action.action_type,
                 trace_id=trace_id
             )
-            summary.poi_created = SubsystemActionType(
+            summary.poi_change = SubsystemActionType(
                 action=action.action_type,
                 success=True,
                 error=None
@@ -1196,7 +1196,7 @@ class TurnOrchestrator:
                 error=str(e),
                 turn_id=get_turn_id()
             )
-            summary.poi_created = SubsystemActionType(
+            summary.poi_change = SubsystemActionType(
                 action=action.action_type,
                 success=False,
                 error=error_msg
