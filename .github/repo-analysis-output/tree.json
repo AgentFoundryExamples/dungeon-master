@@ -84,6 +84,10 @@
             },
             {
               "type": "file",
+              "name": "deps.py"
+            },
+            {
+              "type": "file",
               "name": "routes.py"
             }
           ]
@@ -112,6 +116,10 @@
             },
             {
               "type": "file",
+              "name": "auth.py"
+            },
+            {
+              "type": "file",
               "name": "journey_log_client.py"
             },
             {
@@ -129,24 +137,6 @@
             {
               "type": "file",
               "name": "turn_orchestrator.py"
-            }
-          ]
-        },
-        {
-          "type": "directory",
-          "name": "streaming",
-          "children": [
-            {
-              "type": "file",
-              "name": "__init__.py"
-            },
-            {
-              "type": "file",
-              "name": "buffer.py"
-            },
-            {
-              "type": "file",
-              "name": "transport.py"
             }
           ]
         },
@@ -214,6 +204,14 @@
         },
         {
           "type": "file",
+          "name": "test_auth_dev_bypass.py"
+        },
+        {
+          "type": "file",
+          "name": "test_character_creation.py"
+        },
+        {
+          "type": "file",
           "name": "test_combat_integration.py"
         },
         {
@@ -234,11 +232,11 @@
         },
         {
           "type": "file",
-          "name": "test_metrics.py"
+          "name": "test_logging_reserved_fields.py"
         },
         {
           "type": "file",
-          "name": "test_narrative_buffer.py"
+          "name": "test_metrics.py"
         },
         {
           "type": "file",
@@ -286,10 +284,6 @@
         },
         {
           "type": "file",
-          "name": "test_quest_cooldown_timestamps.py"
-        },
-        {
-          "type": "file",
           "name": "test_quest_integration.py"
         },
         {
@@ -299,14 +293,6 @@
         {
           "type": "file",
           "name": "test_resilience.py"
-        },
-        {
-          "type": "file",
-          "name": "test_stream_transport.py"
-        },
-        {
-          "type": "file",
-          "name": "test_streaming_integration.py"
         },
         {
           "type": "file",
@@ -328,7 +314,19 @@
     },
     {
       "type": "file",
+      "name": "DEV_AUTH_BYPASS.md"
+    },
+    {
+      "type": "file",
+      "name": "ENDPOINT_FIXES.md"
+    },
+    {
+      "type": "file",
       "name": "example_openai_usage.py"
+    },
+    {
+      "type": "file",
+      "name": "FRONTEND_UX_GUIDE.md"
     },
     {
       "type": "file",
@@ -360,6 +358,14 @@
     },
     {
       "type": "file",
+      "name": "LOGGING_FIXES.md"
+    },
+    {
+      "type": "file",
+      "name": "openapi.json"
+    },
+    {
+      "type": "file",
       "name": "policy_config.json.example"
     },
     {
@@ -377,10 +383,6 @@
     {
       "type": "file",
       "name": "requirements.txt"
-    },
-    {
-      "type": "file",
-      "name": "STREAMING_ARCHITECTURE.md"
     },
     {
       "type": "file",

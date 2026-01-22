@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 55
+Total files: 53
 
 ## app/__init__.py
 **Language:** Python  
@@ -24,13 +24,22 @@ Total files: 55
 **LOC:** 1  
 **TODOs/FIXMEs:** 0  
 
+## app/api/deps.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for deps  
+**Size:** 2.98 KB  
+**LOC:** 49  
+**TODOs/FIXMEs:** 0  
+
 ## app/api/routes.py
 **Language:** Python  
 **Role:** router  
 **Role Justification:** filename contains routing term  
 **Summary:** Python routing configuration (role: router)  
-**Size:** 49.86 KB  
-**LOC:** 1147  
+**Size:** 49.95 KB  
+**LOC:** 1139  
 **TODOs/FIXMEs:** 0  
 
 ## app/config.py
@@ -38,8 +47,8 @@ Total files: 55
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 9.71 KB  
-**LOC:** 250  
+**Size:** 9.89 KB  
+**LOC:** 254  
 **TODOs/FIXMEs:** 0  
 
 ## app/logging.py
@@ -47,8 +56,8 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for logging  
-**Size:** 16.27 KB  
-**LOC:** 363  
+**Size:** 17.74 KB  
+**LOC:** 393  
 **TODOs/FIXMEs:** 0  
 
 ## app/main.py
@@ -56,8 +65,8 @@ Total files: 55
 **Role:** entry-point  
 **Role Justification:** common entry point name 'main'  
 **Summary:** Python main entry point (role: entry-point)  
-**Size:** 14.72 KB  
-**LOC:** 320  
+**Size:** 14.83 KB  
+**LOC:** 322  
 **TODOs/FIXMEs:** 0  
 
 ## app/metrics.py
@@ -83,8 +92,8 @@ Total files: 55
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 41.46 KB  
-**LOC:** 967  
+**Size:** 50.24 KB  
+**LOC:** 1129  
 **TODOs/FIXMEs:** 0  
 
 ## app/policy_config.py
@@ -110,8 +119,8 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for prompt builder  
-**Size:** 14.62 KB  
-**LOC:** 270  
+**Size:** 22.70 KB  
+**LOC:** 387  
 **TODOs/FIXMEs:** 0  
 
 ## app/resilience.py
@@ -132,13 +141,22 @@ Total files: 55
 **LOC:** 0  
 **TODOs/FIXMEs:** 0  
 
+## app/services/auth.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python module for auth  
+**Size:** 4.32 KB  
+**LOC:** 81  
+**TODOs/FIXMEs:** 0  
+
 ## app/services/journey_log_client.py
 **Language:** Python  
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for journey log client  
-**Size:** 50.98 KB  
-**LOC:** 1070  
+**Size:** 62.44 KB  
+**LOC:** 1293  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/llm_client.py
@@ -146,7 +164,7 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for llm client  
-**Size:** 18.06 KB  
+**Size:** 18.09 KB  
 **LOC:** 348  
 **TODOs/FIXMEs:** 0  
 
@@ -155,7 +173,7 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for outcome parser  
-**Size:** 24.51 KB  
+**Size:** 24.50 KB  
 **LOC:** 430  
 **TODOs/FIXMEs:** 0  
 
@@ -164,8 +182,8 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for policy engine  
-**Size:** 27.97 KB  
-**LOC:** 488  
+**Size:** 25.39 KB  
+**LOC:** 464  
 **TODOs/FIXMEs:** 0  
 
 ## app/services/turn_orchestrator.py
@@ -173,36 +191,9 @@ Total files: 55
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python module for turn orchestrator  
-**Size:** 44.59 KB  
-**LOC:** 830  
-**TODOs/FIXMEs:** 0  
-
-## app/streaming/__init__.py
-**Language:** Python  
-**Role:** module-init  
-**Role Justification:** module initialization file '__init__'  
-**Summary:** Python module initialization (role: module-init)  
-**Size:** 1.15 KB  
-**LOC:** 20  
-**TODOs/FIXMEs:** 0  
-
-## app/streaming/buffer.py
-**Language:** Python  
-**Role:** implementation  
-**Role Justification:** general implementation file (default classification)  
-**Summary:** Python module for buffer  
-**Size:** 4.66 KB  
-**LOC:** 88  
-**TODOs/FIXMEs:** 0  
-
-## app/streaming/transport.py
-**Language:** Python  
-**Role:** implementation  
-**Role Justification:** general implementation file (default classification)  
-**Summary:** Python module for transport  
-**Size:** 5.52 KB  
-**LOC:** 120  
-**TODOs/FIXMEs:** 0  
+**Size:** 59.23 KB  
+**LOC:** 1085  
+**TODOs/FIXMEs:** 3  
 
 ## app/turn_storage.py
 **Language:** Python  
@@ -236,8 +227,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** located in 'tests' directory  
 **Summary:** Python test implementation (role: test)  
-**Size:** 18.05 KB  
-**LOC:** 371  
+**Size:** 18.81 KB  
+**LOC:** 379  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_acceptance_criteria.py
@@ -245,8 +236,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 13.67 KB  
-**LOC:** 268  
+**Size:** 14.10 KB  
+**LOC:** 276  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_api.py
@@ -254,8 +245,26 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 21.98 KB  
-**LOC:** 466  
+**Size:** 22.57 KB  
+**LOC:** 471  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_auth_dev_bypass.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 5.71 KB  
+**LOC:** 99  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_character_creation.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 4.41 KB  
+**LOC:** 87  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_combat_integration.py
@@ -290,7 +299,7 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 5.77 KB  
+**Size:** 5.70 KB  
 **LOC:** 119  
 **TODOs/FIXMEs:** 0  
 
@@ -299,8 +308,17 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 27.85 KB  
-**LOC:** 619  
+**Size:** 13.28 KB  
+**LOC:** 295  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_logging_reserved_fields.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 3.86 KB  
+**LOC:** 65  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_metrics.py
@@ -308,17 +326,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 17.00 KB  
-**LOC:** 324  
-**TODOs/FIXMEs:** 0  
-
-## tests/test_narrative_buffer.py
-**Language:** Python  
-**Role:** test  
-**Role Justification:** filename starts with 'test_'  
-**Summary:** Python test file (role: test)  
-**Size:** 4.98 KB  
-**LOC:** 95  
+**Size:** 14.34 KB  
+**LOC:** 275  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_outcome_models.py
@@ -335,8 +344,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 12.69 KB  
-**LOC:** 268  
+**Size:** 12.35 KB  
+**LOC:** 262  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_poi_memory_sparks.py
@@ -344,8 +353,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 29.67 KB  
-**LOC:** 685  
+**Size:** 30.05 KB  
+**LOC:** 687  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_poi_normalization.py
@@ -380,8 +389,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 22.46 KB  
-**LOC:** 519  
+**Size:** 23.40 KB  
+**LOC:** 538  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_policy_integration.py
@@ -389,8 +398,8 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 17.29 KB  
-**LOC:** 374  
+**Size:** 18.35 KB  
+**LOC:** 396  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_policy_models.py
@@ -407,7 +416,7 @@ Total files: 55
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 16.49 KB  
+**Size:** 16.45 KB  
 **LOC:** 347  
 **TODOs/FIXMEs:** 0  
 
@@ -420,21 +429,12 @@ Total files: 55
 **LOC:** 540  
 **TODOs/FIXMEs:** 0  
 
-## tests/test_quest_cooldown_timestamps.py
-**Language:** Python  
-**Role:** test  
-**Role Justification:** filename starts with 'test_'  
-**Summary:** Python test file (role: test)  
-**Size:** 7.83 KB  
-**LOC:** 135  
-**TODOs/FIXMEs:** 0  
-
 ## tests/test_quest_integration.py
 **Language:** Python  
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 24.14 KB  
+**Size:** 24.13 KB  
 **LOC:** 563  
 **TODOs/FIXMEs:** 0  
 
@@ -456,31 +456,13 @@ Total files: 55
 **LOC:** 111  
 **TODOs/FIXMEs:** 0  
 
-## tests/test_stream_transport.py
-**Language:** Python  
-**Role:** test  
-**Role Justification:** filename starts with 'test_'  
-**Summary:** Python test file (role: test)  
-**Size:** 7.02 KB  
-**LOC:** 159  
-**TODOs/FIXMEs:** 0  
-
-## tests/test_streaming_integration.py
-**Language:** Python  
-**Role:** test  
-**Role Justification:** filename starts with 'test_'  
-**Summary:** Python test file (role: test)  
-**Size:** 2.15 KB  
-**LOC:** 37  
-**TODOs/FIXMEs:** 0  
-
 ## tests/test_turn_integration.py
 **Language:** Python  
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 50.05 KB  
-**LOC:** 991  
+**Size:** 50.34 KB  
+**LOC:** 994  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_turn_storage.py

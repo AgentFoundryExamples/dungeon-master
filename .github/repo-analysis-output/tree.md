@@ -18,21 +18,19 @@
 ├── app
   ├── api
     ├── __init__.py
+    ├── deps.py
     └── routes.py
   ├── prompting
     ├── __init__.py
     └── prompt_builder.py
   ├── services
     ├── __init__.py
+    ├── auth.py
     ├── journey_log_client.py
     ├── llm_client.py
     ├── outcome_parser.py
     ├── policy_engine.py
     └── turn_orchestrator.py
-  ├── streaming
-    ├── __init__.py
-    ├── buffer.py
-    └── transport.py
   ├── __init__.py
   ├── config.py
   ├── logging.py
@@ -48,13 +46,15 @@
   ├── conftest.py
   ├── test_acceptance_criteria.py
   ├── test_api.py
+  ├── test_auth_dev_bypass.py
+  ├── test_character_creation.py
   ├── test_combat_integration.py
   ├── test_config.py
   ├── test_dead_status_integration.py
   ├── test_journey_log_client.py
   ├── test_llm_client.py
+  ├── test_logging_reserved_fields.py
   ├── test_metrics.py
-  ├── test_narrative_buffer.py
   ├── test_outcome_models.py
   ├── test_outcome_parser.py
   ├── test_poi_memory_sparks.py
@@ -66,17 +66,17 @@
   ├── test_policy_models.py
   ├── test_policy_state_extraction.py
   ├── test_prompt_builder.py
-  ├── test_quest_cooldown_timestamps.py
   ├── test_quest_integration.py
   ├── test_quest_normalization.py
   ├── test_resilience.py
-  ├── test_stream_transport.py
-  ├── test_streaming_integration.py
   ├── test_turn_integration.py
   └── test_turn_storage.py
 ├── .env.example
 ├── .gitignore
+├── DEV_AUTH_BYPASS.md
+├── ENDPOINT_FIXES.md
 ├── example_openai_usage.py
+├── FRONTEND_UX_GUIDE.md
 ├── gcp_deployment_reference.md
 ├── IMPLEMENTATION_SUMMARY.md
 ├── IMPLEMENTATION_SUMMARY.md.bak
@@ -84,10 +84,11 @@
 ├── journey-log.openapi.json
 ├── LICENSE
 ├── LLMs.md
+├── LOGGING_FIXES.md
+├── openapi.json
 ├── policy_config.json.example
 ├── pytest.ini
 ├── python_dev_versions.txt
 ├── README.md
 ├── requirements.txt
-├── STREAMING_ARCHITECTURE.md
 └── verify_poi_features.py

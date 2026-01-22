@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 55,
+  "total_files": 53,
   "files": [
     {
       "schema_version": "2.0",
@@ -32,6 +32,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "app/api/deps.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for deps",
+      "summary_text": "Python module for deps",
+      "metrics": {
+        "size_bytes": 3056,
+        "loc": 49,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "app/api/routes.py",
       "language": "Python",
       "role": "router",
@@ -39,8 +53,8 @@
       "summary": "Python routing configuration (role: router)",
       "summary_text": "Python routing configuration (role: router)",
       "metrics": {
-        "size_bytes": 51056,
-        "loc": 1147,
+        "size_bytes": 51145,
+        "loc": 1139,
         "todo_count": 0
       }
     },
@@ -53,8 +67,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 9943,
-        "loc": 250,
+        "size_bytes": 10130,
+        "loc": 254,
         "todo_count": 0
       }
     },
@@ -67,8 +81,8 @@
       "summary": "Python module for logging",
       "summary_text": "Python module for logging",
       "metrics": {
-        "size_bytes": 16661,
-        "loc": 363,
+        "size_bytes": 18167,
+        "loc": 393,
         "todo_count": 0
       }
     },
@@ -81,8 +95,8 @@
       "summary": "Python main entry point (role: entry-point)",
       "summary_text": "Python main entry point (role: entry-point)",
       "metrics": {
-        "size_bytes": 15078,
-        "loc": 320,
+        "size_bytes": 15191,
+        "loc": 322,
         "todo_count": 0
       }
     },
@@ -123,8 +137,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 42458,
-        "loc": 967,
+        "size_bytes": 51444,
+        "loc": 1129,
         "todo_count": 0
       }
     },
@@ -165,8 +179,8 @@
       "summary": "Python module for prompt builder",
       "summary_text": "Python module for prompt builder",
       "metrics": {
-        "size_bytes": 14972,
-        "loc": 270,
+        "size_bytes": 23247,
+        "loc": 387,
         "todo_count": 0
       }
     },
@@ -200,6 +214,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "app/services/auth.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python module for auth",
+      "summary_text": "Python module for auth",
+      "metrics": {
+        "size_bytes": 4427,
+        "loc": 81,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "app/services/journey_log_client.py",
       "language": "Python",
       "role": "implementation",
@@ -207,8 +235,8 @@
       "summary": "Python module for journey log client",
       "summary_text": "Python module for journey log client",
       "metrics": {
-        "size_bytes": 52203,
-        "loc": 1070,
+        "size_bytes": 63934,
+        "loc": 1293,
         "todo_count": 0
       }
     },
@@ -221,7 +249,7 @@
       "summary": "Python module for llm client",
       "summary_text": "Python module for llm client",
       "metrics": {
-        "size_bytes": 18494,
+        "size_bytes": 18522,
         "loc": 348,
         "todo_count": 0
       }
@@ -235,7 +263,7 @@
       "summary": "Python module for outcome parser",
       "summary_text": "Python module for outcome parser",
       "metrics": {
-        "size_bytes": 25101,
+        "size_bytes": 25090,
         "loc": 430,
         "todo_count": 0
       }
@@ -249,8 +277,8 @@
       "summary": "Python module for policy engine",
       "summary_text": "Python module for policy engine",
       "metrics": {
-        "size_bytes": 28645,
-        "loc": 488,
+        "size_bytes": 25996,
+        "loc": 464,
         "todo_count": 0
       }
     },
@@ -263,51 +291,9 @@
       "summary": "Python module for turn orchestrator",
       "summary_text": "Python module for turn orchestrator",
       "metrics": {
-        "size_bytes": 45665,
-        "loc": 830,
-        "todo_count": 0
-      }
-    },
-    {
-      "schema_version": "2.0",
-      "path": "app/streaming/__init__.py",
-      "language": "Python",
-      "role": "module-init",
-      "role_justification": "module initialization file '__init__'",
-      "summary": "Python module initialization (role: module-init)",
-      "summary_text": "Python module initialization (role: module-init)",
-      "metrics": {
-        "size_bytes": 1179,
-        "loc": 20,
-        "todo_count": 0
-      }
-    },
-    {
-      "schema_version": "2.0",
-      "path": "app/streaming/buffer.py",
-      "language": "Python",
-      "role": "implementation",
-      "role_justification": "general implementation file (default classification)",
-      "summary": "Python module for buffer",
-      "summary_text": "Python module for buffer",
-      "metrics": {
-        "size_bytes": 4775,
-        "loc": 88,
-        "todo_count": 0
-      }
-    },
-    {
-      "schema_version": "2.0",
-      "path": "app/streaming/transport.py",
-      "language": "Python",
-      "role": "implementation",
-      "role_justification": "general implementation file (default classification)",
-      "summary": "Python module for transport",
-      "summary_text": "Python module for transport",
-      "metrics": {
-        "size_bytes": 5655,
-        "loc": 120,
-        "todo_count": 0
+        "size_bytes": 60655,
+        "loc": 1085,
+        "todo_count": 3
       }
     },
     {
@@ -361,8 +347,8 @@
       "summary": "Python test implementation (role: test)",
       "summary_text": "Python test implementation (role: test)",
       "metrics": {
-        "size_bytes": 18483,
-        "loc": 371,
+        "size_bytes": 19266,
+        "loc": 379,
         "todo_count": 0
       }
     },
@@ -375,8 +361,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 13998,
-        "loc": 268,
+        "size_bytes": 14440,
+        "loc": 276,
         "todo_count": 0
       }
     },
@@ -389,8 +375,36 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 22511,
-        "loc": 466,
+        "size_bytes": 23108,
+        "loc": 471,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_auth_dev_bypass.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 5852,
+        "loc": 99,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_character_creation.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 4514,
+        "loc": 87,
         "todo_count": 0
       }
     },
@@ -445,7 +459,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 5904,
+        "size_bytes": 5832,
         "loc": 119,
         "todo_count": 0
       }
@@ -459,8 +473,22 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 28514,
-        "loc": 619,
+        "size_bytes": 13596,
+        "loc": 295,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_logging_reserved_fields.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 3954,
+        "loc": 65,
         "todo_count": 0
       }
     },
@@ -473,22 +501,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 17406,
-        "loc": 324,
-        "todo_count": 0
-      }
-    },
-    {
-      "schema_version": "2.0",
-      "path": "tests/test_narrative_buffer.py",
-      "language": "Python",
-      "role": "test",
-      "role_justification": "filename starts with 'test_'",
-      "summary": "Python test file (role: test)",
-      "summary_text": "Python test file (role: test)",
-      "metrics": {
-        "size_bytes": 5097,
-        "loc": 95,
+        "size_bytes": 14686,
+        "loc": 275,
         "todo_count": 0
       }
     },
@@ -515,8 +529,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 12991,
-        "loc": 268,
+        "size_bytes": 12649,
+        "loc": 262,
         "todo_count": 0
       }
     },
@@ -529,8 +543,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 30381,
-        "loc": 685,
+        "size_bytes": 30776,
+        "loc": 687,
         "todo_count": 0
       }
     },
@@ -585,8 +599,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 23004,
-        "loc": 519,
+        "size_bytes": 23964,
+        "loc": 538,
         "todo_count": 0
       }
     },
@@ -599,8 +613,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 17708,
-        "loc": 374,
+        "size_bytes": 18793,
+        "loc": 396,
         "todo_count": 0
       }
     },
@@ -627,7 +641,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 16889,
+        "size_bytes": 16840,
         "loc": 347,
         "todo_count": 0
       }
@@ -648,20 +662,6 @@
     },
     {
       "schema_version": "2.0",
-      "path": "tests/test_quest_cooldown_timestamps.py",
-      "language": "Python",
-      "role": "test",
-      "role_justification": "filename starts with 'test_'",
-      "summary": "Python test file (role: test)",
-      "summary_text": "Python test file (role: test)",
-      "metrics": {
-        "size_bytes": 8013,
-        "loc": 135,
-        "todo_count": 0
-      }
-    },
-    {
-      "schema_version": "2.0",
       "path": "tests/test_quest_integration.py",
       "language": "Python",
       "role": "test",
@@ -669,7 +669,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 24720,
+        "size_bytes": 24707,
         "loc": 563,
         "todo_count": 0
       }
@@ -704,34 +704,6 @@
     },
     {
       "schema_version": "2.0",
-      "path": "tests/test_stream_transport.py",
-      "language": "Python",
-      "role": "test",
-      "role_justification": "filename starts with 'test_'",
-      "summary": "Python test file (role: test)",
-      "summary_text": "Python test file (role: test)",
-      "metrics": {
-        "size_bytes": 7190,
-        "loc": 159,
-        "todo_count": 0
-      }
-    },
-    {
-      "schema_version": "2.0",
-      "path": "tests/test_streaming_integration.py",
-      "language": "Python",
-      "role": "test",
-      "role_justification": "filename starts with 'test_'",
-      "summary": "Python test file (role: test)",
-      "summary_text": "Python test file (role: test)",
-      "metrics": {
-        "size_bytes": 2200,
-        "loc": 37,
-        "todo_count": 0
-      }
-    },
-    {
-      "schema_version": "2.0",
       "path": "tests/test_turn_integration.py",
       "language": "Python",
       "role": "test",
@@ -739,8 +711,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 51250,
-        "loc": 991,
+        "size_bytes": 51546,
+        "loc": 994,
         "todo_count": 0
       }
     },

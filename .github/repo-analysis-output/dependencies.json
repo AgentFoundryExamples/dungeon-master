@@ -19,6 +19,26 @@
       }
     },
     {
+      "id": "app/api/deps.py",
+      "path": "app/api/deps.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "logging",
+          "typing.Optional"
+        ],
+        "third-party": [
+          "fastapi.Depends",
+          "fastapi.HTTPException",
+          "fastapi.Header",
+          "fastapi.Security",
+          "fastapi.security.HTTPAuthorizationCredentials",
+          "fastapi.security.HTTPBearer",
+          "fastapi.status"
+        ]
+      }
+    },
+    {
       "id": "app/api/routes.py",
       "path": "app/api/routes.py",
       "type": "file",
@@ -35,6 +55,7 @@
           "fastapi.APIRouter",
           "fastapi.Depends",
           "fastapi.HTTPException",
+          "fastapi.Header",
           "fastapi.status",
           "httpx.AsyncClient"
         ]
@@ -188,6 +209,7 @@
       "external_dependencies": {
         "stdlib": [
           "json",
+          "typing.Optional",
           "typing.Tuple"
         ],
         "third-party": []
@@ -218,6 +240,24 @@
       "external_dependencies": {
         "stdlib": [],
         "third-party": []
+      }
+    },
+    {
+      "id": "app/services/auth.py",
+      "path": "app/services/auth.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "logging",
+          "typing.Optional"
+        ],
+        "third-party": [
+          "fastapi.HTTPException",
+          "fastapi.status",
+          "firebase_admin",
+          "firebase_admin.auth",
+          "firebase_admin.credentials"
+        ]
       }
     },
     {
@@ -279,8 +319,6 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "datetime.datetime",
-          "datetime.timezone",
           "hashlib",
           "random",
           "threading",
@@ -303,49 +341,6 @@
           "datetime.timezone",
           "typing.Optional",
           "uuid"
-        ],
-        "third-party": []
-      }
-    },
-    {
-      "id": "app/streaming/__init__.py",
-      "path": "app/streaming/__init__.py",
-      "type": "file",
-      "external_dependencies": {
-        "stdlib": [],
-        "third-party": []
-      }
-    },
-    {
-      "id": "app/streaming/buffer.py",
-      "path": "app/streaming/buffer.py",
-      "type": "file",
-      "external_dependencies": {
-        "stdlib": [
-          "datetime.datetime",
-          "datetime.timezone",
-          "time",
-          "typing.List",
-          "typing.Optional"
-        ],
-        "third-party": []
-      }
-    },
-    {
-      "id": "app/streaming/transport.py",
-      "path": "app/streaming/transport.py",
-      "type": "file",
-      "external_dependencies": {
-        "stdlib": [
-          "abc.ABC",
-          "abc.abstractmethod",
-          "dataclasses.dataclass",
-          "datetime.datetime",
-          "datetime.timezone",
-          "json",
-          "typing.Any",
-          "typing.Dict",
-          "typing.Optional"
         ],
         "third-party": []
       }
@@ -451,6 +446,38 @@
       }
     },
     {
+      "id": "tests/test_auth_dev_bypass.py",
+      "path": "tests/test_auth_dev_bypass.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "unittest.mock.MagicMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "fastapi.HTTPException",
+          "fastapi.security.HTTPAuthorizationCredentials",
+          "fastapi.status",
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_character_creation.py",
+      "path": "tests/test_character_creation.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "unittest.mock.AsyncMock",
+          "unittest.mock.Mock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_combat_integration.py",
       "path": "tests/test_combat_integration.py",
       "type": "file",
@@ -501,7 +528,8 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "unittest.mock.AsyncMock"
+          "unittest.mock.AsyncMock",
+          "unittest.mock.Mock"
         ],
         "third-party": [
           "httpx.AsyncClient",
@@ -529,29 +557,30 @@
       }
     },
     {
+      "id": "tests/test_logging_reserved_fields.py",
+      "path": "tests/test_logging_reserved_fields.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "logging"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_metrics.py",
       "path": "tests/test_metrics.py",
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "logging",
           "os",
           "time",
           "unittest.mock.patch"
         ],
         "third-party": [
           "fastapi.testclient.TestClient"
-        ]
-      }
-    },
-    {
-      "id": "tests/test_narrative_buffer.py",
-      "path": "tests/test_narrative_buffer.py",
-      "type": "file",
-      "external_dependencies": {
-        "stdlib": [],
-        "third-party": [
-          "pytest"
         ]
       }
     },
@@ -684,7 +713,8 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
-          "unittest.mock.AsyncMock"
+          "unittest.mock.AsyncMock",
+          "unittest.mock.Mock"
         ],
         "third-party": [
           "httpx.AsyncClient",
@@ -702,19 +732,6 @@
         "third-party": [
           "pytest"
         ]
-      }
-    },
-    {
-      "id": "tests/test_quest_cooldown_timestamps.py",
-      "path": "tests/test_quest_cooldown_timestamps.py",
-      "type": "file",
-      "external_dependencies": {
-        "stdlib": [
-          "datetime.datetime",
-          "datetime.timedelta",
-          "datetime.timezone"
-        ],
-        "third-party": []
       }
     },
     {
@@ -749,31 +766,6 @@
         "stdlib": [
           "asyncio"
         ],
-        "third-party": [
-          "pytest"
-        ]
-      }
-    },
-    {
-      "id": "tests/test_stream_transport.py",
-      "path": "tests/test_stream_transport.py",
-      "type": "file",
-      "external_dependencies": {
-        "stdlib": [
-          "datetime.datetime",
-          "datetime.timezone"
-        ],
-        "third-party": [
-          "pytest"
-        ]
-      }
-    },
-    {
-      "id": "tests/test_streaming_integration.py",
-      "path": "tests/test_streaming_integration.py",
-      "type": "file",
-      "external_dependencies": {
-        "stdlib": [],
         "third-party": [
           "pytest"
         ]
@@ -825,6 +817,14 @@
   ],
   "edges": [
     {
+      "source": "app/api/deps.py",
+      "target": "app/services/auth.py"
+    },
+    {
+      "source": "app/api/deps.py",
+      "target": "app/config.py"
+    },
+    {
       "source": "app/api/routes.py",
       "target": "app/models.py"
     },
@@ -839,6 +839,10 @@
     {
       "source": "app/api/routes.py",
       "target": "app/services/llm_client.py"
+    },
+    {
+      "source": "app/api/routes.py",
+      "target": "app/api/deps.py"
     },
     {
       "source": "app/api/routes.py",
@@ -907,6 +911,10 @@
     {
       "source": "app/main.py",
       "target": "app/prompting/prompt_builder.py"
+    },
+    {
+      "source": "app/main.py",
+      "target": "app/services/auth.py"
     },
     {
       "source": "app/main.py",
@@ -1021,18 +1029,6 @@
       "target": "app/metrics.py"
     },
     {
-      "source": "app/streaming/__init__.py",
-      "target": "app/streaming/transport.py"
-    },
-    {
-      "source": "app/streaming/__init__.py",
-      "target": "app/streaming/buffer.py"
-    },
-    {
-      "source": "app/streaming/transport.py",
-      "target": "app/logging.py"
-    },
-    {
       "source": "app/turn_storage.py",
       "target": "app/logging.py"
     },
@@ -1055,6 +1051,10 @@
     {
       "source": "tests/conftest.py",
       "target": "app/api/routes.py"
+    },
+    {
+      "source": "tests/conftest.py",
+      "target": "app/api/deps.py"
     },
     {
       "source": "tests/conftest.py",
@@ -1158,11 +1158,43 @@
     },
     {
       "source": "tests/test_api.py",
+      "target": "app/api/deps.py"
+    },
+    {
+      "source": "tests/test_api.py",
       "target": "app/models.py"
     },
     {
       "source": "tests/test_api.py",
       "target": "app/services/outcome_parser.py"
+    },
+    {
+      "source": "tests/test_auth_dev_bypass.py",
+      "target": "app/config.py"
+    },
+    {
+      "source": "tests/test_auth_dev_bypass.py",
+      "target": "app/api/deps.py"
+    },
+    {
+      "source": "tests/test_character_creation.py",
+      "target": "app/models.py"
+    },
+    {
+      "source": "tests/test_character_creation.py",
+      "target": "app/services/turn_orchestrator.py"
+    },
+    {
+      "source": "tests/test_character_creation.py",
+      "target": "app/services/journey_log_client.py"
+    },
+    {
+      "source": "tests/test_character_creation.py",
+      "target": "app/api/routes.py"
+    },
+    {
+      "source": "tests/test_character_creation.py",
+      "target": "app/config.py"
     },
     {
       "source": "tests/test_combat_integration.py",
@@ -1225,6 +1257,10 @@
       "target": "app/models.py"
     },
     {
+      "source": "tests/test_logging_reserved_fields.py",
+      "target": "app/logging.py"
+    },
+    {
       "source": "tests/test_metrics.py",
       "target": "app/metrics.py"
     },
@@ -1243,10 +1279,6 @@
     {
       "source": "tests/test_metrics.py",
       "target": "app/models.py"
-    },
-    {
-      "source": "tests/test_narrative_buffer.py",
-      "target": "app/streaming/buffer.py"
     },
     {
       "source": "tests/test_outcome_models.py",
@@ -1369,14 +1401,6 @@
       "target": "app/models.py"
     },
     {
-      "source": "tests/test_quest_cooldown_timestamps.py",
-      "target": "app/services/policy_engine.py"
-    },
-    {
-      "source": "tests/test_quest_cooldown_timestamps.py",
-      "target": "app/turn_storage.py"
-    },
-    {
       "source": "tests/test_quest_integration.py",
       "target": "app/services/turn_orchestrator.py"
     },
@@ -1415,10 +1439,6 @@
     {
       "source": "tests/test_resilience.py",
       "target": "app/resilience.py"
-    },
-    {
-      "source": "tests/test_stream_transport.py",
-      "target": "app/streaming/transport.py"
     },
     {
       "source": "tests/test_turn_integration.py",
@@ -1467,8 +1487,6 @@
   ],
   "external_dependencies_summary": {
     "stdlib": [
-      "abc.ABC",
-      "abc.abstractmethod",
       "asyncio",
       "collections.OrderedDict",
       "collections.defaultdict",
@@ -1477,7 +1495,6 @@
       "copy.deepcopy",
       "dataclasses.dataclass",
       "datetime.datetime",
-      "datetime.timedelta",
       "datetime.timezone",
       "enum.Enum",
       "functools.lru_cache",
@@ -1507,6 +1524,7 @@
       "typing.TypeVar",
       "unittest.mock.AsyncMock",
       "unittest.mock.MagicMock",
+      "unittest.mock.Mock",
       "unittest.mock.patch",
       "uuid",
       "uuid.UUID"
@@ -1516,11 +1534,18 @@
       "fastapi.Depends",
       "fastapi.FastAPI",
       "fastapi.HTTPException",
+      "fastapi.Header",
       "fastapi.Request",
       "fastapi.Response",
+      "fastapi.Security",
       "fastapi.middleware.cors.CORSMiddleware",
+      "fastapi.security.HTTPAuthorizationCredentials",
+      "fastapi.security.HTTPBearer",
       "fastapi.status",
       "fastapi.testclient.TestClient",
+      "firebase_admin",
+      "firebase_admin.auth",
+      "firebase_admin.credentials",
       "httpx.AsyncClient",
       "httpx.HTTPStatusError",
       "httpx.Request",
@@ -1539,7 +1564,7 @@
       "starlette.middleware.base.BaseHTTPMiddleware",
       "uvicorn"
     ],
-    "stdlib_count": 43,
-    "third-party_count": 26
+    "stdlib_count": 41,
+    "third-party_count": 33
   }
 }
