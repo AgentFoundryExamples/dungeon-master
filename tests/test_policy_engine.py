@@ -230,6 +230,33 @@ def test_poi_trigger_zero_cooldown_always_eligible():
     assert decision.roll_passed is True
 
 
+def test_poi_trigger_allowed_during_active_quest():
+    """Test POI trigger is always allowed during active quests, bypassing cooldown."""
+    engine = PolicyEngine(
+        poi_trigger_prob=1.0,
+        poi_cooldown_turns=5  # High cooldown
+    )
+    
+    # Test that POI is allowed even with cooldown not met when quest is active
+    decision = engine.evaluate_poi_trigger(
+        character_id="test-char-1",
+        turns_since_last_poi=1,  # Not enough turns normally
+        has_active_quest=True
+    )
+    
+    assert decision.eligible is True, "POI should be eligible during active quest"
+    assert decision.roll_passed is True
+    
+    # Verify it still respects cooldown when no quest
+    decision_no_quest = engine.evaluate_poi_trigger(
+        character_id="test-char-1",
+        turns_since_last_poi=1,
+        has_active_quest=False
+    )
+    
+    assert decision_no_quest.eligible is False, "POI should respect cooldown without active quest"
+
+
 def test_seeded_rng_deterministic():
     """Test that seeded RNG produces deterministic results."""
     # Create two engines with same seed

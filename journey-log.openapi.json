@@ -197,7 +197,7 @@
           "characters"
         ],
         "summary": "Append a narrative turn to a character",
-        "description": "Append a validated narrative turn with concurrency safety.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Request Body:**\n- `user_action`: Player's action (1-8000 characters)\n- `ai_response`: AI/GM response (1-32000 characters)\n- `timestamp`: Optional ISO 8601 timestamp (defaults to server UTC now)\n\n**Validation:**\n- user_action: max 8000 characters\n- ai_response: max 32000 characters\n- Combined length: max 40000 characters\n- Timestamp format: ISO 8601 (if provided)\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Add document to characters/{character_id}/narrative_turns subcollection\n2. Update parent character.updated_at timestamp\n\n**Response:**\n- Returns the stored NarrativeTurn (with server-generated timestamp if not provided)\n- Includes total_turns count for confirmation\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `413`: Request entity too large (combined payload \u003E 40000 characters)\n- `422`: Validation error (invalid field values, oversized fields, invalid timestamp format)\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "description": "Append a validated narrative turn with concurrency safety.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Request Body:**\n- `user_action`: Player's action (1-8000 characters)\n- `ai_response`: AI/GM response (1-32000 characters)\n- `timestamp`: Optional ISO 8601 timestamp (defaults to server UTC now)\n\n**Validation:**\n- user_action: max 8000 characters\n- ai_response: max 32000 characters\n- Combined length: max 40000 characters\n- Timestamp format: ISO 8601 (if provided)\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Add document to characters/{character_id}/narrative_turns subcollection\n2. Update parent character.updated_at timestamp\n\n**Response:**\n- Returns the stored NarrativeTurn (with server-generated timestamp if not provided)\n- Includes total_turns count for confirmation\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `413`: Request entity too large (combined payload > 40000 characters)\n- `422`: Validation error (invalid field values, oversized fields, invalid timestamp format)\n- `500`: Internal server error (e.g., Firestore transient errors)",
         "operationId": "append_narrative_turn_characters__character_id__narrative_post",
         "parameters": [
           {
@@ -259,7 +259,7 @@
           "characters"
         ],
         "summary": "Get narrative turns for a character",
-        "description": "Retrieve the last N narrative turns for a character ordered oldest-to-newest.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `n`: Number of turns to retrieve (default: 10, min: 1, max: 100)\n- `since`: ISO 8601 timestamp to filter turns strictly after this time (exclusive, timestamp \u003E since)\n\n**Response:**\n- Returns list of NarrativeTurn objects ordered oldest-to-newest\n- Includes metadata with requested_n, returned_count, and total_available\n- Empty list returned if character has no narrative turns\n\n**Ordering:**\n- Results are always returned in chronological order (oldest first)\n- This ensures LLM context is built in the correct sequence\n\n**Error Responses:**\n- `400`: Invalid query parameters (n out of range, invalid since timestamp) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "description": "Retrieve the last N narrative turns for a character ordered oldest-to-newest.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `n`: Number of turns to retrieve (default: 10, min: 1, max: 100)\n- `since`: ISO 8601 timestamp to filter turns strictly after this time (exclusive, timestamp > since)\n\n**Response:**\n- Returns list of NarrativeTurn objects ordered oldest-to-newest\n- Includes metadata with requested_n, returned_count, and total_available\n- Empty list returned if character has no narrative turns\n\n**Ordering:**\n- Results are always returned in chronological order (oldest first)\n- This ensures LLM context is built in the correct sequence\n\n**Error Responses:**\n- `400`: Invalid query parameters (n out of range, invalid since timestamp) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
         "operationId": "get_narrative_turns_characters__character_id__narrative_get",
         "parameters": [
           {
@@ -491,13 +491,60 @@
         }
       }
     },
+    "/characters/{character_id}/poi": {
+      "delete": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Leave current POI",
+        "description": "Mark the character as leaving their current Point of Interest.\n\nThis endpoint sets player_state.at_poi=False and clears player_state.current_poi_id, while preserving the location field for tracking minor/precise positions.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Behavior:**\n- Sets player_state.at_poi = False\n- Sets player_state.current_poi_id = None\n- Preserves player_state.location field for minor location tracking\n- Idempotent: succeeds even if not currently at a POI (returns 204)\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Verify character exists and user owns it\n2. Update player_state.at_poi and player_state.current_poi_id\n3. Update character.updated_at timestamp\n\n**Response:**\n- Returns 204 No Content on success\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "operationId": "leave_poi_characters__character_id__poi_delete",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "User identifier for ownership",
+              "title": "X-User-Id"
+            },
+            "description": "User identifier for ownership"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/characters/{character_id}/pois/random": {
       "get": {
         "tags": [
           "characters"
         ],
         "summary": "Get random POIs for a character",
-        "description": "Retrieve N randomly sampled POIs from a character's pois subcollection.\n\n**Authoritative Storage:** Reads from `characters/{character_id}/pois/{poi_id}` subcollection.\n**Backward Compatibility:** Falls back to embedded world_pois array if subcollection is empty (configurable via POI_EMBEDDED_READ_FALLBACK).\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `n`: Number of POIs to sample (default: 3, min: 1, max: 20)\n\n**Sampling Behavior:**\n- POIs are sampled uniformly at random without replacement\n- If fewer than N POIs exist, returns all available POIs\n- If no POIs exist, returns empty list (not an error)\n- Same request may return different POIs on each call (non-deterministic)\n\n**Response:**\n- Returns list of randomly sampled POIs\n- Includes metadata: count, requested_n, total_available\n\n**Error Responses:**\n- `400`: Invalid query parameters (n \u003C= 0 or n \u003E 20) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "description": "Retrieve N randomly sampled POIs from a character's pois subcollection.\n\n**Authoritative Storage:** Reads from `characters/{character_id}/pois/{poi_id}` subcollection.\n**Backward Compatibility:** Falls back to embedded world_pois array if subcollection is empty (configurable via POI_EMBEDDED_READ_FALLBACK).\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `n`: Number of POIs to sample (default: 3, min: 1, max: 20)\n\n**Sampling Behavior:**\n- POIs are sampled uniformly at random without replacement\n- If fewer than N POIs exist, returns all available POIs\n- If no POIs exist, returns empty list (not an error)\n- Same request may return different POIs on each call (non-deterministic)\n\n**Response:**\n- Returns list of randomly sampled POIs\n- Includes metadata: count, requested_n, total_available\n\n**Error Responses:**\n- `400`: Invalid query parameters (n <= 0 or n > 20) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
         "operationId": "get_random_pois_characters__character_id__pois_random_get",
         "parameters": [
           {
@@ -568,7 +615,7 @@
           "characters"
         ],
         "summary": "Get POI count and preview for a character",
-        "description": "Retrieve a lightweight POI summary with total count and capped preview.\n\n**Authoritative Storage:** Reads from `characters/{character_id}/pois/{poi_id}` subcollection.\n\n**Use Case:** This endpoint provides aggregate POI information for UI previews\nwithout scanning large collections or loading all POIs into memory.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `preview_limit`: Maximum number of POIs to include in preview (default: 5, max: 20)\n\n**Response:**\n- `total_count`: Total number of POIs using efficient count aggregation\n- `preview`: Up to preview_limit POIs sorted by newest first\n- `preview_count`: Number of POIs in the preview\n\n**Performance:**\n- Uses Firestore count() aggregation (single read cost)\n- Preview query limited to prevent large dataset scans\n- Total latency typically \u003C50ms even for large POI collections\n\n**Error Responses:**\n- `400`: Invalid query parameters (preview_limit out of range) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "description": "Retrieve a lightweight POI summary with total count and capped preview.\n\n**Authoritative Storage:** Reads from `characters/{character_id}/pois/{poi_id}` subcollection.\n\n**Use Case:** This endpoint provides aggregate POI information for UI previews\nwithout scanning large collections or loading all POIs into memory.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Optional Query Parameters:**\n- `preview_limit`: Maximum number of POIs to include in preview (default: 5, max: 20)\n\n**Response:**\n- `total_count`: Total number of POIs using efficient count aggregation\n- `preview`: Up to preview_limit POIs sorted by newest first\n- `preview_count`: Number of POIs in the preview\n\n**Performance:**\n- Uses Firestore count() aggregation (single read cost)\n- Preview query limited to prevent large dataset scans\n- Total latency typically <50ms even for large POI collections\n\n**Error Responses:**\n- `400`: Invalid query parameters (preview_limit out of range) or empty X-User-Id\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
         "operationId": "get_poi_summary_characters__character_id__pois_summary_get",
         "parameters": [
           {
@@ -889,7 +936,7 @@
           "characters"
         ],
         "summary": "Delete active quest for a character",
-        "description": "Clear the active quest for a character and archive it.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Behavior:**\n- Removes active_quest field from character\n- Appends quest to archived_quests with cleared_at timestamp\n- Enforces 50-entry limit on archived_quests (oldest entries removed first)\n- Idempotent: succeeds even if no active quest exists (returns 204)\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Verify character exists and user owns it\n2. Remove active quest (if exists)\n3. Archive quest to archived_quests with cleared_at timestamp\n4. Trim archived_quests to maintain ≤50 entries (oldest first)\n5. Update character.updated_at timestamp\n\n**Response:**\n- Returns 204 No Content on success\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
+        "description": "Clear the active quest for a character and archive it.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Behavior:**\n- Removes active_quest field from character\n- Appends quest to archived_quests with cleared_at timestamp\n- Enforces 50-entry limit on archived_quests (oldest entries removed first)\n- Idempotent: succeeds even if no active quest exists (returns 204)\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Verify character exists and user owns it\n2. Remove active quest (if exists)\n3. Archive quest to archived_quests with cleared_at timestamp\n4. Trim archived_quests to maintain \u226450 entries (oldest first)\n5. Update character.updated_at timestamp\n\n**Response:**\n- Returns 204 No Content on success\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)",
         "operationId": "delete_quest_characters__character_id__quest_delete",
         "parameters": [
           {
@@ -936,7 +983,7 @@
           "characters"
         ],
         "summary": "Update combat state for a character",
-        "description": "Set or clear the combat state for a character with full state replacement.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Request Body:**\n- `combat_state`: Full CombatState object or null to clear combat\n\n**CombatState Validation:**\n- Maximum 5 enemies per combat (422 error if exceeded)\n- All enemy statuses must be valid enum values (Healthy, Wounded, Dead)\n- All required fields must be present (combat_id, started_at, enemies)\n- Empty enemies list is allowed and sets active=false\n\n**Server-Side is_active Computation:**\n- active=true when any enemy has status != Dead\n- active=false when all enemies are Dead or enemies list is empty\n- active=false when combat_state is null\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Verify character exists and user owns it\n2. Update combat_state field (or clear to null)\n3. Update character.updated_at timestamp\n4. Log when combat transitions from active to inactive\n\n**Response:**\n- Returns {\"active\": bool, \"state\": CombatState | null}\n- HTTP 200 for successful updates (both set and clear operations)\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `422`: Validation error (\u003E5 enemies, invalid status, missing required fields)\n- `500`: Internal server error (e.g., Firestore transient errors)\n\n**Edge Cases:**\n- Submitting \u003E5 enemies returns 422 with detailed error\n- Submitting null clears combat and returns {\"active\": false, \"state\": null}\n- All enemies Dead returns {\"active\": false, \"state\": \u003Ccombat_state\u003E}\n- Race conditions: last writer wins without corrupting other fields\n- Unknown status strings cause explicit validation errors",
+        "description": "Set or clear the combat state for a character with full state replacement.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Required Headers:**\n- `X-User-Id`: User identifier (must match character owner for access control)\n\n**Request Body:**\n- `combat_state`: Full CombatState object or null to clear combat\n\n**CombatState Validation:**\n- Maximum 5 enemies per combat (422 error if exceeded)\n- All enemy statuses must be valid enum values (Healthy, Wounded, Dead)\n- All required fields must be present (combat_id, started_at, enemies)\n- Empty enemies list is allowed and sets active=false\n\n**Server-Side is_active Computation:**\n- active=true when any enemy has status != Dead\n- active=false when all enemies are Dead or enemies list is empty\n- active=false when combat_state is null\n\n**Atomicity:**\nUses Firestore transaction to atomically:\n1. Verify character exists and user owns it\n2. Update combat_state field (or clear to null)\n3. Update character.updated_at timestamp\n4. Log when combat transitions from active to inactive\n\n**Response:**\n- Returns {\"active\": bool, \"state\": CombatState | null}\n- HTTP 200 for successful updates (both set and clear operations)\n\n**Error Responses:**\n- `400`: Missing or invalid X-User-Id header\n- `403`: X-User-Id does not match character owner\n- `404`: Character not found\n- `422`: Validation error (>5 enemies, invalid status, missing required fields)\n- `500`: Internal server error (e.g., Firestore transient errors)\n\n**Edge Cases:**\n- Submitting >5 enemies returns 422 with detailed error\n- Submitting null clears combat and returns {\"active\": false, \"state\": null}\n- All enemies Dead returns {\"active\": false, \"state\": <combat_state>}\n- Race conditions: last writer wins without corrupting other fields\n- Unknown status strings cause explicit validation errors",
         "operationId": "update_combat_characters__character_id__combat_put",
         "parameters": [
           {
@@ -998,7 +1045,7 @@
           "characters"
         ],
         "summary": "Get combat state for a character",
-        "description": "Retrieve the current combat state for a character with a predictable JSON envelope.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Response:**\n- Always returns HTTP 200 with JSON object: {\"active\": bool, \"state\": CombatState | null}\n- `active=true, state=\u003CCombatState\u003E` when any enemy has status != Dead\n- `active=false, state=null` when combat_state is absent, empty, or all enemies are Dead\n- Never returns 204 No Content - always provides the active/state envelope\n\n**Combat Inactivity Detection:**\nCombat is considered inactive when:\n- combat_state field is None/missing in the character document\n- enemies list is empty\n- all enemies have status == Dead\n\n**Response Consistency:**\n- Uses the same CombatState serialization as PUT responses\n- Respects the ≤5 enemies constraint (defensive filtering on read)\n- All fields (is_active, traits, weapons) stay consistent with PUT responses\n\n**Error Responses:**\n- `400`: X-User-Id header provided but empty/whitespace-only\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found (NOT returned for 'no combat active' case)\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)\n\n**Edge Cases:**\n- Stored documents with \u003E5 enemies (legacy data) trigger defensive filtering\n- Race conditions where combat cleared between read start/finish return inactive\n- Malformed stored data is handled gracefully with fallback to inactive\n- Characters with no combat history return {\"active\": false, \"state\": null}",
+        "description": "Retrieve the current combat state for a character with a predictable JSON envelope.\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier (if provided, must match the character's owner_user_id)\n  - If header is provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n\n**Response:**\n- Always returns HTTP 200 with JSON object: {\"active\": bool, \"state\": CombatState | null}\n- `active=true, state=<CombatState>` when any enemy has status != Dead\n- `active=false, state=null` when combat_state is absent, empty, or all enemies are Dead\n- Never returns 204 No Content - always provides the active/state envelope\n\n**Combat Inactivity Detection:**\nCombat is considered inactive when:\n- combat_state field is None/missing in the character document\n- enemies list is empty\n- all enemies have status == Dead\n\n**Response Consistency:**\n- Uses the same CombatState serialization as PUT responses\n- Respects the \u22645 enemies constraint (defensive filtering on read)\n- All fields (is_active, traits, weapons) stay consistent with PUT responses\n\n**Error Responses:**\n- `400`: X-User-Id header provided but empty/whitespace-only\n- `403`: X-User-Id provided but does not match character owner\n- `404`: Character not found (NOT returned for 'no combat active' case)\n- `422`: Invalid UUID format for character_id\n- `500`: Internal server error (e.g., Firestore transient errors)\n\n**Edge Cases:**\n- Stored documents with >5 enemies (legacy data) trigger defensive filtering\n- Race conditions where combat cleared between read start/finish return inactive\n- Malformed stored data is handled gracefully with fallback to inactive\n- Characters with no combat history return {\"active\": false, \"state\": null}",
         "operationId": "get_combat_characters__character_id__combat_get",
         "parameters": [
           {
@@ -1059,7 +1106,7 @@
           "characters"
         ],
         "summary": "Get aggregated character context for Director/LLM integration",
-        "description": "Retrieve a comprehensive context payload for AI-driven narrative generation.\n\nThis endpoint aggregates:\n- Player state (identity, status, level, equipment, location)\n- Active quest with derived has_active_quest flag (optional via include_quest)\n- Combat state with derived active flag (optional via include_combat)\n- Recent narrative turns (configurable window, ordered oldest-to-newest, optional via include_narrative)\n- Optional world POIs sample (can be suppressed via include_pois flag)\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier for access control\n  - If provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n  - If provided, must match the character's owner_user_id\n\n**Optional Query Parameters:**\n- `recent_n` (integer): Number of recent narrative turns to include (default: 20, min: 1, max: configured limit)\n- `include_pois` (boolean): Whether to include POI sample in world state (default: false)\n- `include_narrative` (boolean): Whether to include narrative turns (default: true)\n- `include_combat` (boolean): Whether to include combat state (default: true)\n- `include_quest` (boolean): Whether to include quest data (default: true)\n\n**Component Toggles:**\nThe include_* flags allow selective payload sizing for performance optimization:\n- When include_narrative=false: narrative.recent_turns returns empty list, Firestore query skipped\n- When include_combat=false: combat returns {active: false, state: null}\n- When include_quest=false: quest returns null, has_active_quest=false\n- Component flags (narrative, combat, quest) default to true; include_pois defaults to false\n- Response structure remains stable regardless of flag values\n\n**Timing Metrics:**\nSuccess logs include timing measurements (in milliseconds):\n- character_doc_fetch_ms: Time to fetch character document\n- narrative_query_ms: Time to query narrative turns (0 if skipped)\n- poi_query_ms: Time to query POIs (0 if skipped)\nAll timing fields are included in structured logs with character_id for correlation.\n\n**Response Structure:**\n```json\n{\n  \"character_id\": \"uuid\",\n  \"player_state\": { ... },\n  \"quest\": { ... } or null,\n  \"combat\": {\n    \"active\": true/false,\n    \"state\": { ... } or null\n  },\n  \"narrative\": {\n    \"recent_turns\": [ ... ],\n    \"requested_n\": 20,\n    \"returned_n\": 15,\n    \"max_n\": 100\n  },\n  \"world\": {\n    \"pois_sample\": [ ... ],\n    \"include_pois\": true\n  },\n  \"has_active_quest\": true/false\n}\n```\n\n**Derived Fields:**\n- `has_active_quest`: Computed as `quest is not None`\n- `combat.active`: Computed as `any enemy status != Dead`\n- `narrative.returned_n`: Actual number of turns returned (may be less than requested_n)\n- `narrative.max_n`: Server-configured maximum (informs clients of limits)\n\n**Performance Notes:**\n- Character document: Single Firestore read (embedded state)\n- Narrative turns: Subcollection query (indexed by timestamp) - skipped if include_narrative=false\n- POI sample: Subcollection query - skipped if include_pois=false\n- Total latency typically \u003C100ms for moderate datasets\n- Use component toggles to reduce payload size and query time\n\n**Error Responses:**\n- `400 Bad Request`: Invalid query parameters (recent_n out of range) or empty X-User-Id\n- `403 Forbidden`: X-User-Id provided but does not match character owner\n- `404 Not Found`: Character not found\n- `422 Unprocessable Entity`: Invalid UUID format for character_id\n- `500 Internal Server Error`: Firestore transient errors\n\n**Edge Cases:**\n- Empty narrative history: Returns empty recent_turns array with returned_n=0\n- No active quest: Returns quest=null, has_active_quest=false\n- Inactive combat: Returns combat.active=false, combat.state=null\n- include_pois=false: Returns world.pois_sample=[], world.include_pois=false\n- include_narrative=false: Skips Firestore query, returns empty turns, recent_n still validated\n- Multiple include_* flags false: Response remains structurally valid without missing keys\n- recent_n exceeds available turns: Returns all available turns without error",
+        "description": "Retrieve a comprehensive context payload for AI-driven narrative generation.\n\nThis endpoint aggregates:\n- Player state (identity, status, level, equipment, location)\n- Active quest with derived has_active_quest flag (optional via include_quest)\n- Combat state with derived active flag (optional via include_combat)\n- Recent narrative turns (configurable window, ordered oldest-to-newest, optional via include_narrative)\n- Optional world POIs sample (can be suppressed via include_pois flag)\n\n**Path Parameters:**\n- `character_id`: UUID-formatted character identifier\n\n**Optional Headers:**\n- `X-User-Id`: User identifier for access control\n  - If provided but empty/whitespace-only, returns 400 error\n  - If omitted entirely, allows anonymous access without verification\n  - If provided, must match the character's owner_user_id\n\n**Optional Query Parameters:**\n- `recent_n` (integer): Number of recent narrative turns to include (default: 20, min: 1, max: configured limit)\n- `include_pois` (boolean): Whether to include POI sample in world state (default: false)\n- `include_narrative` (boolean): Whether to include narrative turns (default: true)\n- `include_combat` (boolean): Whether to include combat state (default: true)\n- `include_quest` (boolean): Whether to include quest data (default: true)\n\n**Component Toggles:**\nThe include_* flags allow selective payload sizing for performance optimization:\n- When include_narrative=false: narrative.recent_turns returns empty list, Firestore query skipped\n- When include_combat=false: combat returns {active: false, state: null}\n- When include_quest=false: quest returns null, has_active_quest=false\n- Component flags (narrative, combat, quest) default to true; include_pois defaults to false\n- Response structure remains stable regardless of flag values\n\n**Timing Metrics:**\nSuccess logs include timing measurements (in milliseconds):\n- character_doc_fetch_ms: Time to fetch character document\n- narrative_query_ms: Time to query narrative turns (0 if skipped)\n- poi_query_ms: Time to query POIs (0 if skipped)\nAll timing fields are included in structured logs with character_id for correlation.\n\n**Response Structure:**\n```json\n{\n  \"character_id\": \"uuid\",\n  \"player_state\": { ... },\n  \"quest\": { ... } or null,\n  \"combat\": {\n    \"active\": true/false,\n    \"state\": { ... } or null\n  },\n  \"narrative\": {\n    \"recent_turns\": [ ... ],\n    \"requested_n\": 20,\n    \"returned_n\": 15,\n    \"max_n\": 100\n  },\n  \"world\": {\n    \"pois_sample\": [ ... ],\n    \"include_pois\": true\n  },\n  \"has_active_quest\": true/false\n}\n```\n\n**Derived Fields:**\n- `has_active_quest`: Computed as `quest is not None`\n- `combat.active`: Computed as `any enemy status != Dead`\n- `narrative.returned_n`: Actual number of turns returned (may be less than requested_n)\n- `narrative.max_n`: Server-configured maximum (informs clients of limits)\n\n**Performance Notes:**\n- Character document: Single Firestore read (embedded state)\n- Narrative turns: Subcollection query (indexed by timestamp) - skipped if include_narrative=false\n- POI sample: Subcollection query - skipped if include_pois=false\n- Total latency typically <100ms for moderate datasets\n- Use component toggles to reduce payload size and query time\n\n**Error Responses:**\n- `400 Bad Request`: Invalid query parameters (recent_n out of range) or empty X-User-Id\n- `403 Forbidden`: X-User-Id provided but does not match character owner\n- `404 Not Found`: Character not found\n- `422 Unprocessable Entity`: Invalid UUID format for character_id\n- `500 Internal Server Error`: Firestore transient errors\n\n**Edge Cases:**\n- Empty narrative history: Returns empty recent_turns array with returned_n=0\n- No active quest: Returns quest=null, has_active_quest=false\n- Inactive combat: Returns combat.active=false, combat.state=null\n- include_pois=false: Returns world.pois_sample=[], world.include_pois=false\n- include_narrative=false: Skips Firestore query, returns empty turns, recent_n still validated\n- Multiple include_* flags false: Response remains structurally valid without missing keys\n- recent_n exceeds available turns: Returns all available turns without error",
         "operationId": "get_character_context_characters__character_id__context_get",
         "parameters": [
           {
@@ -1346,9 +1393,33 @@
             "title": "Character Id",
             "description": "UUID character identifier"
           },
+          "adventure_prompt": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Adventure Prompt",
+            "description": "Initial adventure prompt or backstory that guides the narrative"
+          },
           "player_state": {
             "$ref": "#/components/schemas/PlayerState",
             "description": "Current player character state"
+          },
+          "current_turn": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Current Turn",
+            "description": "Total number of narrative turns taken by this character"
+          },
+          "turns_since_last_quest": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Turns Since Last Quest",
+            "description": "Number of turns since the last quest was set (resets to 0 when a new quest is set)"
+          },
+          "turns_since_last_poi": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Turns Since Last Poi",
+            "description": "Number of turns since the last POI was discovered (resets to 0 when a new POI is created)"
           },
           "quest": {
             "anyOf": [
@@ -1387,7 +1458,11 @@
         "type": "object",
         "required": [
           "character_id",
+          "adventure_prompt",
           "player_state",
+          "current_turn",
+          "turns_since_last_quest",
+          "turns_since_last_poi",
           "has_active_quest",
           "combat",
           "narrative",
@@ -1459,6 +1534,27 @@
             ],
             "title": "Updated At",
             "description": "Last update timestamp (Firestore Timestamp or ISO 8601)"
+          },
+          "current_turn": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Current Turn",
+            "description": "Total number of narrative turns taken by this character (incremented on each narrative turn)",
+            "default": 0
+          },
+          "turns_since_last_quest": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Turns Since Last Quest",
+            "description": "Number of turns since the last quest was set (resets to 0 when a new quest is set, increments only when no active quest)",
+            "default": 0
+          },
+          "turns_since_last_poi": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Turns Since Last Poi",
+            "description": "Number of turns since the last POI was discovered (resets to 0 when a new POI is created, increments only when not at a POI)",
+            "default": 0
           },
           "world_state": {
             "anyOf": [
@@ -1703,7 +1799,7 @@
           },
           "turn": {
             "type": "integer",
-            "minimum": 1,
+            "minimum": 1.0,
             "title": "Turn",
             "description": "Current combat turn",
             "default": 1
@@ -1762,7 +1858,7 @@
           },
           "turn": {
             "type": "integer",
-            "minimum": 1,
+            "minimum": 1.0,
             "title": "Turn",
             "description": "Current combat turn",
             "default": 1
@@ -2581,7 +2677,7 @@
               }
             ],
             "title": "Location",
-            "description": "Current location as Location object, string, or structured object (for backward compatibility)",
+            "description": "Current precise location as Location object, string, or structured object. This tracks minor/precise positions within POIs (e.g., 'Town Square') or between POIs (e.g., 'Forest Path'). For major location tracking, use at_poi and current_poi_id.",
             "examples": [
               {
                 "display_name": "The Nexus",
@@ -2598,6 +2694,24 @@
               }
             ]
           },
+          "at_poi": {
+            "type": "boolean",
+            "title": "At Poi",
+            "description": "Whether the character is currently at a Point of Interest. True when arrived at a major location (city, dungeon, etc.), False when traveling or in minor locations.",
+            "default": false
+          },
+          "current_poi_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Poi Id",
+            "description": "ID of the POI the character is currently at (when at_poi=True). References a document in the characters/{character_id}/pois subcollection. None when at_poi=False."
+          },
           "additional_fields": {
             "additionalProperties": true,
             "type": "object",
@@ -2613,7 +2727,7 @@
           "location"
         ],
         "title": "PlayerState",
-        "description": "Current player character state using canonical status enum.\n\nThis model represents the core game state for a character, including:\n- Character identity (name, race, class)\n- Health status (canonical Status enum: Healthy, Wounded, Dead)\n- Equipment (weapons, armor, inventory)\n- Current location\n- Extensible additional fields for game-specific data\n\nNumeric health/stat fields (level, experience, stats, HP, XP) have been\nremoved in favor of the textual status enum. Legacy numeric fields are\nignored during deserialization.\n\nReferenced in: docs/SCHEMA.md - Character Document Fields (player_state)"
+        "description": "Current player character state using canonical status enum.\n\nThis model represents the core game state for a character, including:\n- Character identity (name, race, class)\n- Health status (canonical Status enum: Healthy, Wounded, Dead)\n- Equipment (weapons, armor, inventory)\n- Current location and POI tracking\n- Extensible additional fields for game-specific data\n\nPOI Tracking:\n- at_poi: Boolean flag indicating if character is currently at a POI\n- current_poi_id: Reference to the POI document when at_poi=True\n- location: Tracks precise position within POIs or between them\n  (e.g., \"Town Square\" within a city POI, or \"Forest Path\" between POIs)\n\nNumeric health/stat fields (level, experience, stats, HP, XP) have been\nremoved in favor of the textual status enum. Legacy numeric fields are\nignored during deserialization.\n\nReferenced in: docs/SCHEMA.md - Character Document Fields (player_state)"
       },
       "PointOfInterest": {
         "properties": {
@@ -2768,7 +2882,7 @@
             "anyOf": [
               {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -2827,7 +2941,7 @@
           "combat_state"
         ],
         "title": "UpdateCombatRequest",
-        "description": "Request model for updating combat state.\n\nThe combat_state field accepts a full CombatState object or null to clear combat.\nServer-side validation ensures ≤5 enemies and valid status enum values."
+        "description": "Request model for updating combat state.\n\nThe combat_state field accepts a full CombatState object or null to clear combat.\nServer-side validation ensures \u22645 enemies and valid status enum values."
       },
       "UpdateCombatResponse": {
         "properties": {

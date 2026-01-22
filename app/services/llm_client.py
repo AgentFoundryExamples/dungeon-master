@@ -157,7 +157,7 @@ class LLMClient:
         Args:
             system_instructions: System-level instructions for the LLM (includes schema)
             user_prompt: The user prompt containing context and action
-            trace_id: Optional trace ID for request correlation
+            trace_id: User ID for correlation (kept as trace_id for LLM client internal use)
             json_schema: Optional pre-generated JSON schema to avoid redundant generation.
                         If not provided, schema will be generated via get_outcome_json_schema().
             
@@ -268,7 +268,7 @@ class LLMClient:
                     raise LLMResponseError("LLM returned empty content")
 
                 # Parse the response using the outcome parser
-                parsed = self.parser.parse(content, trace_id=trace_id)
+                parsed = self.parser.parse(content, user_id=trace_id)
                 
                 # Record schema conformance metrics
                 if (collector := get_metrics_collector()):

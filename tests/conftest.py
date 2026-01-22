@@ -112,6 +112,7 @@ def client(test_env):
             get_character_rate_limiter,
             get_llm_semaphore
         )
+        from app.api.deps import get_current_user_id
         
         from app.main import app
         from httpx import AsyncClient
@@ -165,6 +166,9 @@ def client(test_env):
             app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
             app.dependency_overrides[get_character_rate_limiter] = lambda: test_rate_limiter
             app.dependency_overrides[get_llm_semaphore] = lambda: test_llm_semaphore
+            
+            # Mock auth dependency to bypass Firebase authentication in tests
+            app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
             
             with TestClient(app) as client:
                 yield client
@@ -226,6 +230,7 @@ def client_with_failed_quest_roll(test_env):
             get_character_rate_limiter,
             get_llm_semaphore
         )
+        from app.api.deps import get_current_user_id
         from app.main import app
         from httpx import AsyncClient
         from app.services.journey_log_client import JourneyLogClient
@@ -277,6 +282,9 @@ def client_with_failed_quest_roll(test_env):
             app.dependency_overrides[get_character_rate_limiter] = lambda: test_rate_limiter
             app.dependency_overrides[get_llm_semaphore] = lambda: test_llm_semaphore
             
+            # Mock auth dependency
+            app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
+            
             with TestClient(app) as client:
                 yield client
         finally:
@@ -308,6 +316,7 @@ def client_with_failed_poi_roll(test_env):
             get_character_rate_limiter,
             get_llm_semaphore
         )
+        from app.api.deps import get_current_user_id
         from app.main import app
         from httpx import AsyncClient
         from app.services.journey_log_client import JourneyLogClient
@@ -359,6 +368,9 @@ def client_with_failed_poi_roll(test_env):
             app.dependency_overrides[get_character_rate_limiter] = lambda: test_rate_limiter
             app.dependency_overrides[get_llm_semaphore] = lambda: test_llm_semaphore
             
+            # Mock auth dependency
+            app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
+            
             with TestClient(app) as client:
                 yield client
         finally:
@@ -390,6 +402,7 @@ def client_with_deterministic_seed(test_env):
             get_character_rate_limiter,
             get_llm_semaphore
         )
+        from app.api.deps import get_current_user_id
         from app.main import app
         from httpx import AsyncClient
         from app.services.journey_log_client import JourneyLogClient
@@ -440,6 +453,9 @@ def client_with_deterministic_seed(test_env):
             app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
             app.dependency_overrides[get_character_rate_limiter] = lambda: test_rate_limiter
             app.dependency_overrides[get_llm_semaphore] = lambda: test_llm_semaphore
+            
+            # Mock auth dependency
+            app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
             
             with TestClient(app) as client:
                 yield client

@@ -110,6 +110,10 @@ class Settings(BaseSettings):
         default=False,
         description="Enable debug endpoints like /debug/parse_llm (for local development only)"
     )
+    dev_bypass_auth: bool = Field(
+        default=False,
+        description="Enable development bypass for authentication (allows X-Dev-User-Id header instead of Firebase token)"
+    )
 
     # PolicyEngine Configuration
     quest_trigger_prob: float = Field(

@@ -193,8 +193,8 @@ async def test_get_random_pois_unexpected_error(journey_log_client, mock_http_cl
 
 
 @pytest.mark.asyncio
-async def test_get_random_pois_with_trace_id(journey_log_client, mock_http_client):
-    """Test random POI retrieval includes trace ID in headers."""
+async def test_get_random_pois_with_user_id(journey_log_client, mock_http_client):
+    """Test random POI retrieval includes user ID in headers."""
     # Mock successful response
     mock_response = MagicMock(spec=Response)
     mock_response.status_code = 200
@@ -209,16 +209,16 @@ async def test_get_random_pois_with_trace_id(journey_log_client, mock_http_clien
     mock_response.raise_for_status = MagicMock()
     mock_http_client.get.return_value = mock_response
     
-    # Call method with trace_id
+    # Call method with user_id
     result = await journey_log_client.get_random_pois(
         character_id="test-char-123",
         n=1,
-        trace_id="trace-xyz"
+        user_id="user-xyz"
     )
     
-    # Verify trace ID included in headers
+    # Verify user ID included in headers
     call_args = mock_http_client.get.call_args
-    assert call_args[1]["headers"]["X-Trace-Id"] == "trace-xyz"
+    assert call_args[1]["headers"]["X-User-Id"] == "user-xyz"
 
 
 @pytest.mark.asyncio
@@ -414,7 +414,7 @@ async def test_poi_trigger_frequency_over_multiple_turns():
             character_id="poi-frequency-char",
             user_action=f"Explore turn {turn_num}",
             context=context,
-            trace_id=f"trace-{turn_num}"
+            user_id=f"trace-{turn_num}"
         )
         
         if summary.poi_change.action == "create" and summary.poi_change.success:
@@ -541,7 +541,7 @@ async def test_poi_memory_sparks_integration_with_triggers():
         character_id="memory-spark-char",
         user_action="I explore",
         context=context,
-        trace_id="trace-memory"
+        user_id="trace-123"
     )
     
     # Verify narrative completed
@@ -570,8 +570,11 @@ async def test_memory_spark_probabilistic_behavior():
     from httpx import Response
     
     # Setup with deterministic seed and low probability
+    # NOTE: Memory sparks are now only evaluated when quests are eligible,
+    # so we need to enable quest triggers for memory sparks to be fetched
     policy_engine = PolicyEngine(
-        quest_trigger_prob=0.0,
+        quest_trigger_prob=1.0,  # Enable quest triggers (required for memory sparks)
+        quest_cooldown_turns=0,  # No cooldown so quests always eligible
         poi_trigger_prob=0.0,
         memory_spark_probability=0.3,  # 30% chance
         quest_poi_reference_probability=0.0,
@@ -593,6 +596,7 @@ async def test_memory_spark_probabilistic_behavior():
     mock_sparks_response.raise_for_status = MagicMock()
     mock_http_client.get.return_value = mock_sparks_response
     mock_http_client.post.return_value = MagicMock(spec=Response, status_code=200)
+    mock_http_client.put.return_value = MagicMock(spec=Response, status_code=200)  # For quest offers
     
     journey_log_client = JourneyLogClient(
         base_url="http://test",
@@ -624,7 +628,7 @@ async def test_memory_spark_probabilistic_behavior():
             policy_state=PolicyState(
                 has_active_quest=False,
                 combat_active=False,
-                turns_since_last_quest=999,
+                turns_since_last_quest=999,  # Ensures quest always eligible
                 turns_since_last_poi=999
             )
         )
@@ -650,7 +654,7 @@ async def test_memory_spark_probabilistic_behavior():
             character_id="spark-test-char",
             user_action=f"Turn {turn_num}",
             context=context,
-            trace_id=f"trace-{turn_num}"
+            user_id=f"trace-{turn_num}"
         )
         
         # Check if memory sparks were fetched (GET call made)
@@ -775,7 +779,7 @@ async def test_quest_poi_reference_probabilistic():
             character_id="quest-ref-char",
             user_action=f"Accept quest {turn_num}",
             context=context,
-            trace_id=f"trace-{turn_num}"
+            user_id=f"trace-{turn_num}"
         )
         
         # Check if quest has POI reference
@@ -879,7 +883,7 @@ async def test_memory_spark_disabled_when_probability_zero():
             character_id="no-spark-char",
             user_action=f"Turn {turn_num}",
             context=context,
-            trace_id=f"trace-{turn_num}"
+            user_id=f"trace-{turn_num}"
         )
     
     # Verify GET was never called for random POIs

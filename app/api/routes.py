@@ -23,13 +23,13 @@ Note: Streaming endpoints have been removed to simplify the MVP.
 The service now operates in synchronous mode only.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from httpx import AsyncClient
 import re
 import time
 import math
 
-from app.models import TurnRequest, TurnResponse, HealthResponse, DebugParseRequest
+from app.models import TurnRequest, TurnResponse, HealthResponse, DebugParseRequest, PolicyConfigReloadRequest, PolicyConfigReloadResponse, PolicyConfigResponse, AdminTurnDetail, AdminRecentTurnsResponse, CharacterCreationRequest, CharacterCreationResponse
 from app.config import get_settings, Settings
 from app.services.journey_log_client import (
     JourneyLogClient,
@@ -42,12 +42,14 @@ from app.services.llm_client import (
     LLMResponseError,
     LLMClientError
 )
+from app.api.deps import get_current_user_id
 from app.services.outcome_parser import OutcomeParser
 from app.services.turn_orchestrator import TurnOrchestrator
 from app.logging import (
     StructuredLogger,
     PhaseTimer,
     set_character_id,
+    set_user_id,
     set_turn_id,
     get_request_id,
     get_turn_id,
@@ -278,6 +280,7 @@ def get_llm_semaphore():
 )
 async def process_turn(
     request: TurnRequest,
+    user_id: str = Depends(get_current_user_id),
     journey_log_client: JourneyLogClient = Depends(get_journey_log_client),
     turn_orchestrator: TurnOrchestrator = Depends(get_turn_orchestrator),
     character_rate_limiter = Depends(get_character_rate_limiter),
@@ -300,6 +303,7 @@ async def process_turn(
     
     Args:
         request: Turn request with character_id and user_action
+        user_id: User identifier from Firebase authentication
         journey_log_client: JourneyLogClient for journey-log communication (injected)
         turn_orchestrator: TurnOrchestrator for turn processing (injected)
         character_rate_limiter: RateLimiter for per-character throttling (injected)
@@ -369,7 +373,8 @@ async def process_turn(
         "Processing turn request",
         turn_id=turn_id,
         character_id=safe_character_id,
-        action_preview=safe_action
+        action_preview=safe_action,
+        user_id=user_id
     )
     
     # Track latencies for turn logging
@@ -392,7 +397,7 @@ async def process_turn(
             logger.debug("Fetching context from journey-log")
             context = await journey_log_client.get_context(
                 character_id=request.character_id,
-                trace_id=request.trace_id
+                user_id=user_id
             )
         latencies['context_fetch_ms'] = (time.time() - context_start) * 1000
 
@@ -412,7 +417,7 @@ async def process_turn(
                     character_id=request.character_id,
                     user_action=request.user_action,
                     context=context,
-                    trace_id=request.trace_id,
+                    user_id=user_id,
                     dry_run=False
                 )
         latencies['orchestration_ms'] = (time.time() - orchestration_start) * 1000
@@ -658,85 +663,6 @@ async def process_turn(
                 )
 
 
-@router.post(
-    "/turn/stream",
-    status_code=status.HTTP_410_GONE,
-    summary="Streaming endpoint removed",
-    description=(
-        "The streaming narrative endpoint has been removed to simplify the MVP. "
-        "All clients should use the synchronous POST /turn endpoint instead. "
-        "This endpoint returns HTTP 410 Gone to indicate permanent removal."
-    ),
-    responses={
-        410: {
-            "description": "Streaming endpoint permanently removed",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "detail": {
-                            "error": {
-                                "type": "endpoint_removed",
-                                "message": "Streaming endpoints have been removed. Use POST /turn instead.",
-                                "request_id": None
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-)
-async def process_turn_stream_removed(
-    request: TurnRequest,
-    settings: Settings = Depends(get_settings)
-):
-    """Streaming endpoint removed - returns 410 Gone.
-    
-    The streaming narrative endpoint has been disabled to maintain a synchronous
-    MVP architecture. All clients should migrate to the POST /turn endpoint which
-    provides the same functionality with a simpler, synchronous response model.
-    
-    Note: This endpoint still validates the TurnRequest model to provide better
-    error messages for clients. If the request is malformed, FastAPI will return
-    422 Unprocessable Entity before reaching this handler. Valid requests receive
-    410 Gone with migration guidance.
-    
-    Migration:
-    - Replace POST /turn/stream calls with POST /turn
-    - Expect a single JSON response with narrative, intents, and subsystem_summary
-    - Remove SSE/EventSource client code
-    
-    Args:
-        request: Turn request (same model as /turn endpoint) - validated for better errors
-        settings: Application settings (injected)
-        
-    Returns:
-        HTTPException with 410 Gone status
-        
-    Raises:
-        HTTPException: Always raises 410 Gone with migration guidance
-    """
-    logger.info(
-        "Streaming endpoint called but disabled",
-        character_id=request.character_id,
-        action_preview=sanitize_for_log(request.user_action, 50)
-    )
-    
-    # Record metrics for monitoring deprecated endpoint usage
-    if (collector := get_metrics_collector()):
-        collector.record_error("streaming_endpoint_called_after_removal")
-    
-    raise create_error_response(
-        error_type="endpoint_removed",
-        message=(
-            "Streaming endpoints have been removed to simplify the MVP. "
-            "Please use the synchronous POST /turn endpoint instead. "
-            "See migration guide in response for details."
-        ),
-        status_code=status.HTTP_410_GONE
-    )
-
-
 @router.get(
     "/admin/turns/{turn_id}",
     response_model=None,  # We'll return AdminTurnDetail from models
@@ -752,7 +678,7 @@ async def process_turn_stream_removed(
     responses={
         200: {
             "description": "Turn details retrieved successfully",
-            "model": "AdminTurnDetail"
+            "model": AdminTurnDetail
         },
         404: {
             "description": "Turn not found or admin endpoints disabled",
@@ -846,7 +772,7 @@ async def get_turn_details(
     responses={
         200: {
             "description": "Recent turns retrieved successfully",
-            "model": "AdminRecentTurnsResponse"
+            "model": AdminRecentTurnsResponse
         },
         404: {
             "description": "Admin endpoints disabled"
@@ -934,7 +860,7 @@ async def get_character_recent_turns(
     responses={
         200: {
             "description": "Policy config retrieved successfully",
-            "model": "PolicyConfigResponse"
+            "model": PolicyConfigResponse
         },
         404: {"description": "Admin endpoints disabled"}
     }
@@ -1010,7 +936,7 @@ async def get_policy_config(
     responses={
         200: {
             "description": "Policy config reloaded successfully",
-            "model": "PolicyConfigReloadResponse"
+            "model": PolicyConfigReloadResponse
         },
         400: {
             "description": "Invalid config values",
@@ -1030,7 +956,7 @@ async def get_policy_config(
     }
 )
 async def reload_policy_config(
-    request_body: "PolicyConfigReloadRequest",
+    request_body: PolicyConfigReloadRequest,
     settings: Settings = Depends(get_settings)
 ):
     """Reload policy configuration from file or provided values.
@@ -1053,9 +979,6 @@ async def reload_policy_config(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Admin endpoints are disabled. Set ADMIN_ENDPOINTS_ENABLED=true to enable."
         )
-    
-    # Import models
-    from app.models import PolicyConfigReloadRequest, PolicyConfigReloadResponse, PolicyConfigResponse
     
     # Get managers from app state
     from app.main import get_policy_config_manager, get_policy_engine
@@ -1344,7 +1267,7 @@ async def debug_parse_llm(
     This endpoint should NOT be enabled in production environments.
     
     Args:
-        request: Pydantic model with "llm_response" and optional "trace_id"
+        request: Pydantic model with "llm_response" and optional "user_id"
         settings: Application settings (injected)
         
     Returns:
@@ -1361,7 +1284,7 @@ async def debug_parse_llm(
     
     # Parse the response using the outcome parser
     parser = OutcomeParser()
-    parsed = parser.parse(request.llm_response, trace_id=request.trace_id)
+    parsed = parser.parse(request.llm_response, user_id=request.user_id)
     
     # Build summary of intents if outcome is valid
     intents_summary = None
@@ -1382,3 +1305,75 @@ async def debug_parse_llm(
         "intents_summary": intents_summary,
         "schema_version": parser.schema_version
     }
+@router.post(
+    "/characters",
+    response_model=CharacterCreationResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new character",
+    description="Create a new character and generate an introductory narrative scene."
+)
+async def create_character(
+    request: CharacterCreationRequest,
+    user_id: str = Depends(get_current_user_id),
+    turn_orchestrator: TurnOrchestrator = Depends(get_turn_orchestrator),
+    character_rate_limiter = Depends(get_character_rate_limiter)
+) -> CharacterCreationResponse:
+    # Correlate this request with the user's ID in logs
+    set_user_id(user_id)
+    
+    # Rate limiting (bucket based on user ID for creation to prevent spam)
+    # Using user_id as key for rate limiting creation specifically
+    await character_rate_limiter.acquire(user_id)
+    
+    logger.info(
+        "Received character creation request",
+        character_name=request.name,
+        race=request.race,
+        class_name=request.class_name
+    )
+    
+    try:
+        narrative, character_data = await turn_orchestrator.orchestrate_intro(
+            name=request.name,
+            race=request.race,
+            class_name=request.class_name,
+            custom_prompt=request.custom_prompt,
+            user_id=user_id
+        )
+        
+        # Extract character_id - journey_log_client normalizes to top-level character_id
+        # but add defensive extraction for all possible locations
+        character_id = character_data.get("character_id")
+        
+        if not character_id:
+            # Try nested structure
+            if "character" in character_data and isinstance(character_data["character"], dict):
+                character_id = (
+                    character_data["character"].get("character_id") or
+                    character_data["character"].get("id") or
+                    character_data["character"].get("characterId")
+                )
+            
+            # Try alternative top-level names
+            if not character_id:
+                character_id = character_data.get("id") or character_data.get("characterId")
+        
+        if not character_id:
+            logger.error(
+                "No character_id in response",
+                response_keys=list(character_data.keys()),
+                full_response=character_data
+            )
+            raise ValueError(f"No character_id in response. Got keys: {list(character_data.keys())}")
+        
+        return CharacterCreationResponse(
+            character_id=character_id,
+            narrative=narrative
+        )
+        
+    except Exception as e:
+        logger.error(f"Character creation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create character: {str(e)}"
+        )

@@ -51,6 +51,7 @@ class JourneyLogClient:
     
     This client handles:
     - Fetching character context for LLM prompting
+    - Creating new characters
     - Persisting narrative turns after LLM generation
     - Error handling and retries for transient failures
     """
@@ -221,12 +222,79 @@ class JourneyLogClient:
             additional_fields.get("last_poi_created_at"), "last_poi_created_at"
         )
         
-        # Extract and validate turn counters from additional_fields with safe defaults
-        turns_since_last_quest = self._validate_turn_counter(
-            additional_fields.get("turns_since_last_quest", 0), "turns_since_last_quest"
+        # Extract and validate turn counters - now tracked automatically by journey-log
+        # Journey-log increments these with each narrative turn and resets on quest/POI creation
+        # 
+        # IMPORTANT: Check multiple locations in priority order:
+        # 1. metadata object (where journey-log now returns them)
+        # 2. Top-level data (in case they're at root level)
+        # 3. player_state.additional_fields (legacy/fallback location)
+        # 4. Default to 0 if not found anywhere
+        
+        # Must use 'is not None' checks because 0 is a valid value
+        metadata = data.get("metadata", {})
+        
+        # turns_since_last_quest
+        if "turns_since_last_quest" in metadata:
+            turns_since_last_quest = metadata["turns_since_last_quest"]
+        elif "turns_since_last_quest" in data:
+            turns_since_last_quest = data["turns_since_last_quest"]
+        elif "turns_since_last_quest" in additional_fields:
+            turns_since_last_quest = additional_fields["turns_since_last_quest"]
+        else:
+            turns_since_last_quest = 0
+        turns_since_last_quest = self._validate_turn_counter(turns_since_last_quest, "turns_since_last_quest")
+        
+        # turns_since_last_poi
+        if "turns_since_last_poi" in metadata:
+            turns_since_last_poi = metadata["turns_since_last_poi"]
+        elif "turns_since_last_poi" in data:
+            turns_since_last_poi = data["turns_since_last_poi"]
+        elif "turns_since_last_poi" in additional_fields:
+            turns_since_last_poi = additional_fields["turns_since_last_poi"]
+        else:
+            turns_since_last_poi = 0
+        turns_since_last_poi = self._validate_turn_counter(turns_since_last_poi, "turns_since_last_poi")
+        
+        # total_turns (called "current_turn" in journey-log)
+        if "current_turn" in metadata:
+            total_turns = metadata["current_turn"]
+        elif "current_turn" in data:
+            total_turns = data["current_turn"]
+        elif "total_turns" in metadata:
+            total_turns = metadata["total_turns"]
+        elif "total_turns" in data:
+            total_turns = data["total_turns"]
+        elif "total_turns" in additional_fields:
+            total_turns = additional_fields["total_turns"]
+        else:
+            total_turns = 0
+        total_turns = self._validate_turn_counter(total_turns, "total_turns")
+        
+        # Debug logging to see what we're receiving
+        logger.info(
+            f"Turn counter extraction - "
+            f"top_level: turns_since_last_quest={data.get('turns_since_last_quest')}, "
+            f"turns_since_last_poi={data.get('turns_since_last_poi')}, "
+            f"current_turn={data.get('current_turn')}, "
+            f"total_turns={data.get('total_turns')} | "
+            f"metadata: turns_since_last_quest={metadata.get('turns_since_last_quest')}, "
+            f"turns_since_last_poi={metadata.get('turns_since_last_poi')}, "
+            f"current_turn={metadata.get('current_turn')}, "
+            f"total_turns={metadata.get('total_turns')} | "
+            f"additional_fields: turns_since_last_quest={additional_fields.get('turns_since_last_quest')}, "
+            f"turns_since_last_poi={additional_fields.get('turns_since_last_poi')}, "
+            f"total_turns={additional_fields.get('total_turns')} | "
+            f"EXTRACTED VALUES: quest={turns_since_last_quest}, poi={turns_since_last_poi}, total={total_turns}"
         )
-        turns_since_last_poi = self._validate_turn_counter(
-            additional_fields.get("turns_since_last_poi", 0), "turns_since_last_poi"
+        
+        logger.info(
+            f"Extracted policy state from journey-log - "
+            f"turns_since_last_quest={turns_since_last_quest}, "
+            f"turns_since_last_poi={turns_since_last_poi}, "
+            f"total_turns={total_turns}, "
+            f"has_active_quest={has_active_quest}, "
+            f"last_quest_completed_at={last_quest_completed_at}"
         )
         
         # Extract player engagement flags from additional_fields
@@ -253,7 +321,7 @@ class JourneyLogClient:
         self,
         character_id: str,
         recent_n: Optional[int] = None,
-        trace_id: Optional[str] = None
+        user_id: Optional[str] = None
     ) -> JourneyLogContext:
         """Fetch character context for LLM prompting.
         
@@ -268,7 +336,7 @@ class JourneyLogClient:
         Args:
             character_id: UUID of the character
             recent_n: Number of recent turns to fetch (defaults to recent_n_default)
-            trace_id: Optional trace ID for request correlation
+            user_id: Optional user ID for request correlation (passed as X-User-Id header)
             
         Returns:
             JourneyLogContext with character state
@@ -288,8 +356,8 @@ class JourneyLogClient:
         }
 
         headers = {}
-        if trace_id:
-            headers["X-Trace-Id"] = trace_id
+        if user_id:
+            headers["X-User-Id"] = user_id
 
         logger.info(
             "Fetching context from journey-log",
@@ -374,6 +442,7 @@ class JourneyLogClient:
 
                 context = JourneyLogContext(
                     character_id=data["character_id"],
+                    adventure_prompt=data.get("adventure_prompt"),
                     status=player_state["status"],
                     location=player_state["location"],
                     active_quest=data.get("quest"),
@@ -565,18 +634,151 @@ class JourneyLogClient:
             ) from last_exception
         raise JourneyLogClientError(f"Failed to {operation_name} with unknown error")
 
+
+    async def create_character(
+        self,
+        name: str,
+        race: str,
+        class_name: str,
+        custom_prompt: Optional[str] = None,
+        location_id: Optional[str] = None,
+        location_display_name: Optional[str] = None,
+        user_id: Optional[str] = None
+    ) -> dict:
+        """Create a new character in journey-log.
+        
+        Makes a POST request to /characters.
+        
+        Args:
+            name: Character name
+            race: Character race
+            class_name: Character class
+            custom_prompt: Optional world setting prompt
+            location_id: Optional starting location ID (e.g., 'town:rivendell')
+            location_display_name: Optional human-readable location name
+            user_id: Optional user ID for request correlation
+            
+        Returns:
+            Dictionary containing created character details (including 'character_id')
+            
+        Raises:
+            JourneyLogClientError: If creation fails
+        """
+        url = f"{self.base_url}/characters"
+        
+        headers = {}
+        if user_id:
+            headers["X-User-Id"] = user_id
+            
+        # Journey-log expects 'class' and 'adventure_prompt' field names
+        payload = {
+            "name": name,
+            "race": race,
+            "class": class_name,
+            "adventure_prompt": custom_prompt
+        }
+        
+        # Add optional location fields if provided
+        if location_id:
+            payload["location_id"] = location_id
+        if location_display_name:
+            payload["location_display_name"] = location_display_name
+        
+        logger.info("Creating new character", character_name=name, race=race, class_name=class_name)
+        
+        start_time = time.time()
+        try:
+            response = await self.http_client.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.timeout
+            )
+            duration_ms = (time.time() - start_time) * 1000
+            response.raise_for_status()
+            
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_journey_log_latency("create_character", duration_ms)
+                
+            data = response.json()
+            # Journey-log returns a 'character' object, extract the id from it
+            logger.info(
+                "Character creation response received",
+                response_data=data,
+                response_keys=list(data.keys())
+            )
+            
+            # Normalize character_id extraction - journey-log may return:
+            # 1. {'character': {'id': '...', 'character_id': '...', ...}}
+            # 2. {'character_id': '...', ...}
+            # 3. {'id': '...', ...}
+            character_id = None
+            if "character" in data and isinstance(data["character"], dict):
+                # Try multiple field names in the nested character object
+                character_id = (
+                    data["character"].get("character_id") or 
+                    data["character"].get("id") or
+                    data["character"].get("characterId")
+                )
+            
+            # Fallback to top-level fields if not found in nested object
+            if not character_id:
+                character_id = data.get("character_id") or data.get("id") or data.get("characterId")
+            
+            # Always normalize to top-level character_id for consistent access
+            if character_id:
+                data["character_id"] = character_id
+            
+            logger.info(
+                "Successfully created character",
+                character_id=character_id,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            return data
+            
+        except HTTPStatusError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "HTTP error creating character",
+                status_code=e.response.status_code,
+                duration_ms=f"{duration_ms:.2f}",
+                error=redact_secrets(e.response.text)
+            )
+            raise JourneyLogClientError(
+                f"Journey-log returned {e.response.status_code}: {e.response.text}",
+                status_code=e.response.status_code
+            ) from e
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Unexpected error creating character",
+                error_type=type(e).__name__,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogClientError(
+                f"Failed to create character: {e}"
+            ) from e
+
     async def persist_narrative(
         self,
         character_id: str,
         user_action: str,
         narrative: str,
-        trace_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        additional_fields: Optional[dict] = None
     ) -> None:
         """Persist a narrative turn to journey-log.
         
         Makes a POST request to /characters/{character_id}/narrative with:
         - user_action: The player's action
         - ai_response: The generated narrative
+        
+        NOTE: additional_fields parameter is accepted but NOT sent to journey-log
+        as the /narrative endpoint doesn't support it. This is for API compatibility
+        and future enhancement. Turn counters should be tracked via quest/POI writes.
         
         **IMPORTANT**: This method does NOT retry on failure to prevent duplicate
         narrative entries. POST operations are not idempotent.
@@ -585,7 +787,8 @@ class JourneyLogClient:
             character_id: UUID of the character
             user_action: The player's action text
             narrative: The AI-generated narrative response
-            trace_id: Optional trace ID for request correlation
+            user_id: Optional user ID for request correlation (passed as X-User-Id header)
+            additional_fields: Optional additional state (NOT sent to journey-log currently)
             
         Raises:
             JourneyLogNotFoundError: If character not found (404)
@@ -595,8 +798,8 @@ class JourneyLogClient:
         url = f"{self.base_url}/characters/{character_id}/narrative"
 
         headers = {}
-        if trace_id:
-            headers["X-Trace-Id"] = trace_id
+        if user_id:
+            headers["X-User-Id"] = user_id
 
         payload = {
             "user_action": user_action,
@@ -677,12 +880,91 @@ class JourneyLogClient:
             raise JourneyLogClientError(
                 f"Failed to persist narrative: {e}"
             ) from e
-    
+
+    async def leave_poi(
+        self,
+        character_id: str,
+        user_id: Optional[str] = None
+    ) -> None:
+        """Leave the current POI (Point of Interest).
+        
+        Makes a DELETE request to /characters/{character_id}/poi to exit the current
+        POI. The character will be in a transitional state until entering a new POI.
+        
+        Args:
+            character_id: UUID of the character
+            user_id: Optional user ID for request correlation
+            
+        Raises:
+            JourneyLogNotFoundError: If character not found (404)
+            JourneyLogClientError: For other errors
+        """
+        url = f"{self.base_url}/characters/{character_id}/poi"
+        
+        headers = {}
+        if user_id:
+            headers["X-User-Id"] = user_id
+        
+        logger.info(
+            "Leaving current POI",
+            character_id=character_id
+        )
+        
+        start_time = time.time()
+        try:
+            response = await self.http_client.delete(
+                url,
+                headers=headers,
+                timeout=self.timeout
+            )
+            duration_ms = (time.time() - start_time) * 1000
+            response.raise_for_status()
+            
+            logger.info(
+                "Successfully left POI",
+                character_id=character_id,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            
+        except HTTPStatusError as e:
+            duration_ms = (time.time() - start_time) * 1000
+            if e.response.status_code == 404:
+                logger.error(
+                    "Character not found when leaving POI",
+                    status_code=404,
+                    duration_ms=f"{duration_ms:.2f}"
+                )
+                raise JourneyLogNotFoundError(
+                    f"Character {character_id} not found"
+                ) from e
+            else:
+                logger.error(
+                    "HTTP error leaving POI",
+                    status_code=e.response.status_code,
+                    duration_ms=f"{duration_ms:.2f}",
+                    error=redact_secrets(e.response.text)
+                )
+                raise JourneyLogClientError(
+                    f"Journey-log returned {e.response.status_code}: {e.response.text}",
+                    status_code=e.response.status_code
+                ) from e
+                
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(
+                "Unexpected error leaving POI",
+                error_type=type(e).__name__,
+                duration_ms=f"{duration_ms:.2f}"
+            )
+            raise JourneyLogClientError(
+                f"Failed to leave POI: {e}"
+            ) from e
+
     async def put_quest(
         self,
         character_id: str,
         quest_data: Optional[dict],
-        trace_id: Optional[str] = None
+        user_id: Optional[str] = None
     ) -> None:
         """Create or update a quest for the character.
         
@@ -694,7 +976,7 @@ class JourneyLogClient:
         Args:
             character_id: UUID of the character
             quest_data: Quest information (title, summary, details)
-            trace_id: Optional trace ID for request correlation
+            user_id: Optional user ID for request correlation (passed as X-User-Id header)
             
         Raises:
             JourneyLogNotFoundError: If character not found (404)
@@ -704,8 +986,8 @@ class JourneyLogClient:
         url = f"{self.base_url}/characters/{character_id}/quest"
         
         headers = {}
-        if trace_id:
-            headers["X-Trace-Id"] = trace_id
+        if user_id:
+            headers["X-User-Id"] = user_id
         
         logger.info(
             "Putting quest to journey-log",
@@ -784,7 +1066,7 @@ class JourneyLogClient:
     async def delete_quest(
         self,
         character_id: str,
-        trace_id: Optional[str] = None
+        user_id: Optional[str] = None
     ) -> None:
         """Delete (complete/abandon) the active quest for the character.
         
@@ -795,7 +1077,7 @@ class JourneyLogClient:
         
         Args:
             character_id: UUID of the character
-            trace_id: Optional trace ID for request correlation
+            user_id: Optional user ID for request correlation (passed as X-User-Id header)
             
         Raises:
             JourneyLogNotFoundError: If character not found (404)
@@ -805,8 +1087,8 @@ class JourneyLogClient:
         url = f"{self.base_url}/characters/{character_id}/quest"
         
         headers = {}
-        if trace_id:
-            headers["X-Trace-Id"] = trace_id
+        if user_id:
+            headers["X-User-Id"] = user_id
         
         logger.info(
             "Deleting quest from journey-log",
@@ -885,7 +1167,7 @@ class JourneyLogClient:
         character_id: str,
         combat_data: Optional[dict],
         action_type: str,
-        trace_id: Optional[str] = None
+        user_id: Optional[str] = None
     ) -> None:
         """Create, update, or end combat for the character.
         
@@ -903,7 +1185,7 @@ class JourneyLogClient:
             character_id: UUID of the character
             combat_data: Combat state object (CombatState schema) or None to clear
             action_type: Type of combat action (start/continue/end) for logging only
-            trace_id: Optional trace ID for request correlation
+            user_id: Optional user ID for request correlation (passed as X-User-Id header)
             
         Raises:
             JourneyLogNotFoundError: If character not found (404)
@@ -913,8 +1195,8 @@ class JourneyLogClient:
         url = f"{self.base_url}/characters/{character_id}/combat"
         
         headers = {}
-        if trace_id:
-            headers["X-Trace-Id"] = trace_id
+        if user_id:
+            headers["X-User-Id"] = user_id
         
         logger.info(
             "Putting combat to journey-log",
@@ -1003,7 +1285,7 @@ class JourneyLogClient:
         character_id: str,
         poi_data: Optional[dict],
         action_type: str,
-        trace_id: Optional[str] = None
+        user_id: Optional[str] = None
     ) -> None:
         """Create or reference a point of interest.
         
@@ -1016,7 +1298,7 @@ class JourneyLogClient:
             character_id: UUID of the character
             poi_data: POI information (name, description, tags)
             action_type: Type of POI action (create/reference)
-            trace_id: Optional trace ID for request correlation
+            user_id: Optional user ID for request correlation (passed as X-User-Id header)
             
         Raises:
             JourneyLogNotFoundError: If character not found (404)
@@ -1026,8 +1308,8 @@ class JourneyLogClient:
         url = f"{self.base_url}/characters/{character_id}/pois"
         
         headers = {}
-        if trace_id:
-            headers["X-Trace-Id"] = trace_id
+        if user_id:
+            headers["X-User-Id"] = user_id
         
         logger.info(
             "Posting POI to journey-log",
@@ -1129,7 +1411,7 @@ class JourneyLogClient:
         self,
         character_id: str,
         n: int = 3,
-        trace_id: Optional[str] = None
+        user_id: Optional[str] = None
     ) -> list[dict]:
         """Fetch random POIs for memory spark injection.
         
@@ -1142,7 +1424,7 @@ class JourneyLogClient:
         Args:
             character_id: UUID of the character
             n: Number of random POIs to fetch (1-20)
-            trace_id: Optional trace ID for request correlation
+            user_id: Optional user ID for request correlation (passed as X-User-Id header)
             
         Returns:
             List of POI dictionaries (may be empty)
@@ -1154,8 +1436,8 @@ class JourneyLogClient:
         params = {"n": n}
         
         headers = {}
-        if trace_id:
-            headers["X-Trace-Id"] = trace_id
+        if user_id:
+            headers["X-User-Id"] = user_id
         
         logger.info(
             "Fetching random POIs from journey-log",

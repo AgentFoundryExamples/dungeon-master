@@ -361,7 +361,7 @@ class OutcomeParser:
     def parse(
         self,
         response_text: str,
-        trace_id: Optional[str] = None
+        user_id: Optional[str] = None
     ) -> ParsedOutcome:
         """Parse LLM response text into DungeonMasterOutcome with fallback.
         
@@ -378,7 +378,7 @@ class OutcomeParser:
         
         Args:
             response_text: Raw text response from LLM
-            trace_id: Optional trace ID for correlation
+            user_id: Optional user ID for correlation
             
         Returns:
             ParsedOutcome with outcome (if valid) and narrative (always present)
@@ -399,7 +399,7 @@ class OutcomeParser:
                 error_type="json_decode_error",
                 error_details=error_msg,
                 payload_preview=truncated_payload,
-                trace_id=trace_id,
+                user_id=user_id,
                 turn_id=get_turn_id()
             )
             
@@ -427,7 +427,7 @@ class OutcomeParser:
                 has_combat_intent=outcome.intents.combat_intent is not None,
                 has_poi_intent=outcome.intents.poi_intent is not None,
                 has_meta_intent=outcome.intents.meta is not None,
-                trace_id=trace_id,
+                user_id=user_id,
                 turn_id=get_turn_id()
             )
             
@@ -448,7 +448,7 @@ class OutcomeParser:
                 error_count=len(error_list),
                 error_details=error_list,
                 payload_preview=truncated_payload,
-                trace_id=trace_id,
+                user_id=user_id,
                 turn_id=get_turn_id()
             )
             
@@ -473,7 +473,7 @@ class OutcomeParser:
                 error_type="unexpected_error",
                 error_details=error_list,
                 payload_preview=truncated_payload,
-                trace_id=trace_id,
+                user_id=user_id,
                 turn_id=get_turn_id()
             )
             

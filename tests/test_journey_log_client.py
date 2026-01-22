@@ -15,7 +15,7 @@
 
 import pytest
 from httpx import AsyncClient, Response
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 from app.services.journey_log_client import (
     JourneyLogClient,
@@ -70,7 +70,7 @@ async def test_get_context_success(journey_log_client, mock_http_client):
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     # Call get_context
@@ -122,24 +122,24 @@ async def test_get_context_not_found(journey_log_client, mock_http_client):
 async def test_persist_narrative_success(journey_log_client, mock_http_client):
     """Test successful narrative persistence."""
     mock_response = AsyncMock(spec=Response)
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.post.return_value = mock_response
     
     # Call persist_narrative
     await journey_log_client.persist_narrative(
-        character_id="550e8400-e29b-41d4-a716-446655440000",
-        user_action="I search the room",
-        narrative="You find a hidden passage",
-        trace_id="trace-123"
+        character_id="test-char-123",
+        user_action="I look around",
+        narrative="You see a dark cave.",
+        user_id="user-123"
     )
     
-    # Verify the HTTP call
+    # Verify post call
     mock_http_client.post.assert_called_once()
     call_args = mock_http_client.post.call_args
-    assert "550e8400-e29b-41d4-a716-446655440000/narrative" in call_args[0][0]
-    assert call_args[1]["json"]["user_action"] == "I search the room"
-    assert call_args[1]["json"]["ai_response"] == "You find a hidden passage"
-    assert call_args[1]["headers"]["X-Trace-Id"] == "trace-123"
+    assert "test-char-123/narrative" in call_args[0][0]
+    assert call_args[1]["json"]["user_action"] == "I look around"
+    assert call_args[1]["json"]["ai_response"] == "You see a dark cave."
+    assert call_args.kwargs["headers"]["X-User-Id"] == "user-123"
 
 
 @pytest.mark.asyncio

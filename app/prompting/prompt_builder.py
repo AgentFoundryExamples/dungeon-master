@@ -14,7 +14,7 @@
 """Prompt builder for constructing LLM prompts from game context."""
 
 import json
-from typing import Tuple
+from typing import Tuple, Optional
 from app.models import JourneyLogContext, PolicyHints, get_outcome_json_schema, get_outcome_schema_example
 
 
@@ -55,7 +55,46 @@ Your role:
 - Consider active quests, combat situations, and location context
 - Suggest intents (quest, combat, POI actions) based on narrative context
 - Keep narrative concise but descriptive (aim for 2-4 paragraphs)
-- Respond to the player's action in a natural, story-driven way
+- Respond IMMEDIATELY and DIRECTLY to the player's action - don't make them repeat themselves
+
+CRITICAL RESPONSIVENESS RULES:
+- When a player states an action, EXECUTE it in the narrative in a way that meaningfully moves the story forward - don't ask for confirmation
+- Example: "I enter the tavern" -> Describe them entering and the scene inside, not "You walk up to the door slowly about to enter the tavern"
+- Example: "I attack the goblin" -> Describe the attack and result, not "You prepare your sword to swing"
+- Example: "I pick up the sword" -> They have it, describe what happens
+- MOVE THE STORY FORWARD with each response - the player drives the plot
+- Only ask clarifying questions if the action is genuinely ambiguous
+- Respect the world setting/adventure prompt if provided - maintain its tone and themes
+
+LOCATION SYSTEM:
+- POIs (Points of Interest) are named, significant locations (towns, dungeons, taverns, forests, landmarks)
+- minor_location is ALWAYS updated - describes character's exact current position within or between locations
+
+CRITICAL LOCATION TRACKING RULES:
+- When character is IN a meaningful named location (POI):
+  * Set location_id (e.g., 'tavern:rusty_nail', 'town:willowdale', 'dungeon:shadow_keep')
+  * Set location_display_name (e.g., 'The Rusty Nail Tavern', 'Willowdale Village')
+  * Set minor_location to describe exact position within (e.g., 'at the bar', 'in the town square')
+  * Use action='update_minor' when moving within the same POI
+  * Example: location_id='tavern:rusty_nail', location_display_name='The Rusty Nail Tavern', minor_location='at the bar counter'
+
+- When character is BETWEEN locations or in wilderness:
+  * Set location_id=null and location_display_name=null
+  * Set minor_location to describe the travel path or wilderness area
+  * Use action='update_minor'
+  * Example: location_id=null, location_display_name=null, minor_location='on the forest road heading north toward the mountains'
+
+- When character ENTERS a new significant location:
+  * Create the POI using poi_intent with action='create'
+  * Set the location fields (location_id, location_display_name, minor_location)
+  * Use action='update_minor' in location_intent
+
+- When character LEAVES a POI to travel:
+  * Use action='leave_poi' in location_intent
+  * This will set location_id/display_name to null automatically
+  * Update minor_location to describe where they're going
+
+KEY PRINCIPLE: Always meaningfully track WHERE the character is. If they're at a named place, fill in location_id and location_display_name. Update minor_location with EVERY movement to show precise position.
 
 STATUS TRANSITIONS AND GAME OVER RULES:
 Characters progress through health statuses in strict order: Healthy -> Wounded -> Dead
@@ -82,6 +121,38 @@ Guidelines for intents field:
 - Be concise in intent descriptions - avoid repeating full narrative text
 - Use "none" action when no specific intent applies
 - ALWAYS use "none" for all intents when character status is Dead
+
+QUEST AND POI TRIGGER INSTRUCTIONS:
+- You will receive Policy Hints indicating whether quest starts are ALLOWED
+- Quest Trigger: ALLOWED means you SHOULD START a quest as a driving narrative element
+- If quest trigger is NOT ALLOWED, DO NOT suggest starting new quests in your intents
+- When quest triggers are eligible, you will receive a cooldown period (in turns) since the last quest
+
+QUEST PHILOSOPHY - QUESTS ARE STORY DRIVERS:
+- When policy allows, START quests immediately as part of the narrative (not as optional offers)
+- Quests should emerge naturally from the story - a problem to solve, a goal to achieve
+- Example: "A mysterious figure approaches with urgent news of bandits threatening the village..." then use quest_intent action='start'
+- Once a quest is active, FOCUS ON ADVANCING IT when player actions align with the objective
+- Use quest_intent action='advance' with progress_update to track meaningful progress
+- Example progress updates: "Found the hideout location", "Convinced the guard to help", "Discovered a critical clue"
+- The quest should feel like the main storyline, not a side activity
+- Complete quests when objectives are achieved, abandon if the player explicitly gives up
+
+POI CREATION (LLM-DRIVEN):
+- YOU decide when to create POIs based on narrative coherence
+- Create POIs when the character discovers or enters a new significant named location
+- POIs should be memorable places: towns, dungeons, taverns, landmarks, significant wilderness areas
+- Use poi_intent with action='create' whenever it makes narrative sense
+- No cooldowns or restrictions - create POIs as the story demands
+- POIs help track the character's journey and can be referenced in future quests
+
+MEMORY SPARKS - LEVERAGING PAST LOCATIONS FOR QUEST DESIGN:
+- When a quest trigger is ALLOWED, you may receive "Memory Sparks" in the context
+- Memory Sparks are previously discovered locations from the character's journey
+- Use these locations to create quests that reference familiar places
+- Examples: "Return to the Ancient Library", "Investigate rumors from the Misty Tavern"
+- This creates narrative continuity and rewards exploration
+- If no Memory Sparks are provided, design quests for new or nearby locations instead
 
 IMPORTANT: Subsystem decisions are DETERMINISTIC and handled by the game engine:
 - You suggest intents based on narrative
@@ -143,6 +214,89 @@ Output ONLY the JSON object, no other text."""
 
         return (complete_system_instructions, user_prompt)
 
+        return (complete_system_instructions, user_prompt)
+
+    def build_intro_prompt(
+        self,
+        name: str,
+        race: str,
+        class_name: str,
+        custom_prompt: Optional[str] = None
+    ) -> Tuple[str, str]:
+        """Build a prompt for generating the initial character introduction.
+        
+        Args:
+            name: Character name
+            race: Character race
+            class_name: Character class
+            custom_prompt: Optional custom world/setting prompt
+            
+        Returns:
+            Tuple of (system_instructions, user_prompt)
+        """
+        # Get the JSON schema and example
+        schema = get_outcome_json_schema()
+        schema_json = json.dumps(schema, indent=2)
+        
+        # Specialized system instructions for intro
+        intro_system_instructions = f"""You are a narrative engine for a text-based adventure game.
+Your task is to generate an immersive, atmospheric introduction scene for a new character.
+
+CRITICAL: You MUST respond with valid JSON matching the DungeonMasterOutcome schema provided below.
+Do NOT output any prose outside the JSON object.
+
+Your role:
+- Set the scene for a new adventure.
+- Introduce the character ({name}, a {race} {class_name}) into the world.
+- Describe the immediate surroundings and the starting situation.
+- Establish a hook or initial goal that fits the character's class/race or the custom prompt.
+- If a custom prompt is provided, use it to shape the world setting and tone.
+- Keep the narrative engaging and descriptive (2-4 paragraphs).
+
+You will receive:
+1. Character details (Name, Race, Class)
+2. Optional custom prompt
+
+OUTPUT FORMAT (DungeonMasterOutcome JSON Schema):
+{schema_json}
+
+Remember: Output ONLY valid JSON matching this schema."""
+
+        # Build user prompt
+        user_prompt_parts = [
+            f"CHARACTER: {name} ({race} {class_name})",
+        ]
+        
+        if custom_prompt:
+            user_prompt_parts.append(f"CUSTOM SETTING/PROMPT:\n{custom_prompt}")
+            
+        user_prompt_parts.append("""\nGenerate the opening scene and initial narrative for this character. 
+
+CRITICAL REQUIREMENTS FOR CHARACTER CREATION:
+1. LOCATION SYSTEM - You MUST establish the starting location:
+   a) Create an ORIGIN POI using poi_intent with action='create':
+      - name: Starting location name (e.g., 'The Crossroads Inn', 'Willowdale Village')
+      - description: Brief description of this origin point
+      - reference_tags: Tags like ['origin', 'starting_location', 'town']
+   
+   b) Set location using location_intent with ALL THREE FIELDS:
+      - location_id: ID matching the POI (e.g., 'inn:crossroads', 'town:willowdale')
+      - location_display_name: Full name matching the POI (e.g., 'The Crossroads Inn', 'Willowdale Village')
+      - minor_location: REQUIRED - Precise position within the POI (e.g., 'at the entrance', 'in the common room', 'standing in the town square')
+      - action: 'update_minor' (setting location)
+
+2. LOCATION TRACKING PRINCIPLE:
+   - Always set location_id and location_display_name when character is at a named location
+   - Always update minor_location to show exact position
+   - This ensures the character's location is properly stored and tracked
+   - Start the character IN the origin POI you create
+
+3. quest_intent and combat_intent should be 'none' for character creation.""")
+        
+        user_prompt = "\n".join(user_prompt_parts)
+        
+        return (intro_system_instructions, user_prompt)
+
     def _serialize_context(self, context: JourneyLogContext) -> str:
         """Serialize game context into a readable format for the LLM.
         
@@ -153,6 +307,10 @@ Output ONLY the JSON object, no other text."""
             Formatted context string
         """
         sections = []
+
+        # Adventure Prompt / World Setting (if provided)
+        if context.adventure_prompt:
+            sections.append(f"WORLD SETTING / ADVENTURE PROMPT:\n{context.adventure_prompt}")
 
         # Character Status
         sections.append(f"CHARACTER STATUS: {context.status}")
@@ -328,17 +486,9 @@ Output ONLY the JSON object, no other text."""
             else:
                 lines.append("    Reason: Roll did not pass")
         
-        # POI trigger decision
-        poi_dec = policy_hints.poi_trigger_decision
-        poi_status = "ALLOWED" if poi_dec.roll_passed else "NOT ALLOWED"
-        lines.append(f"  POI Creation: {poi_status}")
-        if not poi_dec.roll_passed:
-            if not poi_dec.eligible:
-                lines.append("    Reason: Not eligible (cooldown)")
-            else:
-                lines.append("    Reason: Roll did not pass")
-        
-        lines.append("\n  Note: Only suggest quest offers or POI creation if marked as ALLOWED above.")
+        lines.append("\n  Note: Start new quests (immediately active) only if marked as ALLOWED above.")
+        lines.append("  If a quest IS active, focus on ADVANCING it when player actions align with objectives.")
+        lines.append("  POI Creation: ALWAYS ALLOWED - Create POIs whenever narratively appropriate.")
         
         return "\n".join(lines)
 

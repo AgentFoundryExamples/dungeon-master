@@ -243,14 +243,7 @@ def test_parse_additional_properties_accepted(parser):
         assert result.narrative == "You discover a chest."
 
 
-def test_parse_with_trace_id(parser, valid_outcome_json):
-    """Test parsing with trace_id for correlation."""
-    json_str = json.dumps(valid_outcome_json)
-    
-    result = parser.parse(json_str, trace_id="test-trace-123")
-    
-    assert result.is_valid
-    assert result.narrative == "You discover a hidden treasure chest in the corner."
+
 
 
 def test_truncate_for_log(parser):

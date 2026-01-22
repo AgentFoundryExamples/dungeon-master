@@ -1,0 +1,1480 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Dungeon Master API",
+    "description": "AI-powered narrative generation service for dungeon crawling adventures. Orchestrates journey-log context retrieval and LLM-based story generation.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/turn": {
+      "post": {
+        "tags": [
+          "game"
+        ],
+        "summary": "Process a player turn",
+        "description": "Process a player's turn action and generate an AI narrative response. This endpoint will orchestrate calls to journey-log for context retrieval and OpenAI for narrative generation. Currently stubbed.",
+        "operationId": "process_turn_turn_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TurnRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful narrative generation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnResponse"
+                },
+                "example": {
+                  "narrative": "You enter the ancient temple. Torches flicker along the walls...",
+                  "intents": {
+                    "quest_intent": {
+                      "action": "none"
+                    },
+                    "combat_intent": {
+                      "action": "none"
+                    },
+                    "poi_intent": {
+                      "action": "create",
+                      "name": "Ancient Temple"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed UUID, etc.)"
+          },
+          "404": {
+            "description": "Character not found"
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": {
+                    "error": "rate_limit_exceeded",
+                    "message": "Too many requests for this character. Please wait 0.5 seconds.",
+                    "retry_after_seconds": 0.5,
+                    "character_id": "550e8400-e29b-41d4-a716-446655440000"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/admin/turns/{turn_id}": {
+      "get": {
+        "tags": [
+          "game"
+        ],
+        "summary": "Get turn details for introspection",
+        "description": "Admin endpoint to inspect specific turn state for debugging. Returns comprehensive turn details including input, context snapshot, policy decisions, LLM output, and journey-log writes. Requires ADMIN_ENDPOINTS_ENABLED=true. Relies on Cloud IAM/service-to-service auth (no custom auth).",
+        "operationId": "get_turn_details_admin_turns__turn_id__get",
+        "parameters": [
+          {
+            "name": "turn_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Turn Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Turn details retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTurnDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Turn not found or admin endpoints disabled",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": {
+                    "type": "turn_not_found",
+                    "message": "Turn not found or has expired"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/characters/{character_id}/recent_turns": {
+      "get": {
+        "tags": [
+          "game"
+        ],
+        "summary": "Get recent turns for a character",
+        "description": "Admin endpoint to list recent turns for a specific character. Returns turns in reverse chronological order with comprehensive state. Requires ADMIN_ENDPOINTS_ENABLED=true. Relies on Cloud IAM/service-to-service auth (no custom auth).",
+        "operationId": "get_character_recent_turns_admin_characters__character_id__recent_turns_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent turns retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRecentTurnsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Admin endpoints disabled"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/policy/config": {
+      "get": {
+        "tags": [
+          "game"
+        ],
+        "summary": "Get current policy configuration",
+        "description": "Admin endpoint to inspect current policy configuration. Returns quest/POI probabilities and cooldowns. Requires ADMIN_ENDPOINTS_ENABLED=true.",
+        "operationId": "get_policy_config_admin_policy_config_get",
+        "responses": {
+          "200": {
+            "description": "Policy config retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyConfigResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Admin endpoints disabled"
+          }
+        }
+      }
+    },
+    "/admin/policy/reload": {
+      "post": {
+        "tags": [
+          "game"
+        ],
+        "summary": "Reload policy configuration",
+        "description": "Admin endpoint to manually reload policy configuration from file or provided values. Validates config before applying and rolls back on errors. Requires ADMIN_ENDPOINTS_ENABLED=true.",
+        "operationId": "reload_policy_config_admin_policy_reload_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyConfigReloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Policy config reloaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyConfigReloadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid config values",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": {
+                    "type": "config_validation_failed",
+                    "message": "Validation error details..."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Admin endpoints disabled"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "game"
+        ],
+        "summary": "Health check endpoint",
+        "description": "Check service health status. Optionally pings journey-log service if HEALTH_CHECK_JOURNEY_LOG is enabled. Returns 200 with status='healthy' or 'degraded' based on dependency availability.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Service is healthy or degraded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "examples": {
+                  "healthy": {
+                    "value": {
+                      "status": "healthy",
+                      "service": "dungeon-master",
+                      "journey_log_accessible": true
+                    }
+                  },
+                  "degraded": {
+                    "value": {
+                      "status": "degraded",
+                      "service": "dungeon-master",
+                      "journey_log_accessible": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "game"
+        ],
+        "summary": "Metrics endpoint",
+        "description": "Get service metrics including request counts, error rates, and latencies. Only available when ENABLE_METRICS is true. Returns 404 if metrics are disabled.",
+        "operationId": "get_metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Metrics collected",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                },
+                "example": {
+                  "uptime_seconds": 3600,
+                  "requests": {
+                    "total": 150,
+                    "success": 145,
+                    "errors": 5,
+                    "by_status_code": {
+                      "200": 145,
+                      "404": 3,
+                      "502": 2
+                    }
+                  },
+                  "errors": {
+                    "by_type": {
+                      "character_not_found": 3,
+                      "llm_error": 2
+                    }
+                  },
+                  "latencies": {
+                    "turn": {
+                      "count": 145,
+                      "avg_ms": 1250.5,
+                      "min_ms": 800.2,
+                      "max_ms": 3200.8
+                    },
+                    "llm_call": {
+                      "count": 145,
+                      "avg_ms": 950.3,
+                      "min_ms": 600.1,
+                      "max_ms": 2500.5
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Metrics disabled"
+          }
+        }
+      }
+    },
+    "/debug/parse_llm": {
+      "post": {
+        "tags": [
+          "game"
+        ],
+        "summary": "Debug endpoint to test LLM response parsing",
+        "description": "Test the outcome parser with raw LLM response JSON. Only available when ENABLE_DEBUG_ENDPOINTS is true. This endpoint is intended for local development and debugging only. It validates the response against the DungeonMasterOutcome schema and returns detailed parsing results including any validation errors.",
+        "operationId": "debug_parse_llm_debug_parse_llm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DebugParseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Parse results with validation status",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                },
+                "example": {
+                  "is_valid": true,
+                  "narrative": "You discover a treasure chest...",
+                  "has_outcome": true,
+                  "intents_summary": {
+                    "has_quest_intent": false,
+                    "has_combat_intent": false,
+                    "has_poi_intent": true,
+                    "has_meta_intent": true
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Debug endpoints disabled"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/character": {
+      "post": {
+        "tags": [
+          "game"
+        ],
+        "summary": "Create a new character",
+        "description": "Create a new character and generate an introductory narrative scene.",
+        "operationId": "create_character_character_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterCreationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterCreationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdminRecentTurnsResponse": {
+        "properties": {
+          "character_id": {
+            "type": "string",
+            "title": "Character Id",
+            "description": "Character UUID"
+          },
+          "turns": {
+            "items": {
+              "$ref": "#/components/schemas/AdminTurnDetail"
+            },
+            "type": "array",
+            "title": "Turns",
+            "description": "List of turn details in reverse chronological order"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count",
+            "description": "Total number of turns returned"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "description": "Maximum number of turns requested"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character_id",
+          "turns",
+          "total_count",
+          "limit"
+        ],
+        "title": "AdminRecentTurnsResponse",
+        "description": "Response for admin recent turns endpoint.\n\nReturns a list of recent turns for a character in reverse chronological\norder. Returned by GET /admin/characters/{id}/recent_turns endpoint.\n\nAttributes:\n    character_id: Character UUID\n    turns: List of turn details (most recent first)\n    total_count: Total number of turns returned\n    limit: Maximum number of turns requested"
+      },
+      "AdminTurnDetail": {
+        "properties": {
+          "turn_id": {
+            "type": "string",
+            "title": "Turn Id",
+            "description": "Unique turn identifier"
+          },
+          "character_id": {
+            "type": "string",
+            "title": "Character Id",
+            "description": "Character UUID"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "ISO 8601 timestamp of turn start"
+          },
+          "user_action": {
+            "type": "string",
+            "title": "User Action",
+            "description": "Player's input action"
+          },
+          "context_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Context Snapshot",
+            "description": "Character context snapshot at turn time (redacted)"
+          },
+          "policy_decisions": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Policy Decisions",
+            "description": "Policy engine decisions for quest/POI triggers"
+          },
+          "llm_narrative": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Narrative",
+            "description": "Generated narrative text (may be truncated)"
+          },
+          "llm_intents": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Intents",
+            "description": "Structured intents from LLM output"
+          },
+          "journey_log_writes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Journey Log Writes",
+            "description": "Summary of subsystem writes (quest, combat, POI, narrative)"
+          },
+          "errors": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Errors",
+            "description": "List of errors encountered during turn processing"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms",
+            "description": "Total turn processing time in milliseconds"
+          },
+          "redacted": {
+            "type": "boolean",
+            "title": "Redacted",
+            "description": "Whether sensitive data was redacted from response",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "turn_id",
+          "character_id",
+          "timestamp",
+          "user_action",
+          "context_snapshot",
+          "policy_decisions",
+          "journey_log_writes"
+        ],
+        "title": "AdminTurnDetail",
+        "description": "Admin turn detail for introspection endpoint.\n\nProvides comprehensive turn state for debugging including inputs,\ndecisions, LLM outputs, and journey-log writes. Returned by\nGET /admin/turns/{turn_id} endpoint.\n\nAttributes:\n    turn_id: Unique turn identifier\n    character_id: Character UUID\n    timestamp: ISO 8601 timestamp of turn start\n    user_action: Player's input action\n    context_snapshot: Redacted character context at turn time\n    policy_decisions: Policy engine decisions (quest/POI eligibility, rolls)\n    llm_narrative: Generated narrative text (may be truncated)\n    llm_intents: Structured intents from LLM output\n    journey_log_writes: Summary of subsystem writes (quest, combat, POI, narrative)\n    errors: List of errors encountered during turn processing\n    latency_ms: Total turn processing time in milliseconds\n    redacted: Whether sensitive data was redacted from response"
+      },
+      "CharacterCreationRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Character name",
+            "examples": [
+              "Aelthor",
+              "Grom"
+            ]
+          },
+          "race": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Race",
+            "description": "Character race",
+            "examples": [
+              "Human",
+              "Elf",
+              "Dwarf"
+            ]
+          },
+          "class_name": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Class Name",
+            "description": "Character class",
+            "examples": [
+              "Warrior",
+              "Rogue",
+              "Wizard"
+            ]
+          },
+          "custom_prompt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Prompt",
+            "description": "Optional prompt to customize the world setting or opening scene",
+            "examples": [
+              "A dark fantasy world where the sun has vanished."
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "race",
+          "class_name"
+        ],
+        "title": "CharacterCreationRequest",
+        "description": "Request model for creating a new character.\n\nAttributes:\n    name: Name of the character.\n    race: Race of the character.\n    class_name: Class of the character (e.g., \"Warrior\", \"Mage\").\n    custom_prompt: Optional user-provided prompt to shape the world/setting."
+      },
+      "CharacterCreationResponse": {
+        "properties": {
+          "character_id": {
+            "type": "string",
+            "title": "Character Id",
+            "description": "UUID of the created character"
+          },
+          "narrative": {
+            "type": "string",
+            "title": "Narrative",
+            "description": "Introductory narrative scene"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character_id",
+          "narrative"
+        ],
+        "title": "CharacterCreationResponse",
+        "description": "Response model for character creation.\n\nAttributes:\n    character_id: The UUID of the created character.\n    narrative: The introductory narrative scene."
+      },
+      "CombatIntent": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "none",
+              "start",
+              "continue",
+              "end"
+            ],
+            "title": "Action",
+            "description": "Combat action to perform",
+            "default": "none"
+          },
+          "enemies": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EnemyDescriptor"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enemies",
+            "description": "List of enemies in the encounter"
+          },
+          "combat_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Combat Notes",
+            "description": "Additional notes about the combat situation",
+            "examples": [
+              "The goblins are hiding behind barrels"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "CombatIntent",
+        "description": "Combat-related intent from LLM output.\n\nIndicates what combat action the narrative implies, if any.\nThe LLM only suggests intents; the service decides actual combat operations.\n\nAttributes:\n    action: Combat action type - \"none\", \"start\", \"continue\", or \"end\"\n    enemies: Optional list of enemy descriptors\n    combat_notes: Optional notes about the combat situation"
+      },
+      "DebugParseRequest": {
+        "properties": {
+          "llm_response": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Llm Response",
+            "description": "Raw JSON string from LLM to validate"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id",
+            "description": "Optional user ID for request tracking",
+            "default": "debug-request"
+          }
+        },
+        "type": "object",
+        "required": [
+          "llm_response"
+        ],
+        "title": "DebugParseRequest",
+        "description": "Request model for debug parse endpoint.\n\nAttributes:\n    llm_response: Raw JSON string from LLM to parse\n    user_id: Optional user ID for request correlation"
+      },
+      "EnemyDescriptor": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Name of the enemy",
+            "examples": [
+              "Goblin Scout",
+              "Shadow Wraith"
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Description of the enemy's appearance or behavior",
+            "examples": [
+              "A small, cunning creature with sharp teeth"
+            ]
+          },
+          "threat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threat",
+            "description": "Threat level or classification",
+            "examples": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "EnemyDescriptor",
+        "description": "Descriptor for an enemy in combat.\n\nUsed by CombatIntent to describe enemies encountered in combat.\n\nAttributes:\n    name: Optional name of the enemy (e.g., \"Goblin Scout\")\n    description: Optional description of the enemy's appearance or behavior\n    threat: Optional threat level or classification (e.g., \"low\", \"medium\", \"high\")"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Service health status",
+            "examples": [
+              "healthy",
+              "degraded"
+            ]
+          },
+          "service": {
+            "type": "string",
+            "title": "Service",
+            "description": "Service name",
+            "default": "dungeon-master"
+          },
+          "journey_log_accessible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Journey Log Accessible",
+            "description": "Whether journey-log service is accessible (if health check enabled)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse",
+        "description": "Response model for health check endpoint.\n\nAttributes:\n    status: Service status (\"healthy\" or \"degraded\")\n    service: Service name\n    journey_log_accessible: Whether journey-log service is accessible (optional)"
+      },
+      "IntentsBlock": {
+        "properties": {
+          "quest_intent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuestIntent"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Quest-related intent, if any"
+          },
+          "combat_intent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CombatIntent"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Combat-related intent, if any"
+          },
+          "poi_intent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/POIIntent"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Point-of-interest intent, if any"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetaIntent"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Meta-level intent about player engagement and pacing"
+          }
+        },
+        "type": "object",
+        "title": "IntentsBlock",
+        "description": "Collection of all intent types from LLM output.\n\nGroups all possible intents that the LLM can suggest based on the narrative.\nAll fields are optional as the LLM may not suggest any specific intent.\n\nNote: The LLM fills these intents based on narrative content, but the\nDungeonMaster service logic determines actual subsystem eligibility and\noperations based on game state.\n\nAttributes:\n    quest_intent: Optional quest-related intent\n    combat_intent: Optional combat-related intent\n    poi_intent: Optional point-of-interest intent\n    meta: Optional meta-level intent about player engagement"
+      },
+      "MetaIntent": {
+        "properties": {
+          "player_mood": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Mood",
+            "description": "Assessment of player's emotional state",
+            "examples": [
+              "excited",
+              "cautious",
+              "frustrated",
+              "engaged"
+            ]
+          },
+          "pacing_hint": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "slow",
+                  "normal",
+                  "fast"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pacing Hint",
+            "description": "Suggested pacing for the game flow"
+          },
+          "user_is_wandering": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Is Wandering",
+            "description": "Flag indicating player seems to lack direction"
+          },
+          "user_asked_for_guidance": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Asked For Guidance",
+            "description": "Flag indicating player explicitly requested help or guidance"
+          }
+        },
+        "type": "object",
+        "title": "MetaIntent",
+        "description": "Meta-level intent about player engagement and pacing.\n\nProvides hints about player mood and game pacing for the service to consider.\nThe LLM observes and reports; the service decides actual pacing adjustments.\n\nAttributes:\n    player_mood: Optional assessment of player's emotional state\n    pacing_hint: Optional pacing suggestion - \"slow\", \"normal\", or \"fast\"\n    user_is_wandering: Optional flag indicating player seems directionless\n    user_asked_for_guidance: Optional flag indicating player requested help"
+      },
+      "POIIntent": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "none",
+              "create",
+              "reference"
+            ],
+            "title": "Action",
+            "description": "Point-of-interest action to perform",
+            "default": "none"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Name of the point of interest",
+            "examples": [
+              "The Old Mill",
+              "Shadowfen Swamp"
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Description of the location",
+            "examples": [
+              "An abandoned mill at the edge of the forest"
+            ]
+          },
+          "reference_tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Tags",
+            "description": "Tags for referencing this POI in future context",
+            "examples": [
+              [
+                "mill",
+                "forest",
+                "quest_location"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "title": "POIIntent",
+        "description": "Point-of-Interest intent from LLM output.\n\nIndicates what POI action the narrative implies, if any.\nThe LLM only suggests intents; the service decides actual POI operations.\n\nAttributes:\n    action: POI action type - \"none\", \"create\", or \"reference\"\n    name: Optional name of the point of interest\n    description: Optional description of the location\n    reference_tags: Optional list of tags for referencing this POI later"
+      },
+      "PolicyConfigReloadRequest": {
+        "properties": {
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config",
+            "description": "Optional new config values to apply (overrides file)"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor",
+            "description": "Optional actor identity for audit log"
+          }
+        },
+        "type": "object",
+        "title": "PolicyConfigReloadRequest",
+        "description": "Request for policy config reload endpoint.\n\nTriggers manual reload of policy configuration from file or provided values.\n\nAttributes:\n    config: Optional new config values to apply (overrides file)\n    actor: Optional actor identity for audit log"
+      },
+      "PolicyConfigReloadResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "Whether config reload succeeded"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Human-readable status message"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Error details if reload failed"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyConfigResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current config after reload attempt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "title": "PolicyConfigReloadResponse",
+        "description": "Response for policy config reload endpoint.\n\nReturns success/failure status and error details if reload failed.\n\nAttributes:\n    success: Whether config reload succeeded\n    message: Human-readable status message\n    error: Error details if reload failed\n    config: Current config after reload attempt"
+      },
+      "PolicyConfigResponse": {
+        "properties": {
+          "quest_trigger_prob": {
+            "type": "number",
+            "title": "Quest Trigger Prob",
+            "description": "Current quest trigger probability (0.0-1.0)"
+          },
+          "quest_cooldown_turns": {
+            "type": "integer",
+            "title": "Quest Cooldown Turns",
+            "description": "Current quest cooldown in turns"
+          },
+          "poi_trigger_prob": {
+            "type": "number",
+            "title": "Poi Trigger Prob",
+            "description": "Current POI trigger probability (0.0-1.0)"
+          },
+          "poi_cooldown_turns": {
+            "type": "integer",
+            "title": "Poi Cooldown Turns",
+            "description": "Current POI cooldown in turns"
+          },
+          "memory_spark_probability": {
+            "type": "number",
+            "title": "Memory Spark Probability",
+            "description": "Current memory spark trigger probability (0.0-1.0)"
+          },
+          "quest_poi_reference_probability": {
+            "type": "number",
+            "title": "Quest Poi Reference Probability",
+            "description": "Current quest POI reference probability (0.0-1.0)"
+          },
+          "last_updated": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Updated",
+            "description": "ISO 8601 timestamp of last config change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quest_trigger_prob",
+          "quest_cooldown_turns",
+          "poi_trigger_prob",
+          "poi_cooldown_turns",
+          "memory_spark_probability",
+          "quest_poi_reference_probability"
+        ],
+        "title": "PolicyConfigResponse",
+        "description": "Response for policy config inspection endpoint.\n\nReturns current policy configuration parameters.\n\nAttributes:\n    quest_trigger_prob: Current quest trigger probability\n    quest_cooldown_turns: Current quest cooldown in turns\n    poi_trigger_prob: Current POI trigger probability\n    poi_cooldown_turns: Current POI cooldown in turns\n    memory_spark_probability: Current memory spark trigger probability\n    quest_poi_reference_probability: Current quest POI reference probability\n    last_updated: ISO 8601 timestamp of last config change"
+      },
+      "QuestIntent": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "none",
+              "offer",
+              "complete",
+              "abandon"
+            ],
+            "title": "Action",
+            "description": "Quest action to perform",
+            "default": "none"
+          },
+          "quest_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quest Title",
+            "description": "Title of the quest",
+            "examples": [
+              "Rescue the Innkeeper's Daughter"
+            ]
+          },
+          "quest_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quest Summary",
+            "description": "Brief summary of the quest objective",
+            "examples": [
+              "Find the missing girl last seen near the old mill"
+            ]
+          },
+          "quest_details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quest Details",
+            "description": "Additional quest metadata and details"
+          }
+        },
+        "type": "object",
+        "title": "QuestIntent",
+        "description": "Quest-related intent from LLM output.\n\nIndicates what quest action the narrative implies, if any.\nThe LLM only suggests intents; the service decides actual quest operations.\n\nAttributes:\n    action: Quest action type - \"none\", \"offer\", \"complete\", or \"abandon\"\n    quest_title: Optional title of the quest\n    quest_summary: Optional brief summary of the quest\n    quest_details: Optional dictionary of additional quest metadata"
+      },
+      "SubsystemActionType": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "Action performed or 'none' if no action"
+          },
+          "success": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success",
+            "description": "Whether the action succeeded (None if not attempted)"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Error message if action failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "SubsystemActionType",
+        "description": "Base class for subsystem action types with success/failure tracking.\n\nAttributes:\n    action: The action performed (e.g., \"offer\", \"complete\", \"none\")\n    success: Whether the action succeeded (None if not attempted)\n    error: Error message if action failed (None if success or not attempted)"
+      },
+      "TurnRequest": {
+        "properties": {
+          "character_id": {
+            "type": "string",
+            "title": "Character Id",
+            "description": "Character UUID identifier",
+            "examples": [
+              "550e8400-e29b-41d4-a716-446655440000"
+            ]
+          },
+          "user_action": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "User Action",
+            "description": "Player's action or input for this turn",
+            "examples": [
+              "I search the room for treasure"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "character_id",
+          "user_action"
+        ],
+        "title": "TurnRequest",
+        "description": "Request model for a turn in the game.\n\nAttributes:\n    character_id: UUID or string identifier for the character\n    user_action: The player's action/input for this turn\n    user_id: Optional user ID for request tracking and correlation (passed as X-User-Id to journey-log)"
+      },
+      "TurnResponse": {
+        "properties": {
+          "narrative": {
+            "type": "string",
+            "title": "Narrative",
+            "description": "AI-generated narrative response",
+            "examples": [
+              "You search the dimly lit room and discover a glinting treasure chest..."
+            ]
+          },
+          "intents": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntentsBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Structured intents from LLM output (informational only). Only available when LLM response is valid. Note: Only narrative is persisted to journey-log; intents are descriptive."
+          },
+          "subsystem_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TurnSubsystemSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Summary of subsystem changes made during this turn. Includes quest, combat, and POI actions with success/failure status. Only available when orchestrator is used."
+          }
+        },
+        "type": "object",
+        "required": [
+          "narrative"
+        ],
+        "title": "TurnResponse",
+        "description": "Response model for a turn in the game.\n\nAttributes:\n    narrative: The AI-generated narrative response for the player's action\n    intents: Optional structured intents from the LLM (informational only, not persisted)\n    subsystem_summary: Optional summary of subsystem changes made during this turn"
+      },
+      "TurnSubsystemSummary": {
+        "properties": {
+          "quest_change": {
+            "$ref": "#/components/schemas/SubsystemActionType",
+            "description": "Quest action performed and its result"
+          },
+          "combat_change": {
+            "$ref": "#/components/schemas/SubsystemActionType",
+            "description": "Combat action performed and its result"
+          },
+          "poi_change": {
+            "$ref": "#/components/schemas/SubsystemActionType",
+            "description": "POI action performed and its result"
+          },
+          "narrative_persisted": {
+            "type": "boolean",
+            "title": "Narrative Persisted",
+            "description": "Whether narrative was successfully persisted to journey-log",
+            "default": false
+          },
+          "narrative_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrative Error",
+            "description": "Error message if narrative persistence failed"
+          }
+        },
+        "type": "object",
+        "title": "TurnSubsystemSummary",
+        "description": "Summary of subsystem changes made during a turn.\n\nThis model captures all subsystem actions (quest, combat, POI) that were\nattempted during turn processing, along with their success/failure status.\nIt enables:\n- Analytics on subsystem engagement rates\n- Debugging of failed writes\n- Verification of orchestration order\n- Dry-run simulation results\n\nAll fields default to 'none' action with no success/error, representing\nno attempted action for that subsystem.\n\nAttributes:\n    quest_change: Quest action summary (offered/completed/abandoned/none)\n    combat_change: Combat action summary (started/continued/ended/none)\n    poi_change: POI action summary (created/referenced/none)\n    narrative_persisted: Whether narrative was successfully persisted\n    narrative_error: Error message if narrative persistence failed"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

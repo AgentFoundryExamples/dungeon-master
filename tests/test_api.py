@@ -22,7 +22,7 @@ These tests verify the core functionality of the scaffolded service:
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, AsyncMock
 import os
 
 
@@ -97,13 +97,34 @@ def client(test_env):
             get_journey_log_client,
             get_llm_client,
             get_policy_engine,
-            get_turn_orchestrator
+            get_http_client,
+            get_journey_log_client,
+            get_llm_client,
+            get_policy_engine,
+            get_turn_orchestrator,
+            get_character_rate_limiter,
+            get_llm_semaphore
         )
+        from app.api.deps import get_current_user_id
         app.dependency_overrides[get_http_client] = lambda: test_http_client
         app.dependency_overrides[get_journey_log_client] = lambda: test_journey_log_client
         app.dependency_overrides[get_llm_client] = lambda: test_llm_client
         app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
+        app.dependency_overrides[get_policy_engine] = lambda: test_policy_engine
         app.dependency_overrides[get_turn_orchestrator] = lambda: test_turn_orchestrator
+        
+        # Mock rate limiter and semaphore
+        mock_rate_limiter = MagicMock()
+        mock_rate_limiter.acquire = AsyncMock(return_value=True)
+        app.dependency_overrides[get_character_rate_limiter] = lambda: mock_rate_limiter
+        
+        mock_semaphore = MagicMock()
+        mock_semaphore.__aenter__ = AsyncMock(return_value=None)
+        mock_semaphore.__aexit__ = AsyncMock(return_value=None)
+        app.dependency_overrides[get_llm_semaphore] = lambda: mock_semaphore
+        
+        # Mock auth dependency to bypass Firebase authentication
+        app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
         
         client = TestClient(app)
         
@@ -204,6 +225,7 @@ def test_turn_endpoint_validation(client):
         # Valid request with UUID
         response = client.post(
             "/turn",
+            headers={"X-User-Id": "user-123"},
             json={
                 "character_id": "550e8400-e29b-41d4-a716-446655440000",
                 "user_action": "I search the room"
@@ -244,24 +266,7 @@ def test_openapi_docs_available(client):
     assert response.status_code == 200
 
 
-def test_turn_request_optional_trace_id():
-    """Test that trace_id is optional in TurnRequest."""
-    from app.models import TurnRequest
-    
-    # Without trace_id
-    request = TurnRequest(
-        character_id="550e8400-e29b-41d4-a716-446655440000",
-        user_action="I search"
-    )
-    assert request.trace_id is None
-    
-    # With trace_id
-    request = TurnRequest(
-        character_id="550e8400-e29b-41d4-a716-446655440000",
-        user_action="I search",
-        trace_id="trace-123"
-    )
-    assert request.trace_id == "trace-123"
+
 
 
 def test_health_response_journey_log_field():
@@ -316,6 +321,7 @@ def test_turn_response_includes_intents(client):
         # Make request
         response = client.post(
             "/turn",
+            headers={"X-User-Id": "user-123"},
             json={
                 "character_id": "550e8400-e29b-41d4-a716-446655440000",
                 "user_action": "I search the room"
@@ -416,6 +422,7 @@ def test_turn_response_intents_null_on_invalid_llm_response(client):
             # Make request
             response = client.post(
                 "/turn",
+                headers={"X-User-Id": "user-123"},
                 json={
                     "character_id": "550e8400-e29b-41d4-a716-446655440000",
                     "user_action": "I search the room"

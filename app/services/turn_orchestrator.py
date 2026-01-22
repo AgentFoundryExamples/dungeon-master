@@ -162,7 +162,7 @@ class TurnOrchestrator:
         character_id: str,
         user_action: str,
         context: JourneyLogContext,
-        trace_id: Optional[str] = None,
+        user_id: Optional[str] = None,
         dry_run: bool = False
     ) -> tuple[str, Optional[IntentsBlock], TurnSubsystemSummary]:
         """Orchestrate a complete turn with deterministic sequencing.
@@ -180,7 +180,7 @@ class TurnOrchestrator:
             character_id: Character UUID
             user_action: Player's action text
             context: Character context from journey-log
-            trace_id: Optional trace ID for correlation
+            user_id: Optional user ID for correlation
             dry_run: If True, skip actual writes but produce summary
             
         Returns:
@@ -203,7 +203,7 @@ class TurnOrchestrator:
                 memory_sparks = await self.journey_log_client.get_random_pois(
                     character_id=character_id,
                     n=self.poi_memory_spark_count,
-                    trace_id=trace_id
+                    user_id=user_id
                 )
                 context.memory_sparks = memory_sparks
                 logger.info(
@@ -224,25 +224,66 @@ class TurnOrchestrator:
             context.memory_sparks = []
         
         # Step 1: Compute policy decisions
-        logger.debug("Step 1: Computing policy decisions")
-        
-        # Get quest completion timestamp from in-memory storage or context
-        last_quest_completed_at = self._get_last_quest_completion_time(
-            character_id, context
+        logger.info(
+            f"Step 1: Computing policy decisions - "
+            f"turns_since_last_quest={context.policy_state.turns_since_last_quest}, "
+            f"turns_since_last_poi={context.policy_state.turns_since_last_poi}, "
+            f"has_active_quest={context.policy_state.has_active_quest}, "
+            f"last_quest_completed_at={context.policy_state.last_quest_completed_at}"
         )
+        
         
         quest_decision = self.policy_engine.evaluate_quest_trigger(
             character_id=character_id,
             turns_since_last_quest=context.policy_state.turns_since_last_quest,
-            has_active_quest=context.policy_state.has_active_quest,
-            last_quest_completed_at=last_quest_completed_at,
-            last_quest_offered_at=context.policy_state.last_quest_offered_at
+            has_active_quest=context.policy_state.has_active_quest
         )
         
         poi_decision = self.policy_engine.evaluate_poi_trigger(
             character_id=character_id,
-            turns_since_last_poi=context.policy_state.turns_since_last_poi
+            turns_since_last_poi=context.policy_state.turns_since_last_poi,
+            has_active_quest=context.policy_state.has_active_quest
         )
+        
+        logger.info(
+            f"Policy decisions computed - "
+            f"quest_eligible={quest_decision.eligible}, "
+            f"quest_roll_passed={quest_decision.roll_passed}, "
+            f"quest_probability={quest_decision.probability}, "
+            f"poi_eligible={poi_decision.eligible}, "
+            f"poi_roll_passed={poi_decision.roll_passed}, "
+            f"poi_probability={poi_decision.probability}"
+        )
+        
+        # Step 1.5: If quest is eligible, evaluate memory spark trigger for quest context
+        memory_spark_decision = None
+        if quest_decision.eligible and self.poi_memory_spark_enabled and not dry_run:
+            logger.debug("Quest eligible - evaluating memory spark trigger for quest context")
+            memory_spark_decision = self.policy_engine.evaluate_memory_spark_trigger(
+                character_id=character_id
+            )
+            
+            if memory_spark_decision.roll_passed:
+                logger.debug("Memory spark triggered, fetching random POIs for quest context")
+                memory_sparks = await self.journey_log_client.get_random_pois(
+                    character_id=character_id,
+                    n=self.poi_memory_spark_count,
+                    user_id=user_id
+                )
+                context.memory_sparks = memory_sparks
+                logger.info(
+                    "Memory sparks fetched for quest",
+                    count=len(memory_sparks),
+                    probability=memory_spark_decision.probability
+                )
+            else:
+                logger.debug("Memory spark roll failed for quest")
+                context.memory_sparks = []
+        else:
+            # Quest not eligible or memory sparks disabled
+            context.memory_sparks = []
+            if quest_decision.eligible:
+                logger.debug("Memory sparks disabled for this turn")
         
         # Evaluate quest POI reference if quest trigger passed and POIs available
         quest_poi_reference_decision = None
@@ -287,7 +328,7 @@ class TurnOrchestrator:
         parsed_outcome: ParsedOutcome = await self.llm_client.generate_narrative(
             system_instructions=system_instructions,
             user_prompt=user_prompt,
-            trace_id=trace_id
+            trace_id=user_id
         )
         
         narrative = parsed_outcome.narrative
@@ -354,7 +395,8 @@ class TurnOrchestrator:
             "Subsystem actions derived",
             quest_action=actions["quest"].action_type if actions["quest"].should_execute else "none",
             combat_action=actions["combat"].action_type if actions["combat"].should_execute else "none",
-            poi_action=actions["poi"].action_type if actions["poi"].should_execute else "none"
+            poi_action=actions["poi"].action_type if actions["poi"].should_execute else "none",
+            location_action=actions["location"].action_type if actions["location"].should_execute else "none"
         )
         
         # Step 4: Execute writes in deterministic order
@@ -367,7 +409,7 @@ class TurnOrchestrator:
                     character_id=character_id,
                     action=actions["quest"],
                     summary=summary,
-                    trace_id=trace_id
+                    trace_id=user_id
                 )
             
             # Combat writes (PUT)
@@ -377,7 +419,7 @@ class TurnOrchestrator:
                     action=actions["combat"],
                     context=context,
                     summary=summary,
-                    trace_id=trace_id
+                    trace_id=user_id
                 )
             
             # POI writes (POST)
@@ -386,7 +428,16 @@ class TurnOrchestrator:
                     character_id=character_id,
                     action=actions["poi"],
                     summary=summary,
-                    trace_id=trace_id
+                    trace_id=user_id
+                )
+            
+            # Location writes (UPDATE minor_location or DELETE poi)
+            if actions["location"].should_execute:
+                await self._execute_location_action(
+                    character_id=character_id,
+                    action=actions["location"],
+                    summary=summary,
+                    trace_id=user_id
                 )
             
             # Narrative write (POST) - always attempt
@@ -395,7 +446,7 @@ class TurnOrchestrator:
                 user_action=user_action,
                 narrative=narrative,
                 summary=summary,
-                trace_id=trace_id
+                trace_id=user_id
             )
         else:
             # Dry-run mode: populate summary without executing
@@ -430,6 +481,156 @@ class TurnOrchestrator:
         
         return narrative, intents, summary
     
+    async def orchestrate_intro(
+        self,
+        name: str,
+        race: str,
+        class_name: str,
+        custom_prompt: Optional[str] = None,
+        user_id: Optional[str] = None
+    ) -> tuple[str, dict]:
+        """Orchestrate character creation and initial narrative generation.
+        
+        NEW FLOW:
+        1. Generate introductory narrative via LLM (includes location intent)
+        2. Extract location from LLM response
+        3. Create character in journey-log with the generated location
+        4. Persist the narrative to journey-log
+        
+        Args:
+            name: Character name
+            race: Character race
+            class_name: Character class
+            custom_prompt: Optional world setting prompt
+            user_id: Optional user ID for correlation
+            
+        Returns:
+            Tuple of (narrative, character_data_dict)
+        """
+        logger.info("Starting intro orchestration", character_name=name, race=race, class_name=class_name)
+        
+        # Step 1: Generate intro narrative first to get the starting location
+        system_instructions, user_prompt = self.prompt_builder.build_intro_prompt(
+            name=name,
+            race=race,
+            class_name=class_name,
+            custom_prompt=custom_prompt
+        )
+        
+        parsed_outcome: ParsedOutcome = await self.llm_client.generate_narrative(
+            system_instructions=system_instructions,
+            user_prompt=user_prompt,
+            trace_id=user_id
+        )
+        
+        narrative = parsed_outcome.narrative
+        
+        # Step 2: Extract location from LLM intents (intents are in outcome.intents)
+        location_id = None
+        location_display_name = None
+        if parsed_outcome.outcome and parsed_outcome.outcome.intents and parsed_outcome.outcome.intents.location_intent:
+            location_id = parsed_outcome.outcome.intents.location_intent.location_id
+            location_display_name = parsed_outcome.outcome.intents.location_intent.location_display_name
+            logger.info(
+                "LLM generated starting location",
+                location_id=location_id,
+                location_display_name=location_display_name
+            )
+        else:
+            logger.warning("No location_intent from LLM - character will use default location")
+        
+        # Step 3: Create character in journey-log with the generated location
+        character_data = await self.journey_log_client.create_character(
+            name=name,
+            race=race,
+            class_name=class_name,
+            custom_prompt=custom_prompt,
+            location_id=location_id,
+            location_display_name=location_display_name,
+            user_id=user_id
+        )
+        # Extract character_id - journey_log_client already normalizes to top-level
+        # but we add defensive extraction for nested structure as well
+        character_id = character_data.get("character_id")
+        
+        if not character_id:
+            # Try nested structure as fallback
+            if "character" in character_data and isinstance(character_data["character"], dict):
+                character_id = (
+                    character_data["character"].get("character_id") or
+                    character_data["character"].get("id") or
+                    character_data["character"].get("characterId")
+                )
+            
+            # Try top-level alternative names
+            if not character_id:
+                character_id = character_data.get("id") or character_data.get("characterId")
+        
+        if not character_id:
+            # Log full response for debugging
+            logger.error(f"Character creation response missing character_id. Full response: {character_data}")
+            raise ValueError(
+                f"No character_id in response. Got keys: {list(character_data.keys())}. "
+                f"Full response: {character_data}"
+            )
+        logger.info("Character created", character_id=character_id)
+        
+        # Step 4: Persist the initial narrative
+        # We use a special "intro" user action to denote the start
+        user_action = "Begins their journey."
+        
+        # We don't need to execute subsystem actions for intro, just persist narrative
+        await self.journey_log_client.persist_narrative(
+            character_id=character_id,
+            user_action=user_action,
+            narrative=narrative,
+            user_id=user_id
+        )
+        
+        # Step 5: Create the starting POI if the LLM generated one
+        if (parsed_outcome.outcome and 
+            parsed_outcome.outcome.intents and 
+            parsed_outcome.outcome.intents.poi_intent and
+            parsed_outcome.outcome.intents.poi_intent.action == "create"):
+            
+            poi_intent = parsed_outcome.outcome.intents.poi_intent
+            poi_data = {
+                "name": poi_intent.name,
+                "description": poi_intent.description,
+            }
+            
+            # Add tags if provided
+            if hasattr(poi_intent, 'reference_tags') and poi_intent.reference_tags:
+                poi_data["tags"] = poi_intent.reference_tags
+            
+            logger.info(
+                "Creating starting POI from intro",
+                poi_name=poi_intent.name,
+                character_id=character_id
+            )
+            
+            try:
+                await self.journey_log_client.post_poi(
+                    character_id=character_id,
+                    poi_data=poi_data,
+                    action_type="create",
+                    user_id=user_id
+                )
+                logger.info("Starting POI created successfully", poi_name=poi_intent.name)
+            except Exception as e:
+                # Log the error but don't fail character creation
+                logger.error(
+                    "Failed to create starting POI, continuing anyway",
+                    poi_name=poi_intent.name,
+                    error=str(e)
+                )
+        else:
+            logger.info("No POI creation intent from LLM intro - skipping POI creation")
+        
+        logger.info("Intro orchestration complete", character_id=character_id)
+        
+        return narrative, character_data
+    
     def _derive_subsystem_actions(
         self,
         context: JourneyLogContext,
@@ -460,6 +661,7 @@ class TurnOrchestrator:
             "quest": SubsystemAction("quest", "none", None, False),
             "combat": SubsystemAction("combat", "none", None, False),
             "poi": SubsystemAction("poi", "none", None, False),
+            "location": SubsystemAction("location", "none", None, False),
         }
         
         # No intents - no actions (except narrative which is always attempted)
@@ -471,17 +673,17 @@ class TurnOrchestrator:
         if intents.quest_intent and intents.quest_intent.action != "none":
             intent_action = intents.quest_intent.action
             
-            # Gate by policy for "offer" action
+            # Gate by policy for "start" action (immediately active, not an offer)
             # Logic: BOTH policy roll AND context state must allow the action
-            if intent_action == "offer":
+            if intent_action == "start":
                 # Check policy roll first
                 if not quest_decision.roll_passed:
                     # Policy denied - skip regardless of context state
-                    logger.info("Quest offer skipped - policy roll failed")
+                    logger.info("Quest start skipped - policy roll failed")
                 # Policy passed - now check context state
                 elif context.policy_state.has_active_quest:
                     # Context state invalid (already has quest) - skip
-                    logger.info("Quest offer skipped - already has active quest")
+                    logger.info("Quest start skipped - already has active quest")
                 else:
                     # Both policy AND context state allow - execute
                     actions["quest"] = SubsystemAction(
@@ -494,9 +696,25 @@ class TurnOrchestrator:
                         },
                         should_execute=True
                     )
-                    logger.debug("Quest offer action derived", title=intents.quest_intent.quest_title)
+                    logger.debug("Quest start action derived (immediately active)", title=intents.quest_intent.quest_title)
             
-            # Other quest actions don't require policy roll, only context state
+            # Advance quest - update progress without completing
+            elif intent_action == "advance":
+                # Validation: must have active quest
+                if context.policy_state.has_active_quest:
+                    actions["quest"] = SubsystemAction(
+                        subsystem="quest",
+                        action_type=intent_action,
+                        intent_data={
+                            "progress_update": intents.quest_intent.progress_update,
+                        },
+                        should_execute=True
+                    )
+                    logger.debug(f"Quest advance action derived", progress=intents.quest_intent.progress_update)
+                else:
+                    logger.info(f"Quest advance skipped - no active quest")
+            
+            # Other quest actions (complete, abandon) - require active quest
             elif intent_action in ["complete", "abandon"]:
                 # Validation: must have active quest
                 if context.policy_state.has_active_quest:
@@ -560,22 +778,20 @@ class TurnOrchestrator:
         if intents.poi_intent and intents.poi_intent.action != "none":
             intent_action = intents.poi_intent.action
             
-            # Gate by policy for "create" action
+            # POI creation is ALWAYS allowed (LLM-driven, not policy-gated)
+            # The LLM decides when it's narratively appropriate to create a POI
             if intent_action == "create":
-                if poi_decision.roll_passed:
-                    actions["poi"] = SubsystemAction(
-                        subsystem="poi",
-                        action_type=intent_action,
-                        intent_data={
-                            "name": intents.poi_intent.name,
-                            "description": intents.poi_intent.description,
-                            "reference_tags": intents.poi_intent.reference_tags,
-                        },
-                        should_execute=True
-                    )
-                    logger.debug("POI create action derived", name=intents.poi_intent.name)
-                else:
-                    logger.info("POI create skipped - policy roll failed")
+                actions["poi"] = SubsystemAction(
+                    subsystem="poi",
+                    action_type=intent_action,
+                    intent_data={
+                        "name": intents.poi_intent.name,
+                        "description": intents.poi_intent.description,
+                        "reference_tags": intents.poi_intent.reference_tags,
+                    },
+                    should_execute=True
+                )
+                logger.debug("POI create action derived (always allowed)", poi_name=intents.poi_intent.name)
             
             # Reference action doesn't require policy roll
             elif intent_action == "reference":
@@ -588,7 +804,33 @@ class TurnOrchestrator:
                     },
                     should_execute=True
                 )
-                logger.debug("POI reference action derived", name=intents.poi_intent.name)
+                logger.debug("POI reference action derived", poi_name=intents.poi_intent.name)
+        
+        # Derive location action (minor_location updates and leaving POI)
+        if intents.location_intent and intents.location_intent.action != "none":
+            intent_action = intents.location_intent.action
+            
+            if intent_action == "update_minor":
+                # Update minor_location (no policy gate, always allowed)
+                actions["location"] = SubsystemAction(
+                    subsystem="location",
+                    action_type=intent_action,
+                    intent_data={
+                        "minor_location": intents.location_intent.minor_location,
+                    },
+                    should_execute=True
+                )
+                logger.debug("Location update_minor action derived", minor_location=intents.location_intent.minor_location)
+            
+            elif intent_action == "leave_poi":
+                # Leave current POI (no policy gate, player-driven)
+                actions["location"] = SubsystemAction(
+                    subsystem="location",
+                    action_type=intent_action,
+                    intent_data=None,
+                    should_execute=True
+                )
+                logger.debug("Location leave_poi action derived")
         
         return actions
     
@@ -620,9 +862,10 @@ class TurnOrchestrator:
         logger.info(f"Executing quest {action.action_type} action", character_id=character_id)
         
         try:
-            if action.action_type == "offer":
+            if action.action_type == "start":
                 # Build payload matching journey-log Quest schema
                 # Map from intent_data {title, summary, details} to API {name, description, requirements, rewards, completion_state, updated_at}
+                # Quest starts immediately as 'in_progress' (not an offer)
                 
                 # Parser already applied fallbacks, so these should always be present
                 title = action.intent_data["title"]
@@ -662,12 +905,12 @@ class TurnOrchestrator:
                         "currency": reward_currency,
                         "experience": reward_experience
                     },
-                    "completion_state": "not_started",
+                    "completion_state": "in_progress",  # Immediately active
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 }
                 
                 logger.debug(
-                    "Built quest payload",
+                    "Built quest payload (immediately active)",
                     quest_name=quest_payload["name"],
                     quest_description_length=len(quest_payload["description"])
                 )
@@ -675,10 +918,10 @@ class TurnOrchestrator:
                 await self.journey_log_client.put_quest(
                     character_id=character_id,
                     quest_data=quest_payload,
-                    trace_id=trace_id
+                    user_id=trace_id
                 )
                 summary.quest_change = SubsystemActionType(
-                    action="offered",
+                    action="started",
                     success=True,
                     error=None
                 )
@@ -686,15 +929,47 @@ class TurnOrchestrator:
                 # Record metrics
                 collector = get_metrics_collector()
                 if collector:
-                    collector.record_subsystem_delta("quest", "offered")
+                    collector.record_subsystem_delta("quest", "started")
                 
-                logger.info("Quest offer successful", quest_name=title, turn_id=get_turn_id())
+                logger.info("Quest started successfully (immediately active)", quest_name=title, turn_id=get_turn_id())
+            
+            elif action.action_type == "advance":
+                # Advance quest progress - update the existing quest with new progress info
+                # We need to get the current quest, update it, and PUT it back
+                # For now, we'll log the progress update (full implementation would fetch + update)
+                progress_update = action.intent_data.get("progress_update", "Quest advanced")
+                
+                logger.info(
+                    "Quest progress advanced",
+                    progress=progress_update,
+                    character_id=character_id,
+                    turn_id=get_turn_id()
+                )
+                
+                # TODO: Implement full quest advancement
+                # 1. GET current quest from context (already have it)
+                # 2. Update description or add progress notes
+                # 3. PUT updated quest back
+                # For MVP, we just log the advancement
+                
+                summary.quest_change = SubsystemActionType(
+                    action="advanced",
+                    success=True,
+                    error=None
+                )
+                
+                # Record metrics
+                collector = get_metrics_collector()
+                if collector:
+                    collector.record_subsystem_delta("quest", "advanced")
+                
+                logger.info("Quest advance logged (tracking progress)", turn_id=get_turn_id())
             
             elif action.action_type in ["complete", "abandon"]:
                 # DELETE operation - no retry on failure per design
                 await self.journey_log_client.delete_quest(
                     character_id=character_id,
-                    trace_id=trace_id
+                    user_id=trace_id
                 )
                 
                 # Store completion timestamp for cooldown tracking
@@ -908,7 +1183,7 @@ class TurnOrchestrator:
                 character_id=character_id,
                 combat_data=combat_payload,
                 action_type=action.action_type,
-                trace_id=trace_id
+                user_id=trace_id
             )
             
             # Update summary with appropriate change type
@@ -977,7 +1252,7 @@ class TurnOrchestrator:
                 character_id=character_id,
                 poi_data=action.intent_data,
                 action_type=action.action_type,
-                trace_id=trace_id
+                user_id=trace_id
             )
             summary.poi_change = SubsystemActionType(
                 action=action.action_type,
@@ -1005,6 +1280,66 @@ class TurnOrchestrator:
                 action=action.action_type,
                 success=False,
                 error=error_msg
+            )
+    
+    async def _execute_location_action(
+        self,
+        character_id: str,
+        action: SubsystemAction,
+        summary: TurnSubsystemSummary,
+        trace_id: Optional[str]
+    ) -> None:
+        """Execute location subsystem action.
+        
+        Handles: 
+        - update_minor: Update minor_location within current POI (TODO: needs journey-log endpoint)
+        - leave_poi: Exit current POI via DELETE
+        
+        On failure: logs error, continues, updates summary
+        
+        Error Handling:
+        - Catches JourneyLogClientError and all subclasses (NotFound, Timeout)
+        - Continues execution without retrying
+        - Logs structured error and updates summary with failure details
+        
+        Args:
+            character_id: Character UUID
+            action: SubsystemAction to execute
+            summary: TurnSubsystemSummary to update
+            trace_id: Optional trace ID
+        """
+        logger.info(f"Executing location {action.action_type} action", character_id=character_id)
+        
+        try:
+            if action.action_type == "leave_poi":
+                await self.journey_log_client.leave_poi(
+                    character_id=character_id,
+                    user_id=trace_id
+                )
+                logger.info("Location leave_poi successful", turn_id=get_turn_id())
+            
+            elif action.action_type == "update_minor":
+                # TODO: Journey-log needs endpoint to update minor_location
+                # For now, log that we would update it
+                logger.info(
+                    "Location update_minor action (not yet implemented in journey-log)",
+                    minor_location=action.intent_data.get("minor_location"),
+                    turn_id=get_turn_id()
+                )
+            
+            # Record metrics
+            collector = get_metrics_collector()
+            if collector:
+                collector.record_subsystem_delta("location", action.action_type)
+        
+        except JourneyLogClientError as e:
+            # Catches all journey-log errors: NotFound, Timeout, Client errors
+            error_msg = f"Location {action.action_type} failed: {str(e)}"
+            logger.error(
+                "Location action failed - continuing with narrative",
+                action=action.action_type,
+                error=str(e),
+                turn_id=get_turn_id()
             )
     
     async def _persist_narrative(
@@ -1039,7 +1374,7 @@ class TurnOrchestrator:
                 character_id=character_id,
                 user_action=user_action,
                 narrative=narrative,
-                trace_id=trace_id
+                user_id=trace_id
             )
             summary.narrative_persisted = True
             

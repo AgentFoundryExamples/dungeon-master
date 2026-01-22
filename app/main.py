@@ -88,6 +88,10 @@ async def lifespan(app: FastAPI):
     from app.services.policy_engine import PolicyEngine
     from app.services.turn_orchestrator import TurnOrchestrator
     from app.prompting.prompt_builder import PromptBuilder
+    from app.services.auth import init_firebase_app
+
+    # Initialize Firebase Admin SDK
+    init_firebase_app()
 
     app.state.llm_client = LLMClient(
         api_key=settings.openai_api_key,

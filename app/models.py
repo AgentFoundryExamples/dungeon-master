@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 from enum import Enum
 
+
 # Internal version constant for outcome schema evolution
 # Do NOT include this in LLM outputs; it's for internal tracking only
 OUTCOME_VERSION = 1
@@ -37,7 +38,7 @@ class TurnRequest(BaseModel):
     Attributes:
         character_id: UUID or string identifier for the character
         user_action: The player's action/input for this turn
-        trace_id: Optional trace ID for request tracking and correlation
+        user_id: Optional user ID for request tracking and correlation (passed as X-User-Id to journey-log)
     """
     character_id: str = Field(
         ...,
@@ -51,11 +52,6 @@ class TurnRequest(BaseModel):
         description="Player's action or input for this turn",
         examples=["I search the room for treasure"]
     )
-    trace_id: Optional[str] = Field(
-        None,
-        description="Optional trace ID for request correlation",
-        examples=["trace-123-456-789"]
-    )
 
     @field_validator('character_id')
     @classmethod
@@ -67,6 +63,61 @@ class TurnRequest(BaseModel):
             return v
         except ValueError:
             raise ValueError(f"character_id must be a valid UUID, got: {v}")
+
+
+class CharacterCreationRequest(BaseModel):
+    """Request model for creating a new character.
+    
+    Attributes:
+        name: Name of the character.
+        race: Race of the character.
+        class_name: Class of the character (e.g., "Warrior", "Mage").
+        custom_prompt: Optional user-provided prompt to shape the world/setting.
+    """
+    name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Character name",
+        examples=["Aelthor", "Grom"]
+    )
+    race: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Character race",
+        examples=["Human", "Elf", "Dwarf"]
+    )
+    class_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Character class",
+        examples=["Warrior", "Rogue", "Wizard"]
+    )
+    custom_prompt: Optional[str] = Field(
+        None,
+        max_length=2000,
+        description="Optional prompt to customize the world setting or opening scene",
+        examples=["A dark fantasy world where the sun has vanished."]
+    )
+
+
+class CharacterCreationResponse(BaseModel):
+    """Response model for character creation.
+    
+    Attributes:
+        character_id: The UUID of the created character.
+        narrative: The introductory narrative scene.
+    """
+    character_id: str = Field(
+        ...,
+        description="UUID of the created character"
+    )
+    narrative: str = Field(
+        ...,
+        description="Introductory narrative scene"
+    )
 
 
 class PolicyState(BaseModel):
@@ -277,6 +328,10 @@ class JourneyLogContext(BaseModel):
         ...,
         description="Character UUID identifier"
     )
+    adventure_prompt: Optional[str] = Field(
+        None,
+        description="Custom world/setting prompt that shapes the narrative tone and setting"
+    )
     status: str = Field(
         ...,
         description="Character health status",
@@ -397,16 +452,16 @@ class DebugParseRequest(BaseModel):
     
     Attributes:
         llm_response: Raw JSON string from LLM to parse
-        trace_id: Optional trace ID for request correlation
+        user_id: Optional user ID for request correlation
     """
     llm_response: str = Field(
         ...,
         description="Raw JSON string from LLM to validate",
         min_length=1
     )
-    trace_id: Optional[str] = Field(
+    user_id: Optional[str] = Field(
         default="debug-request",
-        description="Optional trace ID for request tracking"
+        description="Optional user ID for request tracking"
     )
 
 
@@ -451,29 +506,41 @@ class QuestIntent(BaseModel):
     Indicates what quest action the narrative implies, if any.
     The LLM only suggests intents; the service decides actual quest operations.
     
+    QUEST PHILOSOPHY:
+    - Quests are driving narrative elements, not optional offers
+    - When policy allows, quests START immediately as part of the story
+    - LLM should focus on ADVANCING quests when player actions align
+    - completion_state tracks progress: 'not_started', 'in_progress', 'completed'
+    
     Attributes:
-        action: Quest action type - "none", "offer", "complete", or "abandon"
+        action: Quest action type - "none", "start", "advance", "complete", or "abandon"
         quest_title: Optional title of the quest
-        quest_summary: Optional brief summary of the quest
+        quest_summary: Optional brief summary of the quest objective
         quest_details: Optional dictionary of additional quest metadata
+        progress_update: Optional description of quest progress when action='advance'
     """
-    action: Literal["none", "offer", "complete", "abandon"] = Field(
+    action: Literal["none", "start", "advance", "complete", "abandon"] = Field(
         default="none",
-        description="Quest action to perform"
+        description="Quest action: 'start' (begin new quest), 'advance' (progress active quest), 'complete' (finish quest), 'abandon' (give up)"
     )
     quest_title: Optional[str] = Field(
         None,
-        description="Title of the quest",
+        description="Title of the quest (required for 'start' action)",
         examples=["Rescue the Innkeeper's Daughter"]
     )
     quest_summary: Optional[str] = Field(
         None,
-        description="Brief summary of the quest objective",
+        description="Brief summary of the quest objective (required for 'start' action)",
         examples=["Find the missing girl last seen near the old mill"]
     )
     quest_details: Optional[dict] = Field(
         None,
         description="Additional quest metadata and details"
+    )
+    progress_update: Optional[str] = Field(
+        None,
+        description="Description of progress made when action='advance' (e.g., 'Found a clue at the mill', 'Defeated the bandits')",
+        examples=["Discovered the hideout location", "Convinced the guard to help"]
     )
 
 
@@ -509,30 +576,77 @@ class POIIntent(BaseModel):
     Indicates what POI action the narrative implies, if any.
     The LLM only suggests intents; the service decides actual POI operations.
     
+    POI MODEL:
+    - POIs are named, significant locations (towns, dungeons, taverns, etc.)
+    - Characters can be IN a POI (location_id set) or have NO POI (traveling)
+    - 'create' action: Character enters/discovers a new named location
+    - 'reference' action: Mention an existing POI without entering it
+    - minor_location (in LocationIntent) is ALWAYS present for precise positioning
+    - Leaving a POI is handled via LocationIntent with action='leave_poi'
+    
     Attributes:
         action: POI action type - "none", "create", or "reference"
-        name: Optional name of the point of interest
-        description: Optional description of the location
-        reference_tags: Optional list of tags for referencing this POI later
+        name: Name of the point of interest
+        description: Description of the location
+        reference_tags: Tags for referencing this POI later
     """
     action: Literal["none", "create", "reference"] = Field(
         default="none",
-        description="Point-of-interest action to perform"
+        description="POI action: 'create' (enter/discover new location), 'reference' (mention existing location)"
     )
     name: Optional[str] = Field(
         None,
         description="Name of the point of interest",
-        examples=["The Old Mill", "Shadowfen Swamp"]
+        examples=["The Old Mill", "Shadowfen Swamp", "The Rusty Tankard Inn"]
     )
     description: Optional[str] = Field(
         None,
         description="Description of the location",
-        examples=["An abandoned mill at the edge of the forest"]
+        examples=["An abandoned mill at the edge of the forest", "A mysterious tavern filled with shady characters"]
     )
     reference_tags: Optional[List[str]] = Field(
         None,
         description="Tags for referencing this POI in future context",
-        examples=[["mill", "forest", "quest_location"]]
+        examples=[["mill", "forest", "quest_location"], ["tavern", "town", "social_hub"]]
+    )
+
+
+class LocationIntent(BaseModel):
+    """Location intent for setting or updating character location.
+    
+    LOCATION MODEL:
+    - Characters can be IN a POI (major named location) or have NO POI (traveling/between)
+    - minor_location is ALWAYS present - describes where they are right now
+    - When in a POI: minor_location is position within that POI (e.g., 'at the bar')
+    - When not in a POI: minor_location describes the transitional state (e.g., 'on the road to town')
+    
+    Used during character creation to establish starting location (with origin POI),
+    and during gameplay to track movement and transitions.
+    
+    Attributes:
+        location_id: Machine-readable POI identifier (null when between locations)
+        location_display_name: Human-readable POI name (null when between locations)
+        minor_location: ALWAYS present - precise current position (within POI or between POIs)
+        action: Action type - 'none', 'update_minor', 'leave_poi'
+    """
+    location_id: Optional[str] = Field(
+        None,
+        description="Machine-readable POI identifier when IN a location (null when traveling between POIs)",
+        examples=["town:rivendell", "forest:darkwood", "dungeon:shadowkeep", "tavern:prancing_pony"]
+    )
+    location_display_name: Optional[str] = Field(
+        None,
+        description="Human-readable POI name when IN a location (null when traveling between POIs)",
+        examples=["The Town of Rivendell", "Darkwood Forest", "Shadowkeep Dungeon", "The Prancing Pony"]
+    )
+    minor_location: Optional[str] = Field(
+        None,
+        description="ALWAYS provide - precise current position (within POI or between POIs)",
+        examples=["at the bar counter", "in the town square", "on the road between towns", "entering the forest"]
+    )
+    action: Literal["none", "update_minor", "leave_poi"] = Field(
+        default="none",
+        description="Location action: 'none' (no change), 'update_minor' (update minor_location), 'leave_poi' (exit current POI)"
     )
 
 
@@ -581,6 +695,7 @@ class IntentsBlock(BaseModel):
         quest_intent: Optional quest-related intent
         combat_intent: Optional combat-related intent
         poi_intent: Optional point-of-interest intent
+        location_intent: Optional location intent for setting character location
         meta: Optional meta-level intent about player engagement
     """
     quest_intent: Optional[QuestIntent] = Field(
@@ -594,6 +709,10 @@ class IntentsBlock(BaseModel):
     poi_intent: Optional[POIIntent] = Field(
         None,
         description="Point-of-interest intent, if any"
+    )
+    location_intent: Optional[LocationIntent] = Field(
+        None,
+        description="Location intent for setting character location (used primarily during character creation)"
     )
     meta: Optional[MetaIntent] = Field(
         None,
@@ -627,6 +746,10 @@ class DungeonMasterOutcome(BaseModel):
                 },
                 "combat_intent": {"action": "none"},
                 "poi_intent": {"action": "create", "name": "The Rusty Tankard Inn"},
+                "location_intent": {
+                    "location_id": "tavern:rusty_tankard",
+                    "location_display_name": "The Rusty Tankard Inn"
+                },
                 "meta": {"player_mood": "curious", "pacing_hint": "normal"}
             }
         }
@@ -652,6 +775,13 @@ def get_outcome_json_schema() -> dict:
     or with other LLMs that support JSON Schema validation. The schema is
     configured with strict validation to prevent additional properties.
     
+    OpenAI strict mode requirements:
+    1. All object types must have additionalProperties: false
+    2. All properties must be in required array (no optional fields at object level)
+    3. $ref cannot have sibling keywords (like description) - must be the only key
+    4. Nullable fields must use anyOf with explicit null type
+    5. No recursive $defs references
+    
     Returns:
         Dictionary containing the JSON Schema for DungeonMasterOutcome
     
@@ -666,19 +796,77 @@ def get_outcome_json_schema() -> dict:
     """
     schema = DungeonMasterOutcome.model_json_schema()
     
-    # Configure schema for stricter LLM adherence
-    # Set additionalProperties to false recursively for all object types
-    def set_strict_mode(obj):
+    # Configure schema for OpenAI's strict mode requirements
+    def set_strict_mode(obj, path=""):
+        """Recursively process schema to meet OpenAI strict mode requirements."""
         if isinstance(obj, dict):
-            if obj.get("type") == "object" and "properties" in obj:
+            # CRITICAL: $ref cannot have sibling keys - if $ref exists, only keep $ref
+            if "$ref" in obj:
+                # Extract the ref and remove all other keys
+                ref_value = obj["$ref"]
+                obj.clear()
+                obj["$ref"] = ref_value
+                return  # Don't process further, $ref must be standalone
+            
+            # Handle objects with type="object"
+            if obj.get("type") == "object":
                 obj["additionalProperties"] = False
-            for value in obj.values():
-                set_strict_mode(value)
+                if "properties" in obj:
+                    # For OpenAI strict mode, all properties must be required
+                    if "required" not in obj:
+                        obj["required"] = []
+                    # Add all property keys to required if not already there
+                    for prop_key in obj["properties"].keys():
+                        if prop_key not in obj["required"]:
+                            obj["required"].append(prop_key)
+            
+            # Handle anyOf/allOf/oneOf - process each branch
+            for key in ["anyOf", "allOf", "oneOf"]:
+                if key in obj:
+                    for item in obj[key]:
+                        set_strict_mode(item, f"{path}.{key}")
+            
+            # Recursively process all other nested structures
+            for key, value in list(obj.items()):
+                if key not in ["anyOf", "allOf", "oneOf", "$ref"]:
+                    set_strict_mode(value, f"{path}.{key}" if path else key)
+                    
         elif isinstance(obj, list):
-            for item in obj:
-                set_strict_mode(item)
+            for i, item in enumerate(obj):
+                set_strict_mode(item, f"{path}[{i}]")
     
+    # Apply strict mode transformations
     set_strict_mode(schema)
+    
+    # Inline all $defs to avoid reference issues with descriptions
+    if "$defs" in schema:
+        defs = schema.pop("$defs")
+        
+        def inline_refs(obj):
+            """Replace all $ref with actual definition content."""
+            if isinstance(obj, dict):
+                if "$ref" in obj:
+                    # Extract ref path
+                    ref_path = obj["$ref"]
+                    if ref_path.startswith("#/$defs/"):
+                        def_name = ref_path.split("/")[-1]
+                        if def_name in defs:
+                            # Replace $ref with actual definition
+                            obj.clear()
+                            obj.update(defs[def_name])
+                            # Process the inlined content
+                            inline_refs(obj)
+                else:
+                    for value in obj.values():
+                        inline_refs(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    inline_refs(item)
+        
+        inline_refs(schema)
+        # Apply strict mode again after inlining
+        set_strict_mode(schema)
+    
     return schema
 
 
@@ -695,10 +883,11 @@ def get_outcome_schema_example() -> str:
     example_model = DungeonMasterOutcome(
         narrative="You push open the heavy oak door and step into the dimly lit tavern. "
                   "The smell of ale and smoke fills the air. Behind the bar, a grizzled "
-                  "innkeeper looks up at you with worried eyes.",
+                  "innkeeper looks up at you with worried eyes. 'Thank the gods you're here,' "
+                  "he says urgently. 'My daughter vanished in the forest last night. Please, you must help me find her!'",
         intents=IntentsBlock(
             quest_intent=QuestIntent(
-                action="offer",
+                action="start",
                 quest_title="Find the Missing Daughter",
                 quest_summary="The innkeeper's daughter hasn't returned from the forest",
                 quest_details={
@@ -712,6 +901,12 @@ def get_outcome_schema_example() -> str:
                 name="The Rusty Tankard Inn",
                 description="A weathered tavern at the edge of town",
                 reference_tags=["inn", "town", "quest_hub"]
+            ),
+            location_intent=LocationIntent(
+                location_id="inn:rusty_tankard",
+                location_display_name="The Rusty Tankard Inn",
+                minor_location="standing at the bar",
+                action="update_minor"
             ),
             meta=MetaIntent(
                 player_mood="curious",
@@ -1166,3 +1361,5 @@ class PolicyConfigReloadResponse(BaseModel):
 
 # Resolve forward references for TurnResponse
 TurnResponse.model_rebuild()
+AdminTurnDetail.model_rebuild()
+AdminRecentTurnsResponse.model_rebuild()

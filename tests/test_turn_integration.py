@@ -62,6 +62,7 @@ async def test_turn_endpoint_full_flow_stub_mode(client):
         user_action = "I search the ancient temple"
         response = client.post(
             "/turn",
+            headers={"X-User-Id": "test-user-123"},
             json={
                 "character_id": character_id,
                 "user_action": user_action
@@ -95,6 +96,10 @@ async def test_turn_endpoint_full_flow_stub_mode(client):
         assert post_data["user_action"] == user_action
         assert "ai_response" in post_data
         assert len(post_data["ai_response"]) > 0
+        
+        # Verify X-User-Id header was passed to both calls
+        assert get_call_args[1]["headers"]["X-User-Id"] == "test-user-123"
+        assert post_call_args[1]["headers"]["X-User-Id"] == "test-user-123"
 
 
 @pytest.mark.asyncio
@@ -157,8 +162,8 @@ async def test_turn_endpoint_journey_log_timeout(client):
 
 
 @pytest.mark.asyncio
-async def test_turn_endpoint_with_trace_id(client):
-    """Test turn endpoint with trace ID for request correlation."""
+async def test_turn_endpoint_with_user_id_header(client):
+    """Test turn endpoint with X-User-Id header for request correlation."""
     from httpx import Response
     from unittest.mock import MagicMock
     
@@ -187,19 +192,19 @@ async def test_turn_endpoint_with_trace_id(client):
         
         response = client.post(
             "/turn",
+            headers={"X-User-Id": "test-user-123"},
             json={
                 "character_id": "550e8400-e29b-41d4-a716-446655440000",
-                "user_action": "I search",
-                "trace_id": "test-trace-123"
+                "user_action": "I search"
             }
         )
         
         assert response.status_code == 200
         
-        # Verify trace_id was passed to journey-log calls
+        # Verify user_id was passed to journey-log calls as X-User-Id
         mock_get.assert_called_once()
         get_call_kwargs = mock_get.call_args[1]
-        assert get_call_kwargs["headers"].get("X-Trace-Id") == "test-trace-123"
+        assert get_call_kwargs["headers"].get("X-User-Id") == "test-user-123"
 
 
 @pytest.mark.asyncio
@@ -858,7 +863,7 @@ async def test_multi_turn_quest_trigger_frequency():
             character_id="test-char-123",
             user_action=f"I explore (turn {turn_num})",
             context=context,
-            trace_id=f"test-trace-{turn_num}"
+            user_id=f"test-trace-{turn_num}"
         )
         
         # Check if quest was triggered
@@ -980,7 +985,7 @@ async def test_multi_turn_poi_trigger_frequency():
             character_id="test-char-456",
             user_action=f"I explore (turn {turn_num})",
             context=context,
-            trace_id=f"test-trace-{turn_num}"
+            user_id=f"test-trace-{turn_num}"
         )
         
         # Check if POI was triggered
@@ -1098,7 +1103,7 @@ async def test_multi_turn_narrative_history_ordering():
             character_id="test-char-789",
             user_action=user_action,
             context=context,
-            trace_id=f"trace-{turn_num}"
+            user_id=f"trace-{turn_num}"
         )
     
     # Verify all narratives were written in order
@@ -1212,7 +1217,7 @@ async def test_multi_turn_state_consistency_with_failures():
             character_id="test-char-999",
             user_action=f"Action {turn_num}",
             context=context,
-            trace_id=f"trace-{turn_num}"
+            user_id=f"trace-{turn_num}"
         )
         
         # Verify narrative always completes
@@ -1322,7 +1327,7 @@ async def test_multi_turn_metrics_capture():
             character_id="test-metrics-char",
             user_action=f"Action {turn_num}",
             context=context,
-            trace_id=f"trace-{turn_num}"
+            user_id=f"trace-{turn_num}"
         )
     
     # Verify metrics were captured

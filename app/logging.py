@@ -32,6 +32,7 @@ import json
 request_id_ctx: ContextVar[Optional[str]] = ContextVar('request_id', default=None)
 character_id_ctx: ContextVar[Optional[str]] = ContextVar('character_id', default=None)
 turn_id_ctx: ContextVar[Optional[str]] = ContextVar('turn_id', default=None)
+user_id_ctx: ContextVar[Optional[str]] = ContextVar('user_id', default=None)
 
 
 def set_request_id(request_id: str) -> None:
@@ -50,6 +51,24 @@ def get_request_id() -> Optional[str]:
         Current request ID or None if not set
     """
     return request_id_ctx.get()
+
+
+def set_user_id(user_id: str) -> None:
+    """Set the user ID in context for correlation.
+    
+    Args:
+        user_id: User identifier (e.g. Firebase UID)
+    """
+    user_id_ctx.set(user_id)
+
+
+def get_user_id() -> Optional[str]:
+    """Get the current user ID from context.
+    
+    Returns:
+        Current user ID or None if not set
+    """
+    return user_id_ctx.get()
 
 
 def set_character_id(character_id: str) -> None:
@@ -96,6 +115,7 @@ def clear_context() -> None:
     request_id_ctx.set(None)
     character_id_ctx.set(None)
     turn_id_ctx.set(None)
+    user_id_ctx.set(None)
 
 
 def redact_secrets(text: str) -> str:
@@ -144,6 +164,10 @@ def get_structured_extras() -> Dict[str, Any]:
     turn_id = get_turn_id()
     if turn_id:
         extras['turn_id'] = turn_id
+        
+    user_id = get_user_id()
+    if user_id:
+        extras['user_id'] = user_id
     
     return extras
 
@@ -176,6 +200,24 @@ class StructuredLogger:
         exc_info = kwargs.pop('exc_info', None)
         stack_info = kwargs.pop('stack_info', None)
         stacklevel = kwargs.pop('stacklevel', 1)
+        
+        # List of reserved LogRecord attributes that cannot be used in 'extra'
+        # See: https://docs.python.org/3/library/logging.html#logrecord-attributes
+        RESERVED_ATTRS = {
+            'name', 'msg', 'args', 'created', 'filename', 'funcName', 'levelname',
+            'levelno', 'lineno', 'module', 'msecs', 'message', 'pathname', 'process',
+            'processName', 'relativeCreated', 'thread', 'threadName', 'exc_info',
+            'exc_text', 'stack_info', 'taskName'
+        }
+        
+        # Check for reserved attributes and warn if found
+        for key in kwargs:
+            if key in RESERVED_ATTRS:
+                self.logger.warning(
+                    f"Attempted to use reserved LogRecord attribute '{key}' in log extras. "
+                    f"This may cause logging errors. Consider renaming to '{key}_value' or similar.",
+                    stacklevel=stacklevel + 2
+                )
         
         extras.update(kwargs)
         

@@ -29,6 +29,11 @@ async def test_policy_engine_evaluated_before_llm():
     from app.services.policy_engine import PolicyEngine
     from httpx import AsyncClient
     
+    # Create mock semaphore
+    mock_semaphore = MagicMock()
+    mock_semaphore.__aenter__ = AsyncMock(return_value=None)
+    mock_semaphore.__aexit__ = AsyncMock(return_value=None)
+    
     # Create mock HTTP client
     mock_http_client = AsyncMock(spec=AsyncClient)
     
@@ -99,10 +104,18 @@ async def test_policy_engine_evaluated_before_llm():
         user_action="I explore the area"
     )
     
+    # Mock rate limiter
+    mock_rate_limiter = MagicMock()
+    mock_rate_limiter.acquire = AsyncMock(return_value=True)
+    
     response = await process_turn(
         request=request,
+        user_id="test-user",
         journey_log_client=journey_client,
         turn_orchestrator=turn_orchestrator,
+
+        llm_semaphore=mock_semaphore,
+        character_rate_limiter=mock_rate_limiter,
         settings=settings
     )
     
@@ -121,6 +134,11 @@ async def test_policy_guardrails_block_quest_intent():
     from app.services.llm_client import LLMClient
     from app.services.policy_engine import PolicyEngine
     from httpx import AsyncClient
+    
+    # Create mock semaphore
+    mock_semaphore = MagicMock()
+    mock_semaphore.__aenter__ = AsyncMock(return_value=None)
+    mock_semaphore.__aexit__ = AsyncMock(return_value=None)
     
     # Create mock HTTP client
     mock_http_client = AsyncMock(spec=AsyncClient)
@@ -203,6 +221,10 @@ async def test_policy_guardrails_block_quest_intent():
         openai_api_key="sk-test"
     )
     
+    # Mock rate limiter
+    mock_rate_limiter = MagicMock()
+    mock_rate_limiter.acquire = AsyncMock(return_value=True)
+    
     with patch.object(llm_client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_llm_response
         
@@ -214,8 +236,12 @@ async def test_policy_guardrails_block_quest_intent():
         
         response = await process_turn(
             request=request,
+            user_id="test-user",
             journey_log_client=journey_client,
             turn_orchestrator=turn_orchestrator,
+
+            llm_semaphore=mock_semaphore,
+            character_rate_limiter=mock_rate_limiter,
             settings=settings
         )
         
@@ -383,7 +409,7 @@ async def test_policy_rate_limit_behavior():
     )
     
     # Create rate limiter with low limit for testing
-    rate_limiter = RateLimiter(rate_per_second=2.0)
+    rate_limiter = RateLimiter(max_rate=2.0)
     
     request = TurnRequest(
         character_id="550e8400-e29b-41d4-a716-446655440000",
@@ -393,16 +419,22 @@ async def test_policy_rate_limit_behavior():
     # First two requests should succeed
     response1 = await process_turn(
         request=request,
+        user_id="test-user",
         journey_log_client=journey_client,
         turn_orchestrator=turn_orchestrator,
+        character_rate_limiter=rate_limiter,
+        llm_semaphore=MagicMock(),
         settings=settings
     )
     assert response1.narrative is not None
     
     response2 = await process_turn(
         request=request,
+        user_id="test-user",
         journey_log_client=journey_client,
         turn_orchestrator=turn_orchestrator,
+        character_rate_limiter=rate_limiter,
+        llm_semaphore=MagicMock(),
         settings=settings
     )
     assert response2.narrative is not None

@@ -129,7 +129,7 @@ async def test_quest_put_with_valid_intent(orchestrator, llm_client, journey_log
         character_id="char-123",
         user_action="I look around for opportunities",
         context=base_context,
-        trace_id="test-trace"
+        user_id="test-trace"
     )
     
     # Verify quest PUT was called
@@ -180,7 +180,7 @@ async def test_quest_put_with_fallback_payload(orchestrator, llm_client, journey
         character_id="char-123",
         user_action="I look around",
         context=base_context,
-        trace_id="test-trace"
+        user_id="test-trace"
     )
     
     # Verify quest PUT was called with fallback values
@@ -219,7 +219,7 @@ async def test_quest_put_with_no_intent_but_policy_triggered(orchestrator, llm_c
         character_id="char-123",
         user_action="I explore",
         context=base_context,
-        trace_id="test-trace"
+        user_id="test-trace"
     )
     
     # Quest intent should be normalized to fallback offer
@@ -265,7 +265,7 @@ async def test_quest_put_skipped_when_active_quest_exists(orchestrator, llm_clie
         character_id="char-123",
         user_action="I explore",
         context=base_context,
-        trace_id="test-trace"
+        user_id="test-trace"
     )
     
     # Verify quest PUT was NOT called
@@ -307,7 +307,7 @@ async def test_quest_delete_on_complete(orchestrator, llm_client, journey_log_cl
         character_id="char-123",
         user_action="I complete the quest",
         context=base_context,
-        trace_id="test-trace"
+        user_id="test-trace"
     )
     
     # Verify quest DELETE was called
@@ -352,7 +352,7 @@ async def test_quest_delete_on_abandon(orchestrator, llm_client, journey_log_cli
         character_id="char-123",
         user_action="I abandon the quest",
         context=base_context,
-        trace_id="test-trace"
+        user_id="test-trace"
     )
     
     # Verify quest DELETE was called
@@ -395,7 +395,7 @@ async def test_quest_delete_skipped_when_no_active_quest(orchestrator, llm_clien
         character_id="char-123",
         user_action="I complete the quest",
         context=base_context,
-        trace_id="test-trace"
+        user_id="test-trace"
     )
     
     # Verify quest DELETE was NOT called
@@ -439,7 +439,7 @@ async def test_quest_put_409_conflict_handling(orchestrator, llm_client, journey
         character_id="char-123",
         user_action="I explore",
         context=base_context,
-        trace_id="test-trace"
+        user_id="test-trace"
     )
     
     # Verify summary marks as skipped
@@ -485,7 +485,7 @@ async def test_quest_put_other_error_handling(orchestrator, llm_client, journey_
         character_id="char-123",
         user_action="I explore",
         context=base_context,
-        trace_id="test-trace"
+        user_id="test-trace"
     )
     
     # Verify summary marks as failed
@@ -568,7 +568,7 @@ async def test_quest_lifecycle_across_multiple_turns():
         character_id="char-lifecycle",
         user_action="I look for opportunities",
         context=context_no_quest,
-        trace_id="trace-1"
+        user_id="trace-1"
     )
     
     # Verify quest was offered
@@ -610,7 +610,7 @@ async def test_quest_lifecycle_across_multiple_turns():
         character_id="char-lifecycle",
         user_action="I search the ruins",
         context=context_with_quest,
-        trace_id="trace-2"
+        user_id="trace-2"
     )
     
     # Verify quest progress (no new PUT/DELETE)
@@ -635,7 +635,7 @@ async def test_quest_lifecycle_across_multiple_turns():
         character_id="char-lifecycle",
         user_action="I retrieve the artifact",
         context=context_with_quest,
-        trace_id="trace-3"
+        user_id="trace-3"
     )
     
     # Verify quest was completed
@@ -712,7 +712,7 @@ async def test_quest_offer_rejected_by_failed_policy_roll():
         character_id="char-rejected",
         user_action="I look around",
         context=context,
-        trace_id="trace-reject"
+        user_id="trace-reject"
     )
     
     # Verify narrative completes

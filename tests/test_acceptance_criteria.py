@@ -364,6 +364,15 @@ async def test_parser_integration_with_routes_flow():
         prompt_builder=prompt_builder
     )
     
+    # Create mock semaphore
+    mock_semaphore = MagicMock()
+    mock_semaphore.__aenter__ = AsyncMock(return_value=None)
+    mock_semaphore.__aexit__ = AsyncMock(return_value=None)
+    
+    # Mock rate limiter
+    mock_rate_limiter = MagicMock()
+    mock_rate_limiter.acquire = AsyncMock(return_value=True)
+    
     with patch.object(llm_client.client.responses, 'create', new_callable=AsyncMock) as mock_create:
         mock_create.return_value = mock_llm_response
         
@@ -382,8 +391,11 @@ async def test_parser_integration_with_routes_flow():
         
         response = await process_turn(
             request=request,
+            user_id="test-user",
             journey_log_client=journey_client,
             turn_orchestrator=turn_orchestrator,
+            llm_semaphore=mock_semaphore,
+            character_rate_limiter=mock_rate_limiter,
             settings=settings
         )
         

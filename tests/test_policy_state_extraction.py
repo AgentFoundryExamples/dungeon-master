@@ -15,7 +15,7 @@
 
 import pytest
 from httpx import AsyncClient, Response
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 from app.services.journey_log_client import JourneyLogClient
 
@@ -69,7 +69,7 @@ async def test_policy_state_extraction_full_data(journey_log_client, mock_http_c
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -116,7 +116,7 @@ async def test_policy_state_extraction_defaults(journey_log_client, mock_http_cl
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -153,7 +153,7 @@ async def test_policy_state_quest_presence_detection(journey_log_client, mock_ht
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -187,7 +187,7 @@ async def test_policy_state_invalid_turn_counters(journey_log_client, mock_http_
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -222,7 +222,7 @@ async def test_policy_state_invalid_boolean_flags(journey_log_client, mock_http_
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -258,7 +258,7 @@ async def test_policy_state_additional_fields_preserved(journey_log_client, mock
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -292,7 +292,7 @@ async def test_policy_state_combat_inactive_no_state(journey_log_client, mock_ht
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -326,7 +326,7 @@ async def test_policy_state_invalid_timestamps(journey_log_client, mock_http_cli
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -361,7 +361,7 @@ async def test_policy_state_valid_timestamps(journey_log_client, mock_http_clien
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -394,7 +394,7 @@ async def test_policy_state_explicit_has_active_quest_flag(journey_log_client, m
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
@@ -425,7 +425,7 @@ async def test_policy_state_quest_presence_fallback(journey_log_client, mock_htt
     
     mock_response = AsyncMock(spec=Response)
     mock_response.json.return_value = mock_response_data
-    mock_response.raise_for_status = AsyncMock()
+    mock_response.raise_for_status = Mock()
     mock_http_client.get.return_value = mock_response
     
     context = await journey_log_client.get_context(
