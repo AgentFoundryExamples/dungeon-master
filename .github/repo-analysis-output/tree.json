@@ -390,6 +390,10 @@
     },
     {
       "type": "file",
+      "name": "DEPLOYMENT.md"
+    },
+    {
+      "type": "file",
       "name": "DEV_AUTH_BYPASS.md"
     },
     {
