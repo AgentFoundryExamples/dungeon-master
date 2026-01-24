@@ -2,6 +2,8 @@
 
 This guide provides comprehensive, end-to-end instructions for deploying and operating the Dungeon Master service on Google Cloud Platform.
 
+> **📝 Note on Placeholders**: This guide uses placeholder values (e.g., `YOUR_PROJECT_ID`, `journey-log-xyz.a.run.app`, `test-character-uuid`) that **must be replaced** with your actual project-specific values. These placeholders are marked with `YOUR_` prefix or contain `-xyz` suffixes to make them easy to identify.
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -168,10 +170,10 @@ Grant Cloud Build service account permissions to deploy:
 export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
 export CLOUD_BUILD_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
 
-# Grant Cloud Run admin (for deployment)
+# Grant Cloud Run Developer role (for deployment)
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:${CLOUD_BUILD_SA}" \
-  --role="roles/run.admin"
+  --role="roles/run.developer"
 
 # Grant Artifact Registry writer (for pushing images)
 gcloud projects add-iam-policy-binding $PROJECT_ID \
@@ -610,7 +612,8 @@ Test a specific revision before shifting traffic using tagged URLs:
 
 ```bash
 # Get revision-specific URL
-REVISION_URL="https://${NEW_REVISION}---dungeon-master-$(gcloud run services describe dungeon-master --region $REGION --format='value(status.url)' | cut -d'/' -f3)"
+SERVICE_HOSTNAME=$(gcloud run services describe dungeon-master --region $REGION --format='value(status.url)' | sed 's|https://||')
+REVISION_URL="https://${NEW_REVISION}---${SERVICE_HOSTNAME}"
 
 # Test health endpoint
 curl $REVISION_URL/health
@@ -755,7 +758,7 @@ gcloud alpha monitoring channels create \
 gcloud alpha monitoring channels create \
   --display-name="PagerDuty On-Call" \
   --type=pagerduty \
-  --channel-labels=service_key=YOUR_PAGERDUTY_KEY
+  --channel-labels=routing_key=YOUR_PAGERDUTY_KEY
 ```
 
 ### Links to Monitoring Resources
@@ -883,7 +886,7 @@ gcloud projects get-iam-policy $PROJECT_ID \
 ```
 
 **Common causes**:
-- Cloud Build service account missing `roles/run.admin`
+- Cloud Build service account missing `roles/run.developer`
 - Cloud Build service account missing `roles/iam.serviceAccountUser`
 - Service account doesn't have permission to assign service account to Cloud Run
 
@@ -892,7 +895,7 @@ gcloud projects get-iam-policy $PROJECT_ID \
 # Grant missing permissions (see Initial Provisioning section)
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:${CLOUD_BUILD_SA}" \
-  --role="roles/run.admin"
+  --role="roles/run.developer"
 ```
 
 #### Issue: "Secret Not Found" Error
@@ -982,13 +985,22 @@ gcloud logging read \
 
 **Diagnosis**:
 ```bash
-# Test from Cloud Shell (simulates Cloud Run network)
-gcloud run services update-traffic dungeon-master \
-  --to-revisions $NEW_REVISION=0 \
-  --region $REGION
+# Test from a container with the same network configuration
+# 1. Deploy a temporary debug image (e.g., curlimages/curl) with the same network settings
+gcloud run deploy debug-curl --image=curlimages/curl \
+  --region=$REGION \
+  --service-account=dungeon-master-sa@${PROJECT_ID}.iam.gserviceaccount.com \
+  --vpc-connector=YOUR_VPC_CONNECTOR \  # Add if the main service uses one
+  --command -- /bin/sh -c "sleep 3600"
 
-# SSH into Cloud Shell and test
-curl https://journey-log-xyz.a.run.app/health
+# 2. SSH into the debug container
+gcloud run ssh debug-curl --region=$REGION
+
+# 3. From inside the container's shell, test connectivity
+# (container) curl https://journey-log-xyz.a.run.app/health
+
+# 4. Clean up the debug service
+gcloud run services delete debug-curl --region=$REGION --quiet
 ```
 
 **Common causes**:
