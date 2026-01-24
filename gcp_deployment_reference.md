@@ -1089,3 +1089,881 @@ The system enforces strict status transitions (Healthy → Wounded → Dead) wit
 8. ✅ Set up monitoring and alerts
 9. ✅ Document secret rotation procedures
 10. ✅ Test rollback procedures
+
+## 7. SERVICE DISCOVERY AND NETWORKING
+
+### A. Service Discovery Strategies
+
+The Dungeon Master service supports multiple discovery strategies based on deployment requirements.
+
+#### Cloud Run Default Domain (Recommended for Dev/Staging)
+
+Every Cloud Run service receives an automatic HTTPS domain:
+```
+https://SERVICE_NAME-HASH-REGION_CODE.a.run.app
+```
+
+**Benefits:**
+- Zero configuration required
+- Automatic SSL/TLS certificates
+- Global load balancing
+- High availability built-in
+
+**Get Service URL:**
+```bash
+gcloud run services describe dungeon-master \
+  --region us-central1 \
+  --format 'value(status.url)'
+```
+
+#### Custom Domain Mapping (Production)
+
+For production deployments with branded domains:
+
+```bash
+# Map custom domain
+gcloud run domain-mappings create \
+  --service dungeon-master \
+  --domain api.yourgame.com \
+  --region us-central1
+
+# Configure DNS (CNAME record)
+# Type:  CNAME
+# Name:  api
+# Value: ghs.googlehosted.com
+```
+
+**SSL Certificate:** Automatically provisioned and renewed by Google (15-60 minutes after DNS propagation).
+
+#### API Gateway (Production with Rate Limiting)
+
+For public APIs requiring authentication and rate limiting:
+
+```bash
+# Deploy API Gateway
+gcloud api-gateway api-configs create dungeon-master-config \
+  --api=dungeon-master-api \
+  --openapi-spec=infra/networking/api_gateway.yaml \
+  --backend-auth-service-account=dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com
+
+gcloud api-gateway gateways create dungeon-master-gateway \
+  --api=dungeon-master-api \
+  --api-config=dungeon-master-config \
+  --location=us-central1
+```
+
+See `infra/networking/README.md` for detailed setup instructions.
+
+### B. VPC and Private Networking
+
+For private deployments requiring VPC connectivity (e.g., Cloud SQL with private IP):
+
+#### Create VPC Connector
+
+```bash
+gcloud compute networks vpc-access connectors create dungeon-master-connector \
+  --region=us-central1 \
+  --network=default \
+  --range=10.8.0.0/28 \
+  --min-instances=2 \
+  --max-instances=10
+```
+
+#### Configure Cloud Run Service
+
+```bash
+gcloud run services update dungeon-master \
+  --vpc-connector dungeon-master-connector \
+  --vpc-egress private-ranges-only \
+  --region us-central1
+```
+
+Or use Terraform configuration: `infra/networking/vpc_connector.tf`
+
+**VPC Egress Options:**
+- `private-ranges-only`: Only private IP ranges through VPC (recommended)
+- `all-traffic`: All egress through VPC (for compliance requirements)
+
+### C. Multi-Region Deployment
+
+For global availability and reduced latency:
+
+#### Active-Active Strategy
+
+Deploy to multiple regions with Cloud Load Balancer:
+
+```bash
+# Deploy to multiple regions
+for REGION in us-central1 us-east1 europe-west1; do
+  gcloud run deploy dungeon-master \
+    --image us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/dungeon-master:latest \
+    --region ${REGION} \
+    --no-allow-unauthenticated
+done
+
+# Configure Cloud Load Balancer with Network Endpoint Groups (NEGs)
+```
+
+#### DNS Conflict Prevention
+
+Use region-specific service names:
+```
+dungeon-master-us-central1
+dungeon-master-us-east1
+dungeon-master-europe-west1
+```
+
+Or Cloud Run traffic tags:
+```
+https://primary---dungeon-master-HASH-uc.a.run.app
+https://failover---dungeon-master-HASH-ue.a.run.app
+```
+
+### D. Preview Environments
+
+For PR testing and feature branches:
+
+```bash
+# Deploy preview environment
+PREVIEW_NAME="dungeon-master-pr-${PR_NUMBER}"
+
+gcloud run deploy ${PREVIEW_NAME} \
+  --image us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/dungeon-master:pr-${PR_NUMBER} \
+  --region us-central1 \
+  --no-traffic \
+  --tag pr-${PR_NUMBER}
+
+# Get preview URL
+gcloud run services describe ${PREVIEW_NAME} \
+  --region us-central1 \
+  --format 'value(status.url)'
+```
+
+**Auto-Cleanup:** Delete preview environments after PR merge to avoid resource waste.
+
+## 8. AUTOSCALING AND TRAFFIC MANAGEMENT
+
+### A. Autoscaling Configuration
+
+Cloud Run autoscales based on:
+1. **Concurrent requests** per instance (containerConcurrency)
+2. **CPU utilization** (target: < 80%)
+3. **Memory utilization** (target: < 80%)
+
+#### Recommended Settings
+
+```bash
+--min-instances 0      # Cost optimization (scale to zero when idle)
+--max-instances 100    # Cap costs and prevent quota exhaustion
+--concurrency 80       # 80 concurrent requests per instance
+```
+
+#### Production Adjustments
+
+**Low Traffic** (< 100 daily active users):
+```bash
+--min-instances 0
+--max-instances 10
+--concurrency 50
+```
+
+**Medium Traffic** (100-1000 daily active users):
+```bash
+--min-instances 1      # Eliminate first cold start
+--max-instances 100
+--concurrency 80
+```
+
+**High Traffic** (> 1000 daily active users):
+```bash
+--min-instances 5      # Always-warm instances
+--max-instances 200    # Higher capacity
+--concurrency 100
+--cpu 4                # More CPU per instance
+--memory 2Gi           # More memory per instance
+```
+
+### B. Cold Start Mitigation
+
+**Problem:** First request to a scaled-to-zero service experiences 1-3 second delay.
+
+**Solutions:**
+
+#### 1. Set min-instances > 0 (Simple, Costs $$$)
+
+```bash
+gcloud run services update dungeon-master \
+  --min-instances 1 \
+  --region us-central1
+```
+
+**Cost Impact:** ~$20-30/month per instance at 1 GiB RAM, 2 vCPU
+
+#### 2. Enable Startup CPU Boost (Free, Limited Impact)
+
+Already enabled in `infra/cloudrun/service.yaml`:
+```yaml
+annotations:
+  run.googleapis.com/startup-cpu-boost: "true"
+```
+
+**Impact:** Reduces cold start from ~2s to ~1s
+
+#### 3. Scheduled Traffic (Free, Periodic)
+
+Use Cloud Scheduler to ping service periodically:
+
+```bash
+# Create Cloud Scheduler job to keep service warm
+gcloud scheduler jobs create http keep-warm-dungeon-master \
+  --schedule="*/10 * * * *" \
+  --uri="https://dungeon-master-SERVICE_ID-uc.a.run.app/health" \
+  --http-method=GET \
+  --location=us-central1
+```
+
+**Impact:** Keeps at least one instance warm during business hours
+
+#### 4. Optimize Container Startup (Free, Engineering Effort)
+
+- Minimize dependencies loaded at startup
+- Use lazy imports for heavy libraries
+- Pre-compile Python bytecode in Docker image
+
+### C. Traffic Rollout Strategies
+
+Cloud Run supports gradual traffic migration for safe deployments.
+
+#### Blue/Green Deployment (Zero-Downtime)
+
+Deploy new revision with 0% traffic, then shift all traffic instantly:
+
+```bash
+# Deploy new revision (0% traffic)
+gcloud run deploy dungeon-master \
+  --image IMAGE_URL \
+  --no-traffic \
+  --region us-central1
+
+# Get new revision name
+NEW_REVISION=$(gcloud run services describe dungeon-master \
+  --region us-central1 \
+  --format 'value(status.latestReadyRevisionName)')
+
+# Test new revision via tagged URL
+curl https://${NEW_REVISION}---dungeon-master-SERVICE_ID-uc.a.run.app/health
+
+# Shift 100% traffic if tests pass
+gcloud run services update-traffic dungeon-master \
+  --to-revisions ${NEW_REVISION}=100 \
+  --region us-central1
+```
+
+#### Canary Deployment (Gradual Rollout)
+
+Gradually shift traffic to new revision:
+
+```bash
+# Deploy new revision (0% traffic)
+gcloud run deploy dungeon-master \
+  --image IMAGE_URL \
+  --no-traffic \
+  --region us-central1
+
+NEW_REVISION=$(gcloud run services describe dungeon-master \
+  --region us-central1 \
+  --format 'value(status.latestReadyRevisionName)')
+
+# Shift 10% traffic to new revision
+gcloud run services update-traffic dungeon-master \
+  --to-revisions ${NEW_REVISION}=10 \
+  --region us-central1
+
+# Monitor metrics for 15-30 minutes
+# If metrics look good, shift to 50%
+gcloud run services update-traffic dungeon-master \
+  --to-revisions ${NEW_REVISION}=50 \
+  --region us-central1
+
+# Finally, shift to 100%
+gcloud run services update-traffic dungeon-master \
+  --to-revisions ${NEW_REVISION}=100 \
+  --region us-central1
+```
+
+#### A/B Testing (Split Traffic)
+
+Route specific percentage to each revision:
+
+```bash
+# Split traffic 50/50 between two revisions
+gcloud run services update-traffic dungeon-master \
+  --to-revisions REVISION_A=50,REVISION_B=50 \
+  --region us-central1
+```
+
+### D. Rollback Procedures
+
+#### Fast Rollback (Shift Traffic)
+
+If new revision has issues, instantly shift traffic back:
+
+```bash
+# List recent revisions
+gcloud run revisions list \
+  --service dungeon-master \
+  --region us-central1 \
+  --limit 5
+
+# Shift 100% traffic to previous working revision
+gcloud run services update-traffic dungeon-master \
+  --to-revisions PREVIOUS_REVISION=100 \
+  --region us-central1
+```
+
+**Recovery Time:** < 30 seconds
+
+#### Complete Rollback (Redeploy)
+
+If traffic shift isn't enough (e.g., bad database migration):
+
+```bash
+# Redeploy previous known-good image
+gcloud run deploy dungeon-master \
+  --image us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/dungeon-master:PREVIOUS_SHA \
+  --region us-central1
+```
+
+## 9. MONITORING AND OBSERVABILITY
+
+### A. Native Cloud Monitoring Stack
+
+**Philosophy:** Use native GCP monitoring tools (Cloud Monitoring, Cloud Logging). Do NOT introduce third-party stacks (Prometheus, Datadog) unless explicitly required.
+
+### B. Monitoring Artifacts
+
+All monitoring configurations are in `infra/monitoring/`:
+
+| File | Purpose |
+|------|---------|
+| `alert_policies.yaml` | Alert policies for critical conditions |
+| `log_metrics.yaml` | Custom metrics from application logs |
+| `dashboard.json` | Service health dashboard |
+| `deploy_log_metrics.sh` | Script to deploy log-based metrics |
+| `deploy_uptime_checks.sh` | Script to deploy uptime checks |
+
+### C. Key Metrics Monitored
+
+#### 1. Error Rate (5xx Responses)
+
+**Metric:** `run.googleapis.com/request_count` (filtered by response_code_class=5xx)
+
+**Threshold:** > 5% of total requests over 5-minute window
+
+**Alert:** Critical (PagerDuty on-call)
+
+**Dashboard Widget:** Error rate gauge
+
+#### 2. Request Latency (P95)
+
+**Metric:** `run.googleapis.com/request_latencies` (95th percentile)
+
+**Threshold:** > 5 seconds over 10-minute window
+
+**Alert:** Warning (Slack #alerts)
+
+**Dashboard Widget:** Latency distribution heatmap
+
+#### 3. Instance Count
+
+**Metric:** `run.googleapis.com/container/instance_count`
+
+**Threshold:** > 90 instances (90% of max-instances=100)
+
+**Alert:** Warning (Email capacity-planning)
+
+**Dashboard Widget:** Instance count time series
+
+#### 4. LLM API Errors (Log-Based)
+
+**Log Filter:**
+```
+resource.type="cloud_run_revision"
+resource.labels.service_name="dungeon-master"
+jsonPayload.level="ERROR"
+jsonPayload.logger="llm_client"
+```
+
+**Threshold:** > 10 errors/minute over 5-minute window
+
+**Alert:** Critical (PagerDuty on-call)
+
+**Dashboard Widget:** LLM error rate time series
+
+#### 5. Deployment Failures
+
+**Metric:** `cloudbuild.googleapis.com/build/status` (filtered by status=FAILURE)
+
+**Threshold:** Any failure
+
+**Alert:** High (Slack #deployments)
+
+**Purpose:** Detect CI/CD pipeline issues
+
+#### 6. Service Availability (Uptime Check)
+
+**Endpoint:** `https://SERVICE_URL/health`
+
+**Frequency:** Every 1 minute
+
+**Success Criteria:** HTTP 200 + response body contains "healthy"
+
+**Threshold:** 2 consecutive failures
+
+**Alert:** Critical (PagerDuty on-call)
+
+### D. Deploying Monitoring Artifacts
+
+#### Prerequisites
+
+```bash
+# Enable APIs
+gcloud services enable monitoring.googleapis.com logging.googleapis.com
+
+# Grant permissions
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/monitoring.metricWriter"
+```
+
+#### Deploy Log-Based Metrics
+
+```bash
+cd infra/monitoring
+bash deploy_log_metrics.sh PROJECT_ID
+```
+
+#### Deploy Alert Policies
+
+```bash
+gcloud alpha monitoring policies create \
+  --policy-from-file=alert_policies.yaml
+```
+
+#### Deploy Dashboard
+
+Import `dashboard.json` via Cloud Console:
+1. Navigate to: https://console.cloud.google.com/monitoring/dashboards
+2. Click "Create Dashboard"
+3. Click "JSON" tab
+4. Paste contents of `dashboard.json`
+5. Click "Save"
+
+#### Deploy Uptime Checks
+
+```bash
+SERVICE_URL=$(gcloud run services describe dungeon-master \
+  --region us-central1 \
+  --format 'value(status.url)')
+
+bash deploy_uptime_checks.sh PROJECT_ID "$SERVICE_URL"
+```
+
+### E. Verifying Health Endpoints
+
+The service exposes health check endpoints:
+
+```bash
+# Basic health check
+curl https://SERVICE_URL/health
+
+# Expected response:
+# {"status": "healthy", "service": "dungeon-master"}
+
+# Health check with journey-log ping (if HEALTH_CHECK_JOURNEY_LOG=true)
+# This verifies connectivity to journey-log service
+curl https://SERVICE_URL/health
+```
+
+### F. Updating Monitoring Configs Post-Deploy
+
+#### Update Alert Thresholds
+
+```bash
+# Edit alert_policies.yaml
+# Change thresholdValue: 0.05 to 0.10 (allow 10% error rate)
+
+# Reapply
+gcloud alpha monitoring policies update POLICY_ID \
+  --policy-from-file=alert_policies.yaml
+```
+
+#### Add Notification Channels
+
+```bash
+# Add email channel
+gcloud alpha monitoring channels create \
+  --display-name="Deploy Team Email" \
+  --type=email \
+  --channel-labels=email_address=deploy-team@example.com
+
+# Link to alert policy
+gcloud alpha monitoring policies update POLICY_ID \
+  --add-notification-channels=CHANNEL_ID
+```
+
+#### Update Log Metrics
+
+```bash
+# Update metric filter to include new log patterns
+gcloud logging metrics update llm_api_errors \
+  --log-filter='UPDATED_FILTER_QUERY'
+```
+
+### G. Integration with On-Call Tools
+
+#### PagerDuty
+
+```bash
+# Create PagerDuty notification channel
+gcloud alpha monitoring channels create \
+  --display-name="PagerDuty On-Call" \
+  --type=pagerduty \
+  --channel-labels=service_key=YOUR_PAGERDUTY_INTEGRATION_KEY
+
+# Link to critical alert policies
+gcloud alpha monitoring policies update POLICY_ID \
+  --add-notification-channels=PAGERDUTY_CHANNEL_ID
+```
+
+#### Slack
+
+```bash
+# Create Slack notification channel
+gcloud alpha monitoring channels create \
+  --display-name="Slack #incidents" \
+  --type=slack \
+  --channel-labels=url=SLACK_WEBHOOK_URL
+
+# Link to alert policies
+gcloud alpha monitoring policies update POLICY_ID \
+  --add-notification-channels=SLACK_CHANNEL_ID
+```
+
+## 10. UPDATING CONFIGURATIONS POST-DEPLOY
+
+### A. Updating Scaling Configuration
+
+#### Increase Max Instances (Traffic Spike)
+
+```bash
+gcloud run services update dungeon-master \
+  --max-instances 200 \
+  --region us-central1
+```
+
+#### Add Minimum Instances (Eliminate Cold Starts)
+
+```bash
+gcloud run services update dungeon-master \
+  --min-instances 2 \
+  --region us-central1
+```
+
+**Cost Impact:** Each always-on instance costs ~$20-30/month at 1Gi/2vCPU
+
+#### Adjust Concurrency (Performance Tuning)
+
+```bash
+# Lower concurrency if instances are CPU-bound
+gcloud run services update dungeon-master \
+  --concurrency 50 \
+  --region us-central1
+
+# Raise concurrency if instances are I/O-bound
+gcloud run services update dungeon-master \
+  --concurrency 100 \
+  --region us-central1
+```
+
+### B. Updating Resource Limits
+
+#### Increase Memory (OOM Errors)
+
+```bash
+gcloud run services update dungeon-master \
+  --memory 2Gi \
+  --region us-central1
+```
+
+#### Increase CPU (High CPU Utilization)
+
+```bash
+gcloud run services update dungeon-master \
+  --cpu 4 \
+  --region us-central1
+```
+
+### C. Updating Environment Variables
+
+#### Update Single Environment Variable
+
+```bash
+gcloud run services update dungeon-master \
+  --set-env-vars LOG_LEVEL=DEBUG \
+  --region us-central1
+```
+
+#### Update Multiple Environment Variables
+
+```bash
+gcloud run services update dungeon-master \
+  --set-env-vars QUEST_TRIGGER_PROB=0.5,POI_TRIGGER_PROB=0.3 \
+  --region us-central1
+```
+
+#### Remove Environment Variable
+
+```bash
+gcloud run services update dungeon-master \
+  --remove-env-vars ENABLE_DEBUG_ENDPOINTS \
+  --region us-central1
+```
+
+### D. Updating Secrets
+
+#### Rotate OpenAI API Key
+
+```bash
+# Create new secret version
+echo -n "NEW_API_KEY" | gcloud secrets versions add openai-api-key \
+  --data-file=-
+
+# Cloud Run automatically picks up latest version on next cold start
+# Or force restart:
+gcloud run services update dungeon-master \
+  --region us-central1
+```
+
+### E. Applying Service YAML Changes
+
+After editing `infra/cloudrun/service.yaml`:
+
+```bash
+# Replace service with updated YAML
+gcloud run services replace infra/cloudrun/service.yaml \
+  --region us-central1
+```
+
+**Warning:** This replaces the entire service configuration. Use `gcloud run services update` for incremental changes.
+
+## 11. TROUBLESHOOTING COMMON ISSUES
+
+### A. Cold Start Performance
+
+**Symptom:** First request after idle period takes 2-5 seconds
+
+**Solutions:**
+1. Set `--min-instances 1` to keep at least one instance warm
+2. Enable startup CPU boost (already enabled in service.yaml)
+3. Use Cloud Scheduler to ping `/health` every 10 minutes
+4. Optimize container startup (lazy imports, pre-compiled bytecode)
+
+### B. 5xx Errors After Deployment
+
+**Symptom:** High error rate immediately after deployment
+
+**Troubleshooting:**
+```bash
+# Check recent logs
+gcloud logging read 'resource.type="cloud_run_revision"
+  resource.labels.service_name="dungeon-master"
+  severity>=ERROR' \
+  --limit=50 \
+  --format=json
+
+# Check service status
+gcloud run services describe dungeon-master \
+  --region us-central1
+
+# Rollback to previous revision
+gcloud run services update-traffic dungeon-master \
+  --to-revisions PREVIOUS_REVISION=100 \
+  --region us-central1
+```
+
+### C. Memory Limit Exceeded (OOM)
+
+**Symptom:** Service crashes with "Memory limit exceeded" error
+
+**Solutions:**
+```bash
+# Increase memory limit
+gcloud run services update dungeon-master \
+  --memory 2Gi \
+  --region us-central1
+
+# Or reduce concurrency to lower memory pressure
+gcloud run services update dungeon-master \
+  --concurrency 40 \
+  --region us-central1
+```
+
+### D. Request Timeout (504 Gateway Timeout)
+
+**Symptom:** Requests fail with 504 error after 5 minutes
+
+**Cause:** Cloud Run timeout reached (default 300s)
+
+**Solutions:**
+```bash
+# Increase timeout (max 60 minutes for HTTP/1)
+gcloud run services update dungeon-master \
+  --timeout 600s \
+  --region us-central1
+
+# Or optimize request processing (async patterns, streaming responses)
+```
+
+### E. VPC Connector Errors
+
+**Symptom:** "VPC connector not found" or "VPC access denied"
+
+**Troubleshooting:**
+```bash
+# Check connector status
+gcloud compute networks vpc-access connectors describe dungeon-master-connector \
+  --region us-central1
+
+# Check service account permissions
+gcloud projects get-iam-policy PROJECT_ID \
+  --flatten="bindings[].members" \
+  --filter="bindings.members:serviceAccount:dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com"
+```
+
+## 12. COST OPTIMIZATION
+
+### A. Scaling to Zero
+
+**Default Configuration:**
+```bash
+--min-instances 0
+```
+
+**Savings:** No charges when service is idle (no requests)
+
+**Trade-off:** First request after idle experiences 1-3 second cold start
+
+### B. Right-Sizing Resources
+
+Start with minimal resources and scale up based on metrics:
+
+```bash
+# Start small
+--memory 512Mi --cpu 1 --concurrency 50
+
+# Monitor CPU and memory utilization
+# Scale up only if:
+# - CPU utilization consistently > 70%
+# - Memory utilization consistently > 70%
+# - Request latency > 2 seconds
+```
+
+### C. Request-Based Pricing
+
+Cloud Run charges based on:
+1. **Request count** ($0.40 per million requests)
+2. **Compute time** (vCPU-seconds and GiB-seconds)
+
+**Optimization Tips:**
+- Cache responses when possible (reduce LLM API calls)
+- Enable request batching for bulk operations
+- Use high concurrency to maximize instance utilization
+
+### D. Monitoring Costs
+
+View Cloud Run costs in Cloud Console:
+```
+https://console.cloud.google.com/billing/reports?project=PROJECT_ID
+```
+
+Filter by:
+- **SKU:** Cloud Run Requests
+- **SKU:** Cloud Run CPU Allocation Time
+- **SKU:** Cloud Run Memory Allocation Time
+
+## 13. SECURITY BEST PRACTICES
+
+### A. Service Account Permissions (Least Privilege)
+
+Only grant required IAM roles to Cloud Run service account:
+
+```bash
+# Required for basic functionality
+roles/secretmanager.secretAccessor    # Access secrets
+roles/monitoring.metricWriter         # Write metrics
+roles/logging.logWriter               # Write logs (auto-granted)
+
+# Optional (only if needed)
+roles/cloudsql.client                 # Cloud SQL access
+roles/run.invoker                     # Invoke other Cloud Run services
+```
+
+### B. Authentication and Authorization
+
+**Development/Staging:**
+```bash
+--allow-unauthenticated
+```
+
+**Production:**
+```bash
+--no-allow-unauthenticated
+
+# Grant access to specific clients
+gcloud run services add-iam-policy-binding dungeon-master \
+  --member="serviceAccount:client-app@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/run.invoker"
+```
+
+**Or use API Gateway** for API key-based authentication and rate limiting.
+
+### C. Secret Rotation
+
+Rotate secrets regularly (quarterly or after exposure):
+
+```bash
+# Add new secret version
+echo -n "NEW_SECRET_VALUE" | gcloud secrets versions add SECRET_NAME \
+  --data-file=-
+
+# Disable old version after verification
+gcloud secrets versions disable VERSION_ID \
+  --secret=SECRET_NAME
+```
+
+### D. Network Security
+
+**Ingress Control:**
+```bash
+# Allow only Cloud Load Balancing and internal traffic
+--ingress=internal-and-cloud-load-balancing
+```
+
+**VPC Service Controls** (for highly sensitive data):
+```bash
+# Create VPC Service Perimeter
+gcloud access-context-manager perimeters create dungeon-master-perimeter \
+  --resources=projects/PROJECT_NUMBER \
+  --restricted-services=run.googleapis.com,secretmanager.googleapis.com
+```
+
+---
+
+**End of GCP Deployment Reference**
+
+For additional details, see:
+- `infra/cloudrun/service.yaml` - Service configuration
+- `infra/networking/README.md` - Service discovery and networking
+- `infra/monitoring/README.md` - Monitoring and alerting
+- `infra/README.md` - Infrastructure deployment guide

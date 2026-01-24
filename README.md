@@ -1343,6 +1343,277 @@ gcloud run deploy dungeon-master \
 
 See **[gcp_deployment_reference.md](gcp_deployment_reference.md)** for detailed deployment architecture and configuration guidelines.
 
+### Service Discovery
+
+The Dungeon Master service supports multiple service discovery strategies:
+
+#### Cloud Run Default Domain (Development/Staging)
+
+Every Cloud Run service receives an automatic HTTPS domain:
+
+```bash
+# Get service URL after deployment
+gcloud run services describe dungeon-master \
+  --region us-central1 \
+  --format 'value(status.url)'
+
+# Example URL: https://dungeon-master-abc123-uc.a.run.app
+```
+
+**Features:**
+- ✅ Automatic SSL/TLS certificates
+- ✅ Global load balancing
+- ✅ Zero configuration
+
+#### Custom Domain Mapping (Production)
+
+For branded production domains:
+
+```bash
+# Map custom domain to service
+gcloud run domain-mappings create \
+  --service dungeon-master \
+  --domain api.yourgame.com \
+  --region us-central1
+
+# Configure DNS CNAME record: api -> ghs.googlehosted.com
+```
+
+SSL certificate is automatically provisioned and renewed (15-60 minutes after DNS propagation).
+
+#### API Gateway (Production with Rate Limiting)
+
+For public APIs requiring authentication and rate limiting:
+
+```bash
+# Deploy API Gateway
+gcloud api-gateway api-configs create dungeon-master-config \
+  --api=dungeon-master-api \
+  --openapi-spec=infra/networking/api_gateway.yaml \
+  --backend-auth-service-account=dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com
+```
+
+**Benefits:**
+- ✅ API key authentication
+- ✅ Per-client rate limiting
+- ✅ Request validation
+- ✅ Cost control
+
+See **[infra/networking/README.md](infra/networking/README.md)** for detailed service discovery setup including:
+- VPC and private networking
+- Multi-region deployments
+- Preview environments
+- DNS conflict prevention
+
+### Autoscaling and Traffic Management
+
+Cloud Run provides automatic scaling and traffic management features:
+
+#### Autoscaling Configuration
+
+```bash
+# Configure autoscaling via service.yaml or CLI
+gcloud run services update dungeon-master \
+  --min-instances 0 \
+  --max-instances 100 \
+  --concurrency 80 \
+  --region us-central1
+```
+
+**Recommended Settings:**
+- **Development**: `min=0, max=10` (cost optimization)
+- **Production**: `min=1, max=100` (eliminate cold starts)
+- **High Traffic**: `min=5, max=200` (always-warm instances)
+
+#### Cold Start Mitigation
+
+**Problem:** First request after idle experiences 1-3 second delay.
+
+**Solutions:**
+1. **Set min-instances > 0** (simple, costs ~$20-30/month per instance)
+2. **Enable startup CPU boost** (already enabled in service.yaml)
+3. **Scheduled traffic** (Cloud Scheduler pings /health every 10 minutes)
+4. **Optimize startup** (lazy imports, pre-compiled bytecode)
+
+#### Traffic Rollout Strategies
+
+**Blue/Green Deployment** (zero-downtime):
+```bash
+# Deploy new revision with 0% traffic
+gcloud run deploy dungeon-master \
+  --image IMAGE_URL \
+  --no-traffic \
+  --region us-central1
+
+# Test, then shift 100% traffic
+gcloud run services update-traffic dungeon-master \
+  --to-revisions NEW_REVISION=100 \
+  --region us-central1
+```
+
+**Canary Deployment** (gradual rollout):
+```bash
+# Shift 10% traffic to new revision
+gcloud run services update-traffic dungeon-master \
+  --to-revisions NEW_REVISION=10 \
+  --region us-central1
+
+# Monitor metrics, then gradually increase to 50%, then 100%
+```
+
+**Rollback Procedures:**
+```bash
+# Fast rollback (shift traffic back to previous revision)
+gcloud run services update-traffic dungeon-master \
+  --to-revisions PREVIOUS_REVISION=100 \
+  --region us-central1
+```
+
+Recovery time: < 30 seconds
+
+### Monitoring and Observability
+
+The service includes comprehensive monitoring using native Google Cloud Monitoring:
+
+#### Monitoring Artifacts
+
+All monitoring configurations are in `infra/monitoring/`:
+
+| File | Purpose |
+|------|---------|
+| `alert_policies.yaml` | Alert policies for critical conditions |
+| `log_metrics.yaml` | Custom metrics from application logs |
+| `dashboard.json` | Service health dashboard |
+| `deploy_log_metrics.sh` | Deploy log-based metrics |
+| `deploy_uptime_checks.sh` | Deploy uptime checks |
+
+#### Key Metrics Monitored
+
+1. **Error Rate (5xx)**: > 5% triggers critical alert
+2. **Request Latency (P95)**: > 5 seconds triggers warning
+3. **Instance Count**: > 90 instances (capacity planning)
+4. **LLM API Errors**: > 10 errors/minute triggers critical alert
+5. **Deployment Failures**: Any Cloud Build failure
+6. **Service Availability**: Health endpoint uptime check
+
+#### Deploying Monitoring
+
+```bash
+# Deploy log-based metrics
+cd infra/monitoring
+bash deploy_log_metrics.sh PROJECT_ID
+
+# Deploy alert policies
+gcloud alpha monitoring policies create \
+  --policy-from-file=alert_policies.yaml
+
+# Deploy uptime checks
+SERVICE_URL=$(gcloud run services describe dungeon-master \
+  --region us-central1 \
+  --format 'value(status.url)')
+bash deploy_uptime_checks.sh PROJECT_ID "$SERVICE_URL"
+
+# Import dashboard.json via Cloud Console
+# Navigate to: https://console.cloud.google.com/monitoring/dashboards
+```
+
+#### Verify Health Endpoints
+
+```bash
+# Basic health check
+curl https://SERVICE_URL/health
+
+# Expected response:
+# {"status": "healthy", "service": "dungeon-master"}
+```
+
+#### Updating Monitoring Post-Deploy
+
+**Update alert thresholds:**
+```bash
+# Edit alert_policies.yaml and reapply
+gcloud alpha monitoring policies update POLICY_ID \
+  --policy-from-file=alert_policies.yaml
+```
+
+**Add notification channels:**
+```bash
+# Add PagerDuty for critical alerts
+gcloud alpha monitoring channels create \
+  --display-name="PagerDuty On-Call" \
+  --type=pagerduty \
+  --channel-labels=service_key=YOUR_KEY
+
+# Add Slack for warnings
+gcloud alpha monitoring channels create \
+  --display-name="Slack #alerts" \
+  --type=slack \
+  --channel-labels=url=WEBHOOK_URL
+```
+
+See **[infra/monitoring/README.md](infra/monitoring/README.md)** for comprehensive monitoring setup including:
+- Alert policy details and runbooks
+- Log-based metric filters
+- Dashboard widget configurations
+- Integration with PagerDuty and Slack
+- Troubleshooting monitoring issues
+
+### Updating Configurations Post-Deploy
+
+#### Scaling Configuration
+
+```bash
+# Increase max instances for traffic spike
+gcloud run services update dungeon-master \
+  --max-instances 200 \
+  --region us-central1
+
+# Add minimum instances to eliminate cold starts
+gcloud run services update dungeon-master \
+  --min-instances 2 \
+  --region us-central1
+```
+
+#### Resource Limits
+
+```bash
+# Increase memory if OOM errors occur
+gcloud run services update dungeon-master \
+  --memory 2Gi \
+  --region us-central1
+
+# Increase CPU for high utilization
+gcloud run services update dungeon-master \
+  --cpu 4 \
+  --region us-central1
+```
+
+#### Environment Variables
+
+```bash
+# Update single variable
+gcloud run services update dungeon-master \
+  --set-env-vars LOG_LEVEL=DEBUG \
+  --region us-central1
+
+# Update multiple variables
+gcloud run services update dungeon-master \
+  --set-env-vars QUEST_TRIGGER_PROB=0.5,POI_TRIGGER_PROB=0.3 \
+  --region us-central1
+```
+
+#### Apply Service YAML Changes
+
+After editing `infra/cloudrun/service.yaml`:
+
+```bash
+# Replace entire service configuration
+gcloud run services replace infra/cloudrun/service.yaml \
+  --region us-central1
+```
+
+**Warning:** This replaces the entire service. Use `gcloud run services update` for incremental changes.
+
 ## Admin Operations
 
 ### Dynamic Policy Configuration
