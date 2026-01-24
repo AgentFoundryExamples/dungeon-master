@@ -23,7 +23,7 @@
 #   - https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/vpc_access_connector
 
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.0, < 2.0"
   
   required_providers {
     google = {

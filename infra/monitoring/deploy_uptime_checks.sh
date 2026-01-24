@@ -24,7 +24,8 @@ if [[ -z "$SERVICE_URL" ]]; then
     exit 1
 fi
 
-# Extract host from URL
+# Extract hostname from URL (remove protocol and path)
+# Example: https://service-abc123-uc.a.run.app/path -> service-abc123-uc.a.run.app
 SERVICE_HOST=$(echo "$SERVICE_URL" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
 
 echo "Deploying uptime checks for Dungeon Master service"
