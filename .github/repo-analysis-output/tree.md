@@ -43,7 +43,18 @@
   └── turn_storage.py
 ├── infra
   ├── cloudrun
-    └── deploy.sh
+    ├── deploy.sh
+    └── service.yaml
+  ├── monitoring
+    ├── alert_policies.yaml
+    ├── dashboard.json
+    ├── deploy_log_metrics.sh
+    ├── deploy_uptime_checks.sh
+    ├── log_metrics.yaml
+    └── README.md
+  ├── networking
+    ├── README.md
+    └── vpc_connector.tf
   └── README.md
 ├── tests
   ├── __init__.py

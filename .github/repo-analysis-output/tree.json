@@ -193,6 +193,54 @@
             {
               "type": "file",
               "name": "deploy.sh"
+            },
+            {
+              "type": "file",
+              "name": "service.yaml"
+            }
+          ]
+        },
+        {
+          "type": "directory",
+          "name": "monitoring",
+          "children": [
+            {
+              "type": "file",
+              "name": "alert_policies.yaml"
+            },
+            {
+              "type": "file",
+              "name": "dashboard.json"
+            },
+            {
+              "type": "file",
+              "name": "deploy_log_metrics.sh"
+            },
+            {
+              "type": "file",
+              "name": "deploy_uptime_checks.sh"
+            },
+            {
+              "type": "file",
+              "name": "log_metrics.yaml"
+            },
+            {
+              "type": "file",
+              "name": "README.md"
+            }
+          ]
+        },
+        {
+          "type": "directory",
+          "name": "networking",
+          "children": [
+            {
+              "type": "file",
+              "name": "README.md"
+            },
+            {
+              "type": "file",
+              "name": "vpc_connector.tf"
             }
           ]
         },
