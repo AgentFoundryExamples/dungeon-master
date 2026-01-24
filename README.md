@@ -1247,48 +1247,101 @@ def test_custom(client):
 
 ## Deployment
 
+The Dungeon Master service is designed for deployment to Google Cloud Platform using **Cloud Build** for CI/CD automation and **Cloud Run** for hosting.
+
+### CI/CD with Cloud Build
+
+The repository includes a complete Cloud Build pipeline (`cloudbuild.yaml`) that automates:
+1. **Test Phase**: Runs pytest unit and integration tests
+2. **Build Phase**: Builds Docker container with multi-stage optimization
+3. **Push Phase**: Pushes to Artifact Registry with commit SHA and latest tags
+4. **Deploy Phase**: Deploys to Cloud Run with traffic management
+
+#### Quick Start
+
+**Manual deployment:**
+```bash
+gcloud builds submit \
+  --config=cloudbuild.yaml \
+  --substitutions=_PROJECT_ID=$(gcloud config get-value project)
+```
+
+**Automated deployment** (GitHub trigger):
+```bash
+# Create trigger for main branch
+gcloud builds triggers create github \
+  --name="dungeon-master-prod-deploy" \
+  --repo-name="dungeon-master" \
+  --repo-owner="AgentFoundryExamples" \
+  --branch-pattern="^main$" \
+  --build-config="cloudbuild.yaml" \
+  --substitutions="_PROJECT_ID=YOUR_PROJECT_ID,_SERVICE_ACCOUNT=dungeon-master-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+```
+
+See **[infra/README.md](infra/README.md)** for comprehensive Cloud Build setup instructions, including:
+- Prerequisites and API enablement
+- Service account configuration
+- Secrets management with Secret Manager
+- Traffic management and canary deployments
+- Troubleshooting guide
+
+#### Deployment Script
+
+The `infra/cloudrun/deploy.sh` script provides a reusable deployment tool for local verification:
+
+```bash
+# Deploy to Cloud Run
+PROJECT_ID=your-project-id \
+  SECRETS="OPENAI_API_KEY=openai-api-key:latest" \
+  ./infra/cloudrun/deploy.sh
+```
+
 ### Docker
 
-A Dockerfile following GCP Cloud Run best practices:
+The repository includes a production-ready Dockerfile with multi-stage builds:
 
-```dockerfile
-FROM python:3.14-slim
+**Build locally:**
+```bash
+docker build -t dungeon-master:local .
+```
 
-WORKDIR /app
-
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY app/ ./app/
-
-# Set environment for production
-ENV LOG_LEVEL=INFO
-
-# Run on port 8080 (Cloud Run default)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+**Run locally:**
+```bash
+docker run -p 8080:8080 \
+  -e OPENAI_API_KEY=sk-... \
+  -e JOURNEY_LOG_BASE_URL=http://localhost:8081 \
+  dungeon-master:local
 ```
 
 ### Google Cloud Run
 
-Deploy to Cloud Run:
+**Manual deployment** (without Cloud Build):
 
 ```bash
 # Build and push to Artifact Registry
-gcloud builds submit --tag us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/app:latest
+gcloud builds submit --tag us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/dungeon-master:latest
 
 # Deploy to Cloud Run
 gcloud run deploy dungeon-master \
-  --image us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/app:latest \
+  --image us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/dungeon-master:latest \
   --region us-central1 \
   --platform managed \
+  --memory 1Gi \
+  --cpu 2 \
+  --concurrency 80 \
+  --timeout 300s \
   --set-env-vars JOURNEY_LOG_BASE_URL=https://journey-log-xyz.run.app \
   --set-secrets OPENAI_API_KEY=openai-key:latest \
   --allow-unauthenticated
 ```
 
-See `gcp_deployment_reference.md` for detailed deployment instructions.
+**Resource Configuration** (recommended):
+- **Memory**: 1 GiB (handles LLM clients and turn storage)
+- **CPU**: 2 vCPU (FastAPI async benefits from multiple cores)
+- **Concurrency**: 80 (LLM calls are async I/O-bound)
+- **Timeout**: 300s (accounts for LLM generation + retries)
+
+See **[gcp_deployment_reference.md](gcp_deployment_reference.md)** for detailed deployment architecture and configuration guidelines.
 
 ## Admin Operations
 

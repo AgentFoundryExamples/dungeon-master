@@ -1,0 +1,199 @@
+# Cloud Build Configuration for Dungeon Master Service
+# This pipeline automates: test → build → push → deploy
+#
+# Substitution Variables (configure in Cloud Build trigger or pass via --substitutions):
+#   _PROJECT_ID       - GCP project ID (required)
+#   _REGION           - GCP region (default: us-central1)
+#   _SERVICE_NAME     - Cloud Run service name (default: dungeon-master)
+#   _ARTIFACT_REPO    - Artifact Registry repository name (default: dungeon-master)
+#   _ENV_FILE         - Path to environment file (optional)
+#   _SERVICE_ACCOUNT  - Cloud Run service account email (optional)
+#   _SECRETS          - Comma-separated secrets from Secret Manager (optional)
+#                       Format: SECRET_NAME=ENV_VAR:SECRET_VERSION
+#                       Example: OPENAI_API_KEY=openai-api-key:latest
+#
+# Usage:
+#   # Manual trigger with gcloud
+#   gcloud builds submit --config=cloudbuild.yaml \
+#     --substitutions=_PROJECT_ID=my-project,_REGION=us-central1
+#
+#   # Automated trigger (configure in Cloud Build console)
+#   - Source: GitHub repository
+#   - Branch pattern: ^main$|^release/.*$
+#   - Build configuration: cloudbuild.yaml
+#   - Substitutions: Set _PROJECT_ID and other variables
+#
+# Required APIs:
+#   - cloudbuild.googleapis.com
+#   - run.googleapis.com
+#   - artifactregistry.googleapis.com
+#   - secretmanager.googleapis.com (if using secrets)
+#
+# Required IAM Roles (for Cloud Build service account):
+#   - roles/run.admin
+#   - roles/artifactregistry.writer
+#   - roles/iam.serviceAccountUser
+#   - roles/secretmanager.secretAccessor (if using secrets)
+
+substitutions:
+  _PROJECT_ID: ''  # REQUIRED: Set in trigger or via --substitutions
+  _REGION: 'us-central1'
+  _SERVICE_NAME: 'dungeon-master'
+  _ARTIFACT_REPO: 'dungeon-master'
+  _SERVICE_ACCOUNT: ''  # Optional: Service account email for Cloud Run
+  _SECRETS: ''  # Optional: Secrets from Secret Manager
+  _ENV_VARS: ''  # Optional: Environment variables (KEY1=VALUE1,KEY2=VALUE2)
+
+options:
+  # Use Cloud Build's compute-optimized machine for faster builds
+  machineType: 'E2_HIGHCPU_8'
+  
+  # Enable verbose logging for debugging
+  logging: CLOUD_LOGGING_ONLY
+  
+  # Timeout for entire build (includes tests + build + deploy)
+  # Allows up to 20 minutes for complex builds with long-running tests
+  timeout: '1200s'
+
+steps:
+  # Step 1: Run Tests
+  # Runs pytest with all unit and integration tests
+  # Build fails if any tests fail (non-zero exit code)
+  - name: 'python:3.14-slim'
+    id: 'run-tests'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Installing dependencies..."
+        pip install --no-cache-dir -r requirements.txt
+        
+        echo "Running pytest..."
+        python -m pytest tests/ -v --tb=short
+        
+        if [ $? -ne 0 ]; then
+          echo "Tests failed! Build aborted."
+          exit 1
+        fi
+        
+        echo "All tests passed ✓"
+
+  # Step 2: Build Container Image
+  # Uses Cloud Build's native Docker builder for speed and caching
+  # Tags image with commit SHA and 'latest' for tracking
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_ARTIFACT_REPO}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_ARTIFACT_REPO}/${_SERVICE_NAME}:latest'
+      - '--cache-from'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_ARTIFACT_REPO}/${_SERVICE_NAME}:latest'
+      - '.'
+    waitFor: ['run-tests']
+
+  # Step 3: Push to Artifact Registry
+  # Pushes both SHA-tagged and latest-tagged images
+  # SHA tag ensures unique artifacts per commit (no overwrites)
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_ARTIFACT_REPO}/${_SERVICE_NAME}'
+    waitFor: ['build-image']
+
+  # Step 4: Deploy to Cloud Run
+  # Deploys with recommended configuration from gcp_deployment_reference.md
+  # Uses --no-traffic flag to preview before shifting 100% traffic
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-to-cloud-run'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -e
+        
+        echo "Deploying to Cloud Run..."
+        echo "Project: ${_PROJECT_ID}"
+        echo "Region: ${_REGION}"
+        echo "Service: ${_SERVICE_NAME}"
+        
+        # Base deployment command
+        # Use a bash array to prevent command injection
+        # Note: --allow-unauthenticated is for dev/staging per gcp_deployment_reference.md
+        # For production, use --no-allow-unauthenticated with IAP or API Gateway
+        DEPLOY_CMD=(
+          "gcloud" "run" "deploy" "${_SERVICE_NAME}"
+          "--image" "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_ARTIFACT_REPO}/${_SERVICE_NAME}:${SHORT_SHA}"
+          "--region" "${_REGION}"
+          "--platform" "managed"
+          "--memory" "1Gi"
+          "--cpu" "2"
+          "--concurrency" "80"
+          "--min-instances" "0"
+          "--max-instances" "100"
+          "--timeout" "300s"
+          "--allow-unauthenticated"
+          "--no-traffic"
+        )
+        
+        # Add service account if specified
+        if [ -n "${_SERVICE_ACCOUNT}" ]; then
+          echo "Using service account: ${_SERVICE_ACCOUNT}"
+          DEPLOY_CMD+=("--service-account" "${_SERVICE_ACCOUNT}")
+        fi
+        
+        # Add secrets if specified
+        # Format: OPENAI_API_KEY=openai-api-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest
+        if [ -n "${_SECRETS}" ]; then
+          echo "Mounting secrets from Secret Manager..."
+          IFS=',' read -ra SECRETS_ARRAY <<< "${_SECRETS}"
+          for secret in "$${SECRETS_ARRAY[@]}"; do
+            DEPLOY_CMD+=("--set-secrets" "$secret")
+          done
+        fi
+        
+        # Add environment variables if specified
+        if [ -n "${_ENV_VARS}" ]; then
+          echo "Setting environment variables..."
+          DEPLOY_CMD+=("--set-env-vars" "${_ENV_VARS}")
+        fi
+        
+        # Execute deployment
+        "${DEPLOY_CMD[@]}"
+        
+        # Get the new revision name
+        REVISION=$(gcloud run services describe ${_SERVICE_NAME} \
+          --region ${_REGION} \
+          --format 'value(status.latestReadyRevisionName)')
+        
+        echo "New revision deployed: $REVISION"
+        echo "Revision is ready but receiving 0% traffic (--no-traffic)."
+        echo ""
+        echo "To shift traffic to new revision:"
+        echo "  gcloud run services update-traffic ${_SERVICE_NAME} \\"
+        echo "    --region ${_REGION} \\"
+        echo "    --to-revisions $REVISION=100"
+        echo ""
+        echo "To gradually roll out (canary deployment):"
+        echo "  gcloud run services update-traffic ${_SERVICE_NAME} \\"
+        echo "    --region ${_REGION} \\"
+        echo "    --to-revisions $REVISION=10"
+    waitFor: ['push-image']
+
+# Images to push (for Cloud Build artifact tracking)
+images:
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_ARTIFACT_REPO}/${_SERVICE_NAME}:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_ARTIFACT_REPO}/${_SERVICE_NAME}:latest'
+
+# Artifacts to store (logs, test results, etc.)
+artifacts:
+  objects:
+    location: 'gs://${_PROJECT_ID}_cloudbuild/builds/${BUILD_ID}'
+    paths: []
+
+# Timeout for individual steps (default 10 minutes per step)
+timeout: '1200s'
