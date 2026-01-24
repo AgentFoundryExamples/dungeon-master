@@ -8,7 +8,485 @@
 - **Registry:** STRICTLY use **Artifact Registry** (`pkg.dev`). `gcr.io` is deprecated/shutdown.
 - **Identity:** Use **Workload Identity Federation** (WIF) for CI/CD. NEVER generate JSON Service Account keys.
 
-## 2. INFRASTRUCTURE SPECIFICS
+## 2. DUNGEON MASTER DEPLOYMENT ARCHITECTURE
+
+### A. Architecture Overview
+
+**Service Type**: Cloud Run Service (fully managed, autoscaling HTTP service)
+
+**Rationale**:
+- **Cloud Run Services** chosen for:
+  - HTTP-based request/response pattern (POST /turn endpoints)
+  - Automatic scaling from 0 to handle variable player load
+  - Pay-per-use pricing model (cost-effective for bursty game traffic)
+  - Built-in HTTPS termination and load balancing
+  - Seamless integration with Secret Manager and Cloud Monitoring
+  - Fast cold start times (<1s) suitable for gameplay latency requirements
+
+**Alternative Considered**: Cloud Run Jobs were considered but rejected because:
+- Jobs are for batch/scheduled workloads, not interactive HTTP services
+- Lack of automatic HTTP endpoint management
+- No built-in load balancing for concurrent requests
+
+### B. Resource Configuration Recommendations
+
+#### CPU and Memory Allocation
+
+**Recommended Configuration**:
+```bash
+--memory 1Gi --cpu 2
+```
+
+**Rationale**:
+- **1 GiB Memory**: 
+  - LLM client libraries and HTTP clients consume ~200-300 MB baseline
+  - Turn context data (narrative history, POIs, quests) can be 100-500 KB per request
+  - In-memory turn storage (up to 10,000 turns) requires ~200-500 MB
+  - Headroom for request spikes and garbage collection
+  - **Alternative**: 512 MiB works for low-traffic dev environments but may cause OOM under load
+
+- **2 vCPU**: 
+  - FastAPI async handling benefits from multiple cores for concurrent requests
+  - LLM API calls are I/O-bound but JSON parsing/validation is CPU-intensive
+  - Policy engine RNG and context building require CPU
+  - **Alternative**: 1 vCPU acceptable for dev, but limits throughput to ~5-10 req/s
+
+**Scaling for Production**:
+- **Low Traffic** (< 100 daily active users): 512 MiB / 1 vCPU
+- **Medium Traffic** (100-1000 daily active users): 1 GiB / 2 vCPU (recommended)
+- **High Traffic** (> 1000 daily active users): 2 GiB / 4 vCPU + increase max-instances
+
+#### Concurrency
+
+**Recommended Configuration**:
+```bash
+--concurrency 80
+```
+
+**Rationale**:
+- **80 concurrent requests per instance**:
+  - LLM calls are async I/O-bound (awaiting OpenAI API responses)
+  - Each request holds minimal memory (~5-10 MB) while waiting
+  - Higher concurrency reduces cold starts and improves cost efficiency
+  - Tested safe range: 50-100 (depends on LLM API latency)
+
+- **When to Lower Concurrency**:
+  - If LLM API latency spikes (> 5s), reduce to 40-50 to prevent request queuing
+  - If memory usage approaches limits, reduce concurrency or increase memory
+
+- **Rate Limiting Interaction**:
+  - Service-level: `MAX_TURNS_PER_CHARACTER_PER_SECOND=2.0` (env var)
+  - Instance-level: `--concurrency 80` (Cloud Run config)
+  - Global: `MAX_CONCURRENT_LLM_CALLS=10` (env var, semaphore limit)
+  - These work together to prevent abuse and control costs
+
+#### Autoscaling
+
+**Recommended Configuration**:
+```bash
+--min-instances 0
+--max-instances 100
+```
+
+**Rationale**:
+- **Min Instances = 0**: 
+  - Cost optimization for dev/staging (scale to zero when idle)
+  - Production may use `--min-instances 1` to eliminate cold starts for first request
+
+- **Max Instances = 100**:
+  - Caps maximum cost and prevents runaway scaling
+  - At 80 concurrency: supports 8,000 concurrent requests
+  - Adjust based on expected peak load and budget constraints
+
+- **Autoscaling Metrics**:
+  - Cloud Run autoscales based on CPU utilization and concurrency
+  - Target: Keep CPU < 80%, concurrency < 80% of limit
+  - Cold start time: < 1 second (minimal impact on gameplay)
+
+#### Timeout
+
+**Recommended Configuration**:
+```bash
+--timeout 300s
+```
+
+**Rationale**:
+- **5-minute timeout** accounts for:
+  - LLM generation: typically 2-10s, but can spike to 30-60s under load
+  - Journey-log fetches: typically < 1s, but retries can extend this
+  - Policy engine + context building: < 1s
+  - Retry logic for transient failures (exponential backoff)
+  - Safety margin for slow network conditions
+
+- **When to Adjust**:
+  - Reduce to 60s for dev/staging if LLM calls are consistently fast
+  - Increase beyond 300s is NOT recommended (indicates deeper issues)
+
+### C. Network Configuration
+
+#### VPC and Egress
+
+**Default (Public Internet Egress)**:
+```bash
+# No VPC flags needed for public endpoints
+gcloud run deploy dungeon-master \
+  --image ... \
+  --allow-unauthenticated
+```
+
+**Use Case**: Dungeon Master → OpenAI API (public) + Journey-Log (public Cloud Run)
+
+**Private VPC Egress** (if journey-log uses Cloud SQL or private IPs):
+```bash
+--vpc-egress=private-ranges-only \
+--network=projects/PROJECT_ID/global/networks/default
+```
+
+**Rationale**:
+- **Public egress** is sufficient when all dependencies are public HTTP services
+- **Private egress** required only if:
+  - Journey-log service uses Cloud SQL with private IP
+  - Connecting to internal services on VPC
+  - Compliance requires traffic to stay within GCP network
+
+**Network Latency Expectations**:
+- OpenAI API: 50-200ms (depends on region, typically US West Coast)
+- Journey-log (same region): 5-50ms (Cloud Run to Cloud Run)
+- Journey-log (cross-region): 50-150ms (add RTT for region distance)
+
+#### Ingress Control
+
+**Development/Staging**:
+```bash
+--allow-unauthenticated
+```
+
+**Production** (with authentication):
+```bash
+--no-allow-unauthenticated
+--ingress=internal-and-cloud-load-balancing
+```
+
+Then configure:
+- Cloud Load Balancer with Identity-Aware Proxy (IAP) for user authentication
+- Or API Gateway for API key-based auth
+- Or service-to-service authentication with service accounts
+
+### D. Prerequisite Resources
+
+Before deploying Dungeon Master to GCP, ensure the following resources exist:
+
+#### 1. GCP Project
+```bash
+# Create a new project (if needed)
+gcloud projects create PROJECT_ID --name="Dungeon Master Game"
+
+# Set as active project
+gcloud config set project PROJECT_ID
+```
+
+#### 2. Enable Required APIs
+```bash
+# Enable Cloud Run API
+gcloud services enable run.googleapis.com
+
+# Enable Artifact Registry API
+gcloud services enable artifactregistry.googleapis.com
+
+# Enable Secret Manager API (for production secrets)
+gcloud services enable secretmanager.googleapis.com
+
+# Enable Cloud Build API (for CI/CD)
+gcloud services enable cloudbuild.googleapis.com
+
+# Optional: Cloud Monitoring for metrics
+gcloud services enable monitoring.googleapis.com
+```
+
+#### 3. Create Artifact Registry Repository
+```bash
+# Create Docker repository
+gcloud artifacts repositories create dungeon-master \
+  --repository-format=docker \
+  --location=us-central1 \
+  --description="Dungeon Master service container images"
+
+# Configure Docker authentication
+gcloud auth configure-docker us-central1-docker.pkg.dev
+```
+
+#### 4. Create Service Account (for Cloud Run)
+```bash
+# Create service account
+gcloud iam service-accounts create dungeon-master-sa \
+  --display-name="Dungeon Master Cloud Run Service Account"
+
+# Grant minimal permissions (see IAM section below)
+# Note: Cloud Run automatically grants the service account certain permissions
+```
+
+#### 5. Store Secrets in Secret Manager
+```bash
+# Create secret for OpenAI API key
+echo -n "sk-your-api-key-here" | gcloud secrets create openai-api-key \
+  --data-file=- \
+  --replication-policy="automatic"
+
+# Grant service account access to secret
+gcloud secrets add-iam-policy-binding openai-api-key \
+  --member="serviceAccount:dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+#### 6. Configure Workload Identity Federation (for CI/CD)
+```bash
+# Create Workload Identity Pool for GitHub Actions
+gcloud iam workload-identity-pools create github-pool \
+  --location=global \
+  --display-name="GitHub Actions Pool"
+
+# Create provider
+gcloud iam workload-identity-pools providers create-oidc github-provider \
+  --location=global \
+  --workload-identity-pool=github-pool \
+  --issuer-uri=https://token.actions.githubusercontent.com \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository_owner=='AgentFoundryExamples'"
+
+# Grant permissions to deploy
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/AgentFoundryExamples/dungeon-master" \
+  --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/AgentFoundryExamples/dungeon-master" \
+  --role="roles/artifactregistry.writer"
+```
+
+### E. Required IAM Roles and Permissions
+
+#### Service Account Roles (dungeon-master-sa)
+
+**Minimal Production Permissions**:
+```bash
+# 1. Secret Manager Secret Accessor (for OpenAI API key)
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+# 2. Cloud Monitoring Metric Writer (for metrics endpoint)
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/monitoring.metricWriter"
+
+# 3. Cloud Logging Writer (for structured logs)
+# Note: Cloud Run automatically grants this via default service account permissions
+```
+
+**Additional Roles (if needed)**:
+```bash
+# If journey-log uses Cloud SQL
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="serviceAccount:dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/cloudsql.client"
+
+# If service-to-service authentication required
+gcloud run services add-iam-policy-binding journey-log \
+  --member="serviceAccount:dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/run.invoker" \
+  --region=us-central1
+```
+
+#### Developer/CI Deployment Roles
+
+**For manual deployment** (developer workstation):
+```bash
+# Grant developer deploy permissions
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="user:developer@example.com" \
+  --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="user:developer@example.com" \
+  --role="roles/artifactregistry.writer"
+
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member="user:developer@example.com" \
+  --role="roles/iam.serviceAccountUser"
+```
+
+**For CI/CD** (via Workload Identity Federation):
+- See "Prerequisite Resources" section above for WIF setup
+- Grants: `roles/run.admin`, `roles/artifactregistry.writer`
+- **Never use JSON service account keys** in CI/CD
+
+### F. Multi-Environment Deployment Strategy
+
+#### Environment Isolation Options
+
+**Option 1: Separate GCP Projects** (Recommended)
+```bash
+# Development
+GCP_PROJECT_ID=dungeon-master-dev
+CLOUD_RUN_SERVICE=dungeon-master
+ARTIFACT_REPO=dungeon-master
+
+# Staging
+GCP_PROJECT_ID=dungeon-master-staging
+CLOUD_RUN_SERVICE=dungeon-master
+ARTIFACT_REPO=dungeon-master
+
+# Production
+GCP_PROJECT_ID=dungeon-master-prod
+CLOUD_RUN_SERVICE=dungeon-master
+ARTIFACT_REPO=dungeon-master
+```
+
+**Benefits**:
+- Complete resource isolation (secrets, billing, IAM)
+- Clear security boundaries
+- Independent billing and cost tracking
+
+**Option 2: Single Project with Service Name Suffixes**
+```bash
+# All environments in same project
+GCP_PROJECT_ID=dungeon-master-game
+
+# Development
+CLOUD_RUN_SERVICE=dungeon-master-dev
+ARTIFACT_REPO=dungeon-master
+ENVIRONMENT=development
+
+# Staging
+CLOUD_RUN_SERVICE=dungeon-master-staging
+ARTIFACT_REPO=dungeon-master
+ENVIRONMENT=staging
+
+# Production
+CLOUD_RUN_SERVICE=dungeon-master-prod
+ARTIFACT_REPO=dungeon-master
+ENVIRONMENT=production
+```
+
+**Benefits**:
+- Simpler project setup
+- Shared Artifact Registry (cost savings)
+- Easier cross-environment testing
+
+**Drawbacks**:
+- Shared IAM policies (less security isolation)
+- Risk of accidental production access from dev
+
+#### Environment-Specific Configuration
+
+**Development**:
+```bash
+# .env.development
+ENVIRONMENT=development
+LOG_LEVEL=DEBUG
+ENABLE_DEBUG_ENDPOINTS=true
+OPENAI_STUB_MODE=false  # Use real API for integration testing
+ENABLE_METRICS=false
+MIN_INSTANCES=0
+MAX_INSTANCES=5
+```
+
+**Staging**:
+```bash
+# .env.staging
+ENVIRONMENT=staging
+LOG_LEVEL=INFO
+ENABLE_DEBUG_ENDPOINTS=false
+OPENAI_STUB_MODE=false
+ENABLE_METRICS=true
+MIN_INSTANCES=0
+MAX_INSTANCES=20
+```
+
+**Production**:
+```bash
+# .env.production
+ENVIRONMENT=production
+LOG_LEVEL=INFO
+ENABLE_DEBUG_ENDPOINTS=false
+ADMIN_ENDPOINTS_ENABLED=false
+OPENAI_STUB_MODE=false
+ENABLE_METRICS=true
+LOG_JSON_FORMAT=true
+MIN_INSTANCES=1  # Eliminate cold starts
+MAX_INSTANCES=100
+SECRET_MANAGER_CONFIG=env_vars  # Use Secret Manager
+```
+
+### G. Secret Manager Integration
+
+#### Fallback for Projects Without Secret Manager
+
+**Option 1: Environment Variables Only** (Development/Testing)
+```bash
+# .env file (NOT committed to git)
+SECRET_MANAGER_CONFIG=disabled
+OPENAI_API_KEY=sk-your-api-key-here
+```
+
+**Risks**:
+- Secrets in plaintext environment variables
+- Harder to rotate secrets (requires redeployment)
+- Not suitable for production
+
+**Option 2: Manual Secret Injection** (Cloud Run without Secret Manager API)
+```bash
+# Deploy with secrets as environment variables (less secure)
+gcloud run deploy dungeon-master \
+  --set-env-vars="OPENAI_API_KEY=sk-your-api-key-here"
+
+# WARNING: Secrets visible in deployment configs, audit logs
+# Only use for non-sensitive dev environments
+```
+
+**Requirement Callout**:
+```
+⚠️  PRODUCTION REQUIREMENT: Secret Manager is REQUIRED for production deployments.
+    
+    Rationale:
+    - Secrets stored encrypted at rest with automatic key rotation
+    - Secret access logged in Cloud Audit Logs
+    - Granular IAM controls for secret access
+    - Supports secret versioning and rollback
+    - Eliminates plaintext secrets in deployment configs
+    
+    If your project cannot enable Secret Manager:
+    1. Request API enablement from your GCP admin
+    2. Use a different GCP project with Secret Manager enabled
+    3. Consider non-GCP deployment (Docker Compose, Kubernetes with external secrets)
+```
+
+#### Recommended Secret Manager Setup
+
+**Store Secrets**:
+```bash
+# OpenAI API Key
+echo -n "sk-..." | gcloud secrets create openai-api-key --data-file=-
+
+# Optional: Journey-log service credentials (if using service accounts)
+echo -n "journey-log-token" | gcloud secrets create journey-log-token --data-file=-
+```
+
+**Deploy with Secrets**:
+```bash
+gcloud run deploy dungeon-master \
+  --set-secrets="OPENAI_API_KEY=openai-api-key:latest" \
+  --set-secrets="JOURNEY_LOG_TOKEN=journey-log-token:latest" \
+  --service-account=dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com
+```
+
+**Environment Variable Configuration**:
+```bash
+# Tell the app to expect secrets from Secret Manager
+SECRET_MANAGER_CONFIG=env_vars
+```
+
+## 3. INFRASTRUCTURE SPECIFICS
 
 ### A. Python 3.14 Runtime
 - **Buildpacks:** Google Buildpacks for Python 3.14+ now default to using **`uv`** for dependency resolution.
@@ -57,7 +535,7 @@
 - **Connection:** Use `cloud_sql_proxy` (v2) or the Python `cloud-sql-python-connector` library.
 - **Async Driver:** `asyncpg` is preferred for FastAPI.
 
-## 3. OBSERVABILITY & MONITORING
+## 4. OBSERVABILITY & MONITORING
 
 ### A. Cloud Monitoring (Metrics)
 The Dungeon Master service exposes metrics via the `/metrics` endpoint that can be integrated with Cloud Monitoring.
@@ -290,7 +768,7 @@ client = error_reporting.Client()
 - Stack traces extracted from logs
 - Alerts triggered on new error types or volume spikes
 
-## 4. DEPLOYMENT CHECKLIST
+## 5. DEPLOYMENT CHECKLIST
 
 ### Pre-Deployment Preparation
 

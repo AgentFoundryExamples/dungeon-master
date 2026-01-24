@@ -223,6 +223,26 @@ QUEST_POI_REFERENCE_PROBABILITY=0.1
 - The journey-log `/pois/random` endpoint is optimized for fast sampling
 - Non-fatal errors ensure turn processing is never blocked
 
+### GCP Deployment Configuration
+
+For deploying to Google Cloud Platform, configure these additional environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GCP_PROJECT_ID` | (unset) | GCP Project ID for Cloud Run and Secret Manager (optional for local dev) |
+| `GCP_REGION` | `us-central1` | GCP Region for Cloud Run deployment |
+| `CLOUD_RUN_SERVICE` | `dungeon-master` | Cloud Run service name for identification |
+| `ARTIFACT_REPO` | `dungeon-master` | Artifact Registry repository name for Docker images |
+| `SECRET_MANAGER_CONFIG` | `disabled` | Secret Manager mode: `disabled`, `env_vars`, or `volume` |
+
+**Notes**:
+- `GCP_PROJECT_ID` is optional for local development but required for production GCP deployments
+- `SECRET_MANAGER_CONFIG=env_vars` enables mounting secrets from Secret Manager as environment variables
+- `SECRET_MANAGER_CONFIG=volume` enables mounting secrets as file volumes (more secure for certificates)
+- For multi-environment deployments, use project suffixes (e.g., `my-project-dev`, `my-project-prod`) or service name suffixes (e.g., `dungeon-master-dev`)
+
+**See**: [`gcp_deployment_reference.md`](gcp_deployment_reference.md) for complete GCP deployment architecture, IAM roles, networking, and multi-environment strategies.
+
 ## Rate Limiting and Resilience
 
 The service implements comprehensive safeguards to prevent runaway resource usage and handle transient failures gracefully.

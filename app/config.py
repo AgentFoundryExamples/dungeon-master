@@ -240,6 +240,28 @@ class Settings(BaseSettings):
         description="Maximum delay in seconds for journey-log retry exponential backoff (1.0-300.0)"
     )
 
+    # Google Cloud Platform (GCP) Deployment Configuration
+    gcp_project_id: Optional[str] = Field(
+        default=None,
+        description="GCP Project ID for Cloud Run deployment and Secret Manager access (optional for local dev)"
+    )
+    gcp_region: str = Field(
+        default="us-central1",
+        description="GCP Region for Cloud Run deployment (e.g., us-central1, us-east1)"
+    )
+    cloud_run_service: str = Field(
+        default="dungeon-master",
+        description="Cloud Run service name for identification and metrics"
+    )
+    artifact_repo: str = Field(
+        default="dungeon-master",
+        description="Artifact Registry repository name for Docker images"
+    )
+    secret_manager_config: str = Field(
+        default="disabled",
+        description="Secret Manager configuration mode: disabled, env_vars, or volume"
+    )
+
     @field_validator('journey_log_base_url')
     @classmethod
     def validate_journey_log_url(cls, v: str) -> str:
@@ -274,6 +296,101 @@ class Settings(BaseSettings):
                 f"log_level must be one of {valid_levels}, got: {v}"
             )
         return v_upper
+
+    @field_validator('gcp_project_id')
+    @classmethod
+    def validate_gcp_project_id(cls, v: Optional[str]) -> Optional[str]:
+        """Validate GCP project ID format if provided."""
+        if v is None or v.strip() == "":
+            # Project ID is optional for local development
+            return None
+        
+        # GCP project IDs must be 6-30 characters, lowercase letters, digits, and hyphens
+        # Cannot start with a digit or hyphen
+        v = v.strip()
+        if len(v) < 6 or len(v) > 30:
+            raise ValueError(
+                f"gcp_project_id must be 6-30 characters, got {len(v)} characters"
+            )
+        
+        if not v[0].isalpha():
+            raise ValueError(
+                f"gcp_project_id must start with a letter, got: {v[0]}"
+            )
+        
+        if not all(c.islower() or c.isdigit() or c == '-' for c in v):
+            raise ValueError(
+                "gcp_project_id must contain only lowercase letters, digits, and hyphens"
+            )
+        
+        return v
+
+    @field_validator('gcp_region')
+    @classmethod
+    def validate_gcp_region(cls, v: str) -> str:
+        """Validate GCP region format."""
+        if not v or v.strip() == "":
+            raise ValueError("gcp_region cannot be empty")
+        
+        # Basic format check: region should match pattern like us-central1
+        v = v.strip().lower()
+        if not v.replace('-', '').replace('1', '').replace('2', '').replace('3', '').replace('4', '').isalpha():
+            raise ValueError(
+                f"gcp_region must be a valid GCP region (e.g., us-central1), got: {v}"
+            )
+        
+        return v
+
+    @field_validator('cloud_run_service')
+    @classmethod
+    def validate_cloud_run_service(cls, v: str) -> str:
+        """Validate Cloud Run service name format."""
+        if not v or v.strip() == "":
+            raise ValueError("cloud_run_service cannot be empty")
+        
+        v = v.strip()
+        
+        # Cloud Run service names must be lowercase alphanumeric and hyphens, max 63 chars
+        if len(v) > 63:
+            raise ValueError(
+                f"cloud_run_service must be max 63 characters, got {len(v)} characters"
+            )
+        
+        if not all(c.islower() or c.isdigit() or c == '-' for c in v):
+            raise ValueError(
+                "cloud_run_service must contain only lowercase letters, digits, and hyphens"
+            )
+        
+        return v
+
+    @field_validator('artifact_repo')
+    @classmethod
+    def validate_artifact_repo(cls, v: str) -> str:
+        """Validate Artifact Registry repository name format."""
+        if not v or v.strip() == "":
+            raise ValueError("artifact_repo cannot be empty")
+        
+        v = v.strip()
+        
+        # Artifact Registry repo names must be lowercase alphanumeric and hyphens
+        if not all(c.islower() or c.isdigit() or c == '-' for c in v):
+            raise ValueError(
+                "artifact_repo must contain only lowercase letters, digits, and hyphens"
+            )
+        
+        return v
+
+    @field_validator('secret_manager_config')
+    @classmethod
+    def validate_secret_manager_config(cls, v: str) -> str:
+        """Validate Secret Manager configuration mode."""
+        valid_modes = {'disabled', 'env_vars', 'volume'}
+        v_lower = v.lower().strip()
+        if v_lower not in valid_modes:
+            raise ValueError(
+                f"secret_manager_config must be one of {valid_modes}, got: {v}"
+            )
+        return v_lower
 
     model_config = SettingsConfigDict(
         env_file=".env",
