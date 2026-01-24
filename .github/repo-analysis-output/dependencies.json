@@ -68,6 +68,7 @@
       "external_dependencies": {
         "stdlib": [
           "functools.lru_cache",
+          "re",
           "typing.Optional"
         ],
         "third-party": [
