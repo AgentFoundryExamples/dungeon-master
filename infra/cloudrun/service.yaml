@@ -1,0 +1,248 @@
+# Cloud Run Service Configuration for Dungeon Master
+# This file defines the Cloud Run service configuration as Infrastructure as Code
+#
+# Usage:
+#   gcloud run services replace service.yaml --region=us-central1
+#
+# Prerequisites:
+#   - Image pushed to Artifact Registry
+#   - Secrets created in Secret Manager
+#   - Service account configured with proper IAM roles
+#
+# IMPORTANT: Placeholder Replacement Required
+# This file contains placeholder values that MUST be replaced before deployment:
+#   - PROJECT_ID: Your GCP project ID (e.g., "my-dungeon-project")
+#   - SERVICE_ID: Cloud Run service hash (automatically generated, or use specific URL)
+#   - REGION: GCP region code (e.g., "us-central1")
+#   - IMAGE_TAG: Use commit SHA (e.g., "sha-73da40b") instead of "latest"
+#   - Secret version: Update "1" to current secret version number
+#
+# Validation: Before deploying, verify all placeholders are replaced:
+#   grep -E "PROJECT_ID|SERVICE_ID|:latest" service.yaml
+#   (should return no matches if properly configured)
+#
+# References:
+#   - Cloud Run service spec: https://cloud.google.com/run/docs/reference/yaml/v1
+#   - gcp_deployment_reference.md for architecture decisions
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: dungeon-master
+  labels:
+    app: dungeon-master
+    environment: production
+    managed-by: infrastructure-as-code
+  annotations:
+    # Cloud Run specific annotations
+    run.googleapis.com/launch-stage: GA
+    # Ingress: Allow traffic from Cloud Load Balancing and internet
+    # For production with authentication, use: internal-and-cloud-load-balancing
+    run.googleapis.com/ingress: all
+    # Enable binary authorization (optional, for image validation)
+    # run.googleapis.com/binary-authorization: default
+spec:
+  template:
+    metadata:
+      annotations:
+        # Autoscaling configuration
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "100"
+        # Session affinity (disabled for stateless service)
+        run.googleapis.com/sessionAffinity: "false"
+        # CPU throttling after request completes (enabled to save costs)
+        run.googleapis.com/cpu-throttling: "true"
+        # VPC Access (commented out - uncomment if private network access needed)
+        # run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/REGION/connectors/CONNECTOR_NAME
+        # run.googleapis.com/vpc-access-egress: private-ranges-only
+        # Startup CPU boost (helps with cold starts)
+        run.googleapis.com/startup-cpu-boost: "true"
+      labels:
+        app: dungeon-master
+        version: latest
+    spec:
+      # Service account for Cloud Run (grants permissions for Secret Manager, Monitoring, etc.)
+      # Replace PROJECT_ID with your actual GCP project ID
+      serviceAccountName: dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com
+      
+      # Request timeout (5 minutes to accommodate LLM generation with retries)
+      timeoutSeconds: 300
+      
+      # Container concurrency (number of requests per instance)
+      # 80 concurrent requests per instance (LLM calls are I/O-bound)
+      containerConcurrency: 80
+      
+      containers:
+        - name: dungeon-master
+          # Image path - update with your Artifact Registry path
+          # Format: REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME/IMAGE_NAME:TAG
+          # IMPORTANT: Use commit SHA tags for production (e.g., :sha-a1b2c3d) instead of :latest
+          # The :latest tag is shown here as a placeholder and should be replaced during deployment
+          # Example: us-central1-docker.pkg.dev/my-project/dungeon-master/dungeon-master:sha-73da40b
+          image: us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/dungeon-master:latest
+          
+          # Container port (FastAPI server)
+          ports:
+            - name: http1
+              containerPort: 8080
+          
+          # Resource limits and requests
+          resources:
+            limits:
+              # Memory limit (1 GiB for LLM client libraries and turn storage)
+              memory: 1Gi
+              # CPU limit (2 vCPUs for concurrent request handling)
+              cpu: "2"
+            requests:
+              # Requested resources (same as limits for predictable performance)
+              memory: 1Gi
+              cpu: "2"
+          
+          # Startup probe (checks if app is ready to receive traffic)
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            # Initial delay before first probe
+            initialDelaySeconds: 0
+            # Timeout for each probe attempt
+            timeoutSeconds: 5
+            # How often to probe
+            periodSeconds: 10
+            # Number of failures before marking unhealthy
+            failureThreshold: 3
+          
+          # Liveness probe (restarts container if app becomes unhealthy)
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 0
+            timeoutSeconds: 5
+            periodSeconds: 30
+            failureThreshold: 3
+          
+          # Environment variables
+          env:
+            # Service Configuration
+            - name: SERVICE_NAME
+              value: "dungeon-master"
+            
+            - name: ENVIRONMENT
+              value: "production"
+            
+            - name: LOG_LEVEL
+              value: "INFO"
+            
+            - name: LOG_JSON_FORMAT
+              value: "true"
+            
+            # GCP Configuration
+            - name: GCP_PROJECT_ID
+              value: "PROJECT_ID"  # Replace with actual project ID
+            
+            - name: GCP_REGION
+              value: "us-central1"
+            
+            - name: CLOUD_RUN_SERVICE
+              value: "dungeon-master"
+            
+            # Journey Log Service Configuration
+            - name: JOURNEY_LOG_BASE_URL
+              value: "https://journey-log-SERVICE_ID-uc.a.run.app"  # Replace with actual journey-log URL
+            
+            - name: JOURNEY_LOG_TIMEOUT
+              value: "30"
+            
+            - name: JOURNEY_LOG_RECENT_N
+              value: "20"
+            
+            - name: HEALTH_CHECK_JOURNEY_LOG
+              value: "false"
+            
+            # OpenAI Configuration
+            - name: OPENAI_MODEL
+              value: "gpt-5.1"
+            
+            - name: OPENAI_TIMEOUT
+              value: "60"
+            
+            - name: OPENAI_STUB_MODE
+              value: "false"
+            
+            # Policy Engine Configuration
+            - name: QUEST_TRIGGER_PROB
+              value: "0.3"
+            
+            - name: QUEST_COOLDOWN_TURNS
+              value: "5"
+            
+            - name: POI_TRIGGER_PROB
+              value: "0.2"
+            
+            - name: POI_COOLDOWN_TURNS
+              value: "3"
+            
+            - name: POI_MEMORY_SPARK_ENABLED
+              value: "false"
+            
+            - name: POI_MEMORY_SPARK_COUNT
+              value: "3"
+            
+            # Admin and Metrics Configuration
+            - name: ADMIN_ENDPOINTS_ENABLED
+              value: "false"
+            
+            - name: ENABLE_METRICS
+              value: "true"
+            
+            - name: ENABLE_DEBUG_ENDPOINTS
+              value: "false"
+            
+            # Turn Storage Configuration
+            - name: TURN_STORAGE_TTL_SECONDS
+              value: "3600"
+            
+            - name: TURN_STORAGE_MAX_SIZE
+              value: "10000"
+            
+            # Rate Limiting Configuration
+            - name: MAX_TURNS_PER_CHARACTER_PER_SECOND
+              value: "2.0"
+            
+            - name: MAX_CONCURRENT_LLM_CALLS
+              value: "10"
+            
+            # Retry and Backoff Configuration
+            - name: LLM_MAX_RETRIES
+              value: "3"
+            
+            - name: LLM_RETRY_DELAY_BASE
+              value: "1.0"
+            
+            - name: LLM_RETRY_DELAY_MAX
+              value: "30.0"
+            
+            - name: JOURNEY_LOG_MAX_RETRIES
+              value: "3"
+            
+            - name: JOURNEY_LOG_RETRY_DELAY_BASE
+              value: "0.5"
+            
+            - name: JOURNEY_LOG_RETRY_DELAY_MAX
+              value: "10.0"
+            
+            # Secrets from Secret Manager
+            # Format: secretKeyRef mounts secret as environment variable
+            # NOTE: Pin to specific version for production (e.g., "1", "2", etc.)
+            # Using "latest" is acceptable for dev/staging but not recommended for production
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openai-api-key
+                  key: "1"  # Pin to specific version; update during secret rotation
+  
+  # Traffic configuration
+  traffic:
+    - percent: 100
+      latestRevision: true

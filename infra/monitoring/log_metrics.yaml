@@ -1,0 +1,111 @@
+# Log-Based Metrics for Dungeon Master Service
+#
+# These metrics extract data from application logs to create custom metrics
+# Deploy with: bash deploy_log_metrics.sh
+#
+# Format: Each metric definition includes name, filter, and description
+
+---
+# Metric 1: LLM API Errors
+name: llm_api_errors
+description: "Count of OpenAI LLM API errors (rate limits, timeouts, auth failures)"
+filter: |
+  resource.type="cloud_run_revision"
+  resource.labels.service_name="dungeon-master"
+  jsonPayload.level="ERROR"
+  (jsonPayload.logger="llm_client" OR jsonPayload.logger="openai_client")
+valueExtractor: ""
+labelExtractors: {}
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: "1"
+  displayName: "LLM API Errors"
+  labels:
+    - key: error_type
+      valueType: STRING
+      description: "Type of LLM error (rate_limit, timeout, auth_failure, etc.)"
+
+---
+# Metric 2: Journey-Log Service Errors
+name: journey_log_errors
+description: "Count of journey-log service connectivity errors"
+filter: |
+  resource.type="cloud_run_revision"
+  resource.labels.service_name="dungeon-master"
+  jsonPayload.level="ERROR"
+  jsonPayload.logger="journey_log_client"
+valueExtractor: ""
+labelExtractors: {}
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: "1"
+  displayName: "Journey-Log Service Errors"
+
+---
+# Metric 3: Turn Processing Duration
+name: turn_processing_duration_ms
+description: "Duration of turn processing in milliseconds (end-to-end)"
+filter: |
+  resource.type="cloud_run_revision"
+  resource.labels.service_name="dungeon-master"
+  jsonPayload.endpoint="/turn"
+  jsonPayload.duration_ms>0
+valueExtractor: "EXTRACT(jsonPayload.duration_ms)"
+labelExtractors: {}
+metricDescriptor:
+  metricKind: DELTA
+  valueType: DISTRIBUTION
+  unit: "ms"
+  displayName: "Turn Processing Duration"
+
+---
+# Metric 4: Policy Engine Quest Triggers
+name: policy_quest_triggers
+description: "Count of quest triggers by policy engine"
+filter: |
+  resource.type="cloud_run_revision"
+  resource.labels.service_name="dungeon-master"
+  jsonPayload.event="policy_trigger"
+  jsonPayload.trigger_type="quest"
+valueExtractor: ""
+labelExtractors: {}
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: "1"
+  displayName: "Quest Triggers"
+
+---
+# Metric 5: Policy Engine POI Triggers
+name: policy_poi_triggers
+description: "Count of POI (Point of Interest) triggers by policy engine"
+filter: |
+  resource.type="cloud_run_revision"
+  resource.labels.service_name="dungeon-master"
+  jsonPayload.event="policy_trigger"
+  jsonPayload.trigger_type="poi"
+valueExtractor: ""
+labelExtractors: {}
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: "1"
+  displayName: "POI Triggers"
+
+---
+# Metric 6: Cold Starts
+name: cold_starts
+description: "Count of container cold starts"
+filter: |
+  resource.type="cloud_run_revision"
+  resource.labels.service_name="dungeon-master"
+  jsonPayload.message=~"Cold start"
+valueExtractor: ""
+labelExtractors: {}
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: "1"
+  displayName: "Cold Starts"
