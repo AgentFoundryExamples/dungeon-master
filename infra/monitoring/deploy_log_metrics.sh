@@ -16,71 +16,108 @@ fi
 
 echo "Deploying log-based metrics to project: $PROJECT_ID"
 
+# Function to create or update a log metric
+create_or_update_metric() {
+    local metric_name=$1
+    local description=$2
+    local log_filter=$3
+    local value_extractor=${4:-""}
+    
+    echo "Processing metric: $metric_name"
+    
+    # Try to update first (metric already exists)
+    local update_cmd="gcloud logging metrics update $metric_name \
+        --project=\"$PROJECT_ID\" \
+        --description=\"$description\" \
+        --log-filter='$log_filter'"
+    
+    if [[ -n "$value_extractor" ]]; then
+        update_cmd="$update_cmd --value-extractor='$value_extractor'"
+    fi
+    
+    if eval "$update_cmd" 2>/dev/null; then
+        echo "✓ Updated $metric_name"
+        return 0
+    fi
+    
+    # If update failed, try to create (metric doesn't exist)
+    local create_cmd="gcloud logging metrics create $metric_name \
+        --project=\"$PROJECT_ID\" \
+        --description=\"$description\" \
+        --log-filter='$log_filter'"
+    
+    if [[ -n "$value_extractor" ]]; then
+        create_cmd="$create_cmd --value-extractor='$value_extractor'"
+    fi
+    
+    if eval "$create_cmd" 2>&1 | tee /tmp/metric_create_error.log; then
+        echo "✓ Created $metric_name"
+        return 0
+    else
+        # Check if it's a permissions error or other serious issue
+        if grep -q "PERMISSION_DENIED" /tmp/metric_create_error.log; then
+            echo "✗ Permission denied for $metric_name. Check IAM roles."
+            return 1
+        elif grep -q "already exists" /tmp/metric_create_error.log; then
+            echo "⚠ $metric_name already exists (no changes needed)"
+            return 0
+        else
+            echo "✗ Failed to create $metric_name. See error above."
+            return 1
+        fi
+    fi
+}
+
 # LLM API Errors
-echo "Creating metric: llm_api_errors"
-gcloud logging metrics create llm_api_errors \
-    --project="$PROJECT_ID" \
-    --description="Count of OpenAI LLM API errors (rate limits, timeouts, auth failures)" \
-    --log-filter='resource.type="cloud_run_revision"
+create_or_update_metric "llm_api_errors" \
+    "Count of OpenAI LLM API errors (rate limits, timeouts, auth failures)" \
+    'resource.type="cloud_run_revision"
 resource.labels.service_name="dungeon-master"
 jsonPayload.level="ERROR"
-(jsonPayload.logger="llm_client" OR jsonPayload.logger="openai_client")' \
-    2>/dev/null && echo "✓ Created llm_api_errors" || echo "⚠ llm_api_errors already exists"
+(jsonPayload.logger="llm_client" OR jsonPayload.logger="openai_client")'
 
 # Journey-Log Service Errors
-echo "Creating metric: journey_log_errors"
-gcloud logging metrics create journey_log_errors \
-    --project="$PROJECT_ID" \
-    --description="Count of journey-log service connectivity errors" \
-    --log-filter='resource.type="cloud_run_revision"
+create_or_update_metric "journey_log_errors" \
+    "Count of journey-log service connectivity errors" \
+    'resource.type="cloud_run_revision"
 resource.labels.service_name="dungeon-master"
 jsonPayload.level="ERROR"
-jsonPayload.logger="journey_log_client"' \
-    2>/dev/null && echo "✓ Created journey_log_errors" || echo "⚠ journey_log_errors already exists"
+jsonPayload.logger="journey_log_client"'
 
 # Turn Processing Duration
-echo "Creating metric: turn_processing_duration_ms"
-gcloud logging metrics create turn_processing_duration_ms \
-    --project="$PROJECT_ID" \
-    --description="Duration of turn processing in milliseconds (end-to-end)" \
-    --log-filter='resource.type="cloud_run_revision"
+create_or_update_metric "turn_processing_duration_ms" \
+    "Duration of turn processing in milliseconds (end-to-end)" \
+    'resource.type="cloud_run_revision"
 resource.labels.service_name="dungeon-master"
 jsonPayload.endpoint="/turn"
 jsonPayload.duration_ms>0' \
-    --value-extractor='EXTRACT(jsonPayload.duration_ms)' \
-    2>/dev/null && echo "✓ Created turn_processing_duration_ms" || echo "⚠ turn_processing_duration_ms already exists"
+    'EXTRACT(jsonPayload.duration_ms)'
 
 # Policy Engine Quest Triggers
-echo "Creating metric: policy_quest_triggers"
-gcloud logging metrics create policy_quest_triggers \
-    --project="$PROJECT_ID" \
-    --description="Count of quest triggers by policy engine" \
-    --log-filter='resource.type="cloud_run_revision"
+create_or_update_metric "policy_quest_triggers" \
+    "Count of quest triggers by policy engine" \
+    'resource.type="cloud_run_revision"
 resource.labels.service_name="dungeon-master"
 jsonPayload.event="policy_trigger"
-jsonPayload.trigger_type="quest"' \
-    2>/dev/null && echo "✓ Created policy_quest_triggers" || echo "⚠ policy_quest_triggers already exists"
+jsonPayload.trigger_type="quest"'
 
 # Policy Engine POI Triggers
-echo "Creating metric: policy_poi_triggers"
-gcloud logging metrics create policy_poi_triggers \
-    --project="$PROJECT_ID" \
-    --description="Count of POI (Point of Interest) triggers by policy engine" \
-    --log-filter='resource.type="cloud_run_revision"
+create_or_update_metric "policy_poi_triggers" \
+    "Count of POI (Point of Interest) triggers by policy engine" \
+    'resource.type="cloud_run_revision"
 resource.labels.service_name="dungeon-master"
 jsonPayload.event="policy_trigger"
-jsonPayload.trigger_type="poi"' \
-    2>/dev/null && echo "✓ Created policy_poi_triggers" || echo "⚠ policy_poi_triggers already exists"
+jsonPayload.trigger_type="poi"'
 
 # Cold Starts
-echo "Creating metric: cold_starts"
-gcloud logging metrics create cold_starts \
-    --project="$PROJECT_ID" \
-    --description="Count of container cold starts" \
-    --log-filter='resource.type="cloud_run_revision"
+create_or_update_metric "cold_starts" \
+    "Count of container cold starts" \
+    'resource.type="cloud_run_revision"
 resource.labels.service_name="dungeon-master"
-jsonPayload.message=~"Cold start"' \
-    2>/dev/null && echo "✓ Created cold_starts" || echo "⚠ cold_starts already exists"
+jsonPayload.message=~"Cold start"'
+
+# Clean up temp file
+rm -f /tmp/metric_create_error.log
 
 echo ""
 echo "Log-based metrics deployment complete!"

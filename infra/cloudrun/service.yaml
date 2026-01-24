@@ -9,6 +9,18 @@
 #   - Secrets created in Secret Manager
 #   - Service account configured with proper IAM roles
 #
+# IMPORTANT: Placeholder Replacement Required
+# This file contains placeholder values that MUST be replaced before deployment:
+#   - PROJECT_ID: Your GCP project ID (e.g., "my-dungeon-project")
+#   - SERVICE_ID: Cloud Run service hash (automatically generated, or use specific URL)
+#   - REGION: GCP region code (e.g., "us-central1")
+#   - IMAGE_TAG: Use commit SHA (e.g., "sha-73da40b") instead of "latest"
+#   - Secret version: Update "1" to current secret version number
+#
+# Validation: Before deploying, verify all placeholders are replaced:
+#   grep -E "PROJECT_ID|SERVICE_ID|:latest" service.yaml
+#   (should return no matches if properly configured)
+#
 # References:
 #   - Cloud Run service spec: https://cloud.google.com/run/docs/reference/yaml/v1
 #   - gcp_deployment_reference.md for architecture decisions
@@ -64,6 +76,9 @@ spec:
         - name: dungeon-master
           # Image path - update with your Artifact Registry path
           # Format: REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME/IMAGE_NAME:TAG
+          # IMPORTANT: Use commit SHA tags for production (e.g., :sha-a1b2c3d) instead of :latest
+          # The :latest tag is shown here as a placeholder and should be replaced during deployment
+          # Example: us-central1-docker.pkg.dev/my-project/dungeon-master/dungeon-master:sha-73da40b
           image: us-central1-docker.pkg.dev/PROJECT_ID/dungeon-master/dungeon-master:latest
           
           # Container port (FastAPI server)
@@ -219,11 +234,13 @@ spec:
             
             # Secrets from Secret Manager
             # Format: secretKeyRef mounts secret as environment variable
+            # NOTE: Pin to specific version for production (e.g., "1", "2", etc.)
+            # Using "latest" is acceptable for dev/staging but not recommended for production
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: openai-api-key
-                  key: latest
+                  key: "1"  # Pin to specific version; update during secret rotation
   
   # Traffic configuration
   traffic:

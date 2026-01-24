@@ -34,8 +34,12 @@ echo "Service URL: $SERVICE_URL"
 echo "Service Host: $SERVICE_HOST"
 echo ""
 
+# Create secure temporary file for uptime check configuration
+TEMP_CONFIG=$(mktemp /tmp/uptime_check_XXXXXX.json)
+trap "rm -f $TEMP_CONFIG" EXIT  # Ensure cleanup even if script fails
+
 # Create uptime check configuration file
-cat > /tmp/uptime_check_config.json << EOF
+cat > "$TEMP_CONFIG" << EOF
 {
   "displayName": "Dungeon Master Health Check",
   "monitoredResource": {
@@ -67,11 +71,8 @@ EOF
 echo "Creating uptime check..."
 gcloud monitoring uptime-check-configs create \
     --project="$PROJECT_ID" \
-    --config-from-file=/tmp/uptime_check_config.json \
+    --config-from-file="$TEMP_CONFIG" \
     && echo "✓ Uptime check created successfully" || echo "⚠ Uptime check may already exist"
-
-# Clean up temp file
-rm -f /tmp/uptime_check_config.json
 
 echo ""
 echo "Uptime check deployment complete!"
