@@ -14,15 +14,38 @@
         "summary": "Process a player turn",
         "description": "Process a player's turn action and generate an AI narrative response. This endpoint will orchestrate calls to journey-log for context retrieval and OpenAI for narrative generation. Currently stubbed.",
         "operationId": "process_turn_turn_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Dev-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-User-Id"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TurnRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -58,14 +81,6 @@
           },
           "429": {
             "description": "Rate limit exceeded",
-            "headers": {
-              "Retry-After": {
-                "description": "Seconds to wait before retrying",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
             "content": {
               "application/json": {
                 "example": {
@@ -75,6 +90,14 @@
                     "retry_after_seconds": 0.5,
                     "character_id": "550e8400-e29b-41d4-a716-446655440000"
                   }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -92,12 +115,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/admin/turns/{turn_id}": {
@@ -346,11 +364,9 @@
             "description": "Metrics collected",
             "content": {
               "application/json": {
-                "schema": {
-
-                },
+                "schema": {},
                 "example": {
-                  "uptime_seconds": 3600,
+                  "uptime_seconds": 3600.0,
                   "requests": {
                     "total": 150,
                     "success": 145,
@@ -414,9 +430,7 @@
             "description": "Parse results with validation status",
             "content": {
               "application/json": {
-                "schema": {
-
-                },
+                "schema": {},
                 "example": {
                   "is_valid": true,
                   "narrative": "You discover a treasure chest...",
@@ -447,23 +461,46 @@
         }
       }
     },
-    "/character": {
+    "/characters": {
       "post": {
         "tags": [
           "game"
         ],
         "summary": "Create a new character",
         "description": "Create a new character and generate an introductory narrative scene.",
-        "operationId": "create_character_character_post",
+        "operationId": "create_character_characters_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Dev-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dev-User-Id"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CharacterCreationRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -486,12 +523,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     }
   },
@@ -943,6 +975,17 @@
             ],
             "description": "Point-of-interest intent, if any"
           },
+          "location_intent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocationIntent"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Location intent for setting character location (used primarily during character creation)"
+          },
           "meta": {
             "anyOf": [
               {
@@ -957,7 +1000,79 @@
         },
         "type": "object",
         "title": "IntentsBlock",
-        "description": "Collection of all intent types from LLM output.\n\nGroups all possible intents that the LLM can suggest based on the narrative.\nAll fields are optional as the LLM may not suggest any specific intent.\n\nNote: The LLM fills these intents based on narrative content, but the\nDungeonMaster service logic determines actual subsystem eligibility and\noperations based on game state.\n\nAttributes:\n    quest_intent: Optional quest-related intent\n    combat_intent: Optional combat-related intent\n    poi_intent: Optional point-of-interest intent\n    meta: Optional meta-level intent about player engagement"
+        "description": "Collection of all intent types from LLM output.\n\nGroups all possible intents that the LLM can suggest based on the narrative.\nAll fields are optional as the LLM may not suggest any specific intent.\n\nNote: The LLM fills these intents based on narrative content, but the\nDungeonMaster service logic determines actual subsystem eligibility and\noperations based on game state.\n\nAttributes:\n    quest_intent: Optional quest-related intent\n    combat_intent: Optional combat-related intent\n    poi_intent: Optional point-of-interest intent\n    location_intent: Optional location intent for setting character location\n    meta: Optional meta-level intent about player engagement"
+      },
+      "LocationIntent": {
+        "properties": {
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id",
+            "description": "Machine-readable POI identifier when IN a location (null when traveling between POIs)",
+            "examples": [
+              "town:rivendell",
+              "forest:darkwood",
+              "dungeon:shadowkeep",
+              "tavern:prancing_pony"
+            ]
+          },
+          "location_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Display Name",
+            "description": "Human-readable POI name when IN a location (null when traveling between POIs)",
+            "examples": [
+              "The Town of Rivendell",
+              "Darkwood Forest",
+              "Shadowkeep Dungeon",
+              "The Prancing Pony"
+            ]
+          },
+          "minor_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minor Location",
+            "description": "ALWAYS provide - precise current position (within POI or between POIs)",
+            "examples": [
+              "at the bar counter",
+              "in the town square",
+              "on the road between towns",
+              "entering the forest"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "none",
+              "update_minor",
+              "leave_poi"
+            ],
+            "title": "Action",
+            "description": "Location action: 'none' (no change), 'update_minor' (update minor_location), 'leave_poi' (exit current POI)",
+            "default": "none"
+          }
+        },
+        "type": "object",
+        "title": "LocationIntent",
+        "description": "Location intent for setting or updating character location.\n\nLOCATION MODEL:\n- Characters can be IN a POI (major named location) or have NO POI (traveling/between)\n- minor_location is ALWAYS present - describes where they are right now\n- When in a POI: minor_location is position within that POI (e.g., 'at the bar')\n- When not in a POI: minor_location describes the transitional state (e.g., 'on the road to town')\n\nUsed during character creation to establish starting location (with origin POI),\nand during gameplay to track movement and transitions.\n\nAttributes:\n    location_id: Machine-readable POI identifier (null when between locations)\n    location_display_name: Human-readable POI name (null when between locations)\n    minor_location: ALWAYS present - precise current position (within POI or between POIs)\n    action: Action type - 'none', 'update_minor', 'leave_poi'"
       },
       "MetaIntent": {
         "properties": {
@@ -1035,7 +1150,7 @@
               "reference"
             ],
             "title": "Action",
-            "description": "Point-of-interest action to perform",
+            "description": "POI action: 'create' (enter/discover new location), 'reference' (mention existing location)",
             "default": "none"
           },
           "name": {
@@ -1051,7 +1166,8 @@
             "description": "Name of the point of interest",
             "examples": [
               "The Old Mill",
-              "Shadowfen Swamp"
+              "Shadowfen Swamp",
+              "The Rusty Tankard Inn"
             ]
           },
           "description": {
@@ -1066,7 +1182,8 @@
             "title": "Description",
             "description": "Description of the location",
             "examples": [
-              "An abandoned mill at the edge of the forest"
+              "An abandoned mill at the edge of the forest",
+              "A mysterious tavern filled with shady characters"
             ]
           },
           "reference_tags": {
@@ -1088,13 +1205,18 @@
                 "mill",
                 "forest",
                 "quest_location"
+              ],
+              [
+                "tavern",
+                "town",
+                "social_hub"
               ]
             ]
           }
         },
         "type": "object",
         "title": "POIIntent",
-        "description": "Point-of-Interest intent from LLM output.\n\nIndicates what POI action the narrative implies, if any.\nThe LLM only suggests intents; the service decides actual POI operations.\n\nAttributes:\n    action: POI action type - \"none\", \"create\", or \"reference\"\n    name: Optional name of the point of interest\n    description: Optional description of the location\n    reference_tags: Optional list of tags for referencing this POI later"
+        "description": "Point-of-Interest intent from LLM output.\n\nIndicates what POI action the narrative implies, if any.\nThe LLM only suggests intents; the service decides actual POI operations.\n\nPOI MODEL:\n- POIs are named, significant locations (towns, dungeons, taverns, etc.)\n- Characters can be IN a POI (location_id set) or have NO POI (traveling)\n- 'create' action: Character enters/discovers a new named location\n- 'reference' action: Mention an existing POI without entering it\n- minor_location (in LocationIntent) is ALWAYS present for precise positioning\n- Leaving a POI is handled via LocationIntent with action='leave_poi'\n\nAttributes:\n    action: POI action type - \"none\", \"create\", or \"reference\"\n    name: Name of the point of interest\n    description: Description of the location\n    reference_tags: Tags for referencing this POI later"
       },
       "PolicyConfigReloadRequest": {
         "properties": {
@@ -1235,12 +1357,13 @@
             "type": "string",
             "enum": [
               "none",
-              "offer",
+              "start",
+              "advance",
               "complete",
               "abandon"
             ],
             "title": "Action",
-            "description": "Quest action to perform",
+            "description": "Quest action: 'start' (begin new quest), 'advance' (progress active quest), 'complete' (finish quest), 'abandon' (give up)",
             "default": "none"
           },
           "quest_title": {
@@ -1253,7 +1376,7 @@
               }
             ],
             "title": "Quest Title",
-            "description": "Title of the quest",
+            "description": "Title of the quest (required for 'start' action)",
             "examples": [
               "Rescue the Innkeeper's Daughter"
             ]
@@ -1268,7 +1391,7 @@
               }
             ],
             "title": "Quest Summary",
-            "description": "Brief summary of the quest objective",
+            "description": "Brief summary of the quest objective (required for 'start' action)",
             "examples": [
               "Find the missing girl last seen near the old mill"
             ]
@@ -1285,11 +1408,27 @@
             ],
             "title": "Quest Details",
             "description": "Additional quest metadata and details"
+          },
+          "progress_update": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Update",
+            "description": "Description of progress made when action='advance' (e.g., 'Found a clue at the mill', 'Defeated the bandits')",
+            "examples": [
+              "Discovered the hideout location",
+              "Convinced the guard to help"
+            ]
           }
         },
         "type": "object",
         "title": "QuestIntent",
-        "description": "Quest-related intent from LLM output.\n\nIndicates what quest action the narrative implies, if any.\nThe LLM only suggests intents; the service decides actual quest operations.\n\nAttributes:\n    action: Quest action type - \"none\", \"offer\", \"complete\", or \"abandon\"\n    quest_title: Optional title of the quest\n    quest_summary: Optional brief summary of the quest\n    quest_details: Optional dictionary of additional quest metadata"
+        "description": "Quest-related intent from LLM output.\n\nIndicates what quest action the narrative implies, if any.\nThe LLM only suggests intents; the service decides actual quest operations.\n\nQUEST PHILOSOPHY:\n- Quests are driving narrative elements, not optional offers\n- When policy allows, quests START immediately as part of the story\n- LLM should focus on ADVANCING quests when player actions align\n- completion_state tracks progress: 'not_started', 'in_progress', 'completed'\n\nAttributes:\n    action: Quest action type - \"none\", \"start\", \"advance\", \"complete\", or \"abandon\"\n    quest_title: Optional title of the quest\n    quest_summary: Optional brief summary of the quest objective\n    quest_details: Optional dictionary of additional quest metadata\n    progress_update: Optional description of quest progress when action='advance'"
       },
       "SubsystemActionType": {
         "properties": {
