@@ -306,6 +306,51 @@ PROJECT_ID=dungeon-master-prod \
   ./infra/cloudrun/deploy.sh
 ```
 
+## Authentication and Access Control
+
+### Default Configuration (Development/Staging)
+
+The default Cloud Build and deployment scripts use `--allow-unauthenticated` for ease of development and testing. This is appropriate for:
+- Development environments
+- Staging environments
+- Internal testing
+- Public demo deployments
+
+### Production Authentication
+
+**For production deployments, enable authentication** by modifying the deployment command:
+
+```bash
+# Remove --allow-unauthenticated and add authentication
+gcloud run deploy dungeon-master \
+  --image ... \
+  --no-allow-unauthenticated \
+  --ingress=internal-and-cloud-load-balancing
+```
+
+### Authentication Options
+
+**Option 1: Identity-Aware Proxy (IAP)**
+- Best for: Internal applications requiring Google identity authentication
+- Setup: Configure Cloud Load Balancer with IAP
+- Benefit: Automatic Google OAuth integration
+
+**Option 2: API Gateway**
+- Best for: External APIs requiring API key authentication
+- Setup: Deploy Cloud Endpoints or API Gateway in front of Cloud Run
+- Benefit: Rate limiting, API key management
+
+**Option 3: Service-to-Service Authentication**
+- Best for: Microservices calling each other
+- Setup: Grant `roles/run.invoker` to calling service account
+- Benefit: Zero-trust architecture
+
+**Recommended for Dungeon Master Service:**
+- **Development**: `--allow-unauthenticated` (current default)
+- **Production**: API Gateway with API keys + rate limiting (user authentication handled by upstream service)
+
+See [gcp_deployment_reference.md](../gcp_deployment_reference.md) for detailed authentication configuration.
+
 ## Secrets Management
 
 ### Storing Secrets

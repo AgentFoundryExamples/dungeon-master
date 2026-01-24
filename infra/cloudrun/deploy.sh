@@ -98,6 +98,8 @@ log_info "Image validated: $IMAGE_URL"
 log_info "Deploying to Cloud Run..."
 
 # Build deployment command with recommended settings from gcp_deployment_reference.md
+# Note: --allow-unauthenticated is for dev/staging environments
+# For production, override with: --no-allow-unauthenticated and configure IAP or API Gateway
 DEPLOY_CMD=(
     gcloud run deploy "$SERVICE_NAME"
     --image "$IMAGE_URL"
