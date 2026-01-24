@@ -17,6 +17,7 @@ This module loads and validates configuration from environment variables.
 All settings are validated at startup to fail fast if configuration is invalid.
 """
 
+import re
 from functools import lru_cache
 from typing import Optional
 from pydantic import Field, field_validator
@@ -339,17 +340,16 @@ class Settings(BaseSettings):
     @classmethod
     def validate_gcp_region(cls, v: str) -> str:
         """Validate GCP region format."""
-        import re
-        
         if not v or v.strip() == "":
             raise ValueError("gcp_region cannot be empty")
         
         v = v.strip().lower()
         
-        # GCP regions follow pattern: <continent>-<area><number>
-        # Examples: us-central1, europe-west1, asia-northeast1
-        # Pattern: letters, hyphens, and digits in reasonable format
-        if not re.match(r'^[a-z]+-[a-z]+\d+$', v):
+        # GCP regions follow pattern: <continent/country>-<area><number>
+        # Examples: us-central1, europe-west1, asia-northeast1, northamerica-northeast1
+        # More restrictive pattern to match actual GCP region naming conventions
+        # Allows multi-word continents (e.g., northamerica) and areas (e.g., northeast)
+        if not re.match(r'^[a-z]+(?:-[a-z]+)*-[a-z]+\d+$', v):
             raise ValueError(
                 f"gcp_region must be a valid GCP region format (e.g., us-central1, europe-west1), got: {v}"
             )

@@ -228,11 +228,13 @@ gcloud iam service-accounts create dungeon-master-sa \
 #### 5. Store Secrets in Secret Manager
 ```bash
 # Create secret for OpenAI API key
-echo -n "sk-your-api-key-here" | gcloud secrets create openai-api-key \
+# IMPORTANT: Replace 'YOUR_ACTUAL_API_KEY' with your real OpenAI API key
+echo -n "YOUR_ACTUAL_API_KEY" | gcloud secrets create openai-api-key \
   --data-file=- \
   --replication-policy="automatic"
 
 # Grant service account access to secret
+# Replace PROJECT_ID with your actual GCP project ID
 gcloud secrets add-iam-policy-binding openai-api-key \
   --member="serviceAccount:dungeon-master-sa@PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
@@ -246,20 +248,22 @@ gcloud iam workload-identity-pools create github-pool \
   --display-name="GitHub Actions Pool"
 
 # Create provider
+# IMPORTANT: Replace 'YOUR_GITHUB_ORG' with your GitHub organization name
 gcloud iam workload-identity-pools providers create-oidc github-provider \
   --location=global \
   --workload-identity-pool=github-pool \
   --issuer-uri=https://token.actions.githubusercontent.com \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-  --attribute-condition="assertion.repository_owner=='AgentFoundryExamples'"
+  --attribute-condition="assertion.repository_owner=='YOUR_GITHUB_ORG'"
 
 # Grant permissions to deploy
+# Replace PROJECT_ID, PROJECT_NUMBER, YOUR_GITHUB_ORG, and YOUR_REPO_NAME with actual values
 gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/AgentFoundryExamples/dungeon-master" \
+  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/YOUR_GITHUB_ORG/YOUR_REPO_NAME" \
   --role="roles/run.admin"
 
 gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/AgentFoundryExamples/dungeon-master" \
+  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/YOUR_GITHUB_ORG/YOUR_REPO_NAME" \
   --role="roles/artifactregistry.writer"
 ```
 
@@ -466,10 +470,12 @@ gcloud run deploy dungeon-master \
 **Store Secrets**:
 ```bash
 # OpenAI API Key
-echo -n "sk-..." | gcloud secrets create openai-api-key --data-file=-
+# IMPORTANT: Replace 'YOUR_ACTUAL_API_KEY' with your real OpenAI API key
+echo -n "YOUR_ACTUAL_API_KEY" | gcloud secrets create openai-api-key --data-file=-
 
 # Optional: Journey-log service credentials (if using service accounts)
-echo -n "journey-log-token" | gcloud secrets create journey-log-token --data-file=-
+# Replace 'YOUR_ACTUAL_TOKEN' with your real journey-log token
+echo -n "YOUR_ACTUAL_TOKEN" | gcloud secrets create journey-log-token --data-file=-
 ```
 
 **Deploy with Secrets**:
