@@ -41,6 +41,10 @@
   ├── policy_config.py
   ├── resilience.py
   └── turn_storage.py
+├── infra
+  ├── cloudrun
+    └── deploy.sh
+  └── README.md
 ├── tests
   ├── __init__.py
   ├── conftest.py
@@ -71,9 +75,12 @@
   ├── test_resilience.py
   ├── test_turn_integration.py
   └── test_turn_storage.py
+├── .dockerignore
 ├── .env.example
 ├── .gitignore
+├── cloudbuild.yaml
 ├── DEV_AUTH_BYPASS.md
+├── Dockerfile
 ├── ENDPOINT_FIXES.md
 ├── example_openai_usage.py
 ├── FRONTEND_UX_GUIDE.md

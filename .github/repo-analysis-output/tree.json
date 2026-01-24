@@ -184,6 +184,26 @@
     },
     {
       "type": "directory",
+      "name": "infra",
+      "children": [
+        {
+          "type": "directory",
+          "name": "cloudrun",
+          "children": [
+            {
+              "type": "file",
+              "name": "deploy.sh"
+            }
+          ]
+        },
+        {
+          "type": "file",
+          "name": "README.md"
+        }
+      ]
+    },
+    {
+      "type": "directory",
       "name": "tests",
       "children": [
         {
@@ -306,6 +326,10 @@
     },
     {
       "type": "file",
+      "name": ".dockerignore"
+    },
+    {
+      "type": "file",
       "name": ".env.example"
     },
     {
@@ -314,7 +338,15 @@
     },
     {
       "type": "file",
+      "name": "cloudbuild.yaml"
+    },
+    {
+      "type": "file",
       "name": "DEV_AUTH_BYPASS.md"
+    },
+    {
+      "type": "file",
+      "name": "Dockerfile"
     },
     {
       "type": "file",
