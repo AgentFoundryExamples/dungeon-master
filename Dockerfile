@@ -26,7 +26,10 @@ COPY --from=builder /root/.local /root/.local
 # Copy application code
 COPY app/ ./app/
 COPY example_openai_usage.py .
-COPY policy_config.json.example ./policy_config.json
+
+# Copy policy config if it exists, otherwise use example
+# Production deployments should mount proper config via Secret Manager or ConfigMap
+COPY policy_config.jso[n] ./policy_config.json* ./
 
 # Ensure scripts in .local are usable
 ENV PATH=/root/.local/bin:$PATH

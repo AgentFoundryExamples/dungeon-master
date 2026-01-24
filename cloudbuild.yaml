@@ -122,23 +122,26 @@ steps:
         echo "Service: ${_SERVICE_NAME}"
         
         # Base deployment command
-        DEPLOY_CMD="gcloud run deploy ${_SERVICE_NAME} \
-          --image ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_ARTIFACT_REPO}/${_SERVICE_NAME}:${SHORT_SHA} \
-          --region ${_REGION} \
-          --platform managed \
-          --memory 1Gi \
-          --cpu 2 \
-          --concurrency 80 \
-          --min-instances 0 \
-          --max-instances 100 \
-          --timeout 300s \
-          --allow-unauthenticated \
-          --no-traffic"
+        # Use a bash array to prevent command injection
+        DEPLOY_CMD=(
+          "gcloud" "run" "deploy" "${_SERVICE_NAME}"
+          "--image" "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_ARTIFACT_REPO}/${_SERVICE_NAME}:${SHORT_SHA}"
+          "--region" "${_REGION}"
+          "--platform" "managed"
+          "--memory" "1Gi"
+          "--cpu" "2"
+          "--concurrency" "80"
+          "--min-instances" "0"
+          "--max-instances" "100"
+          "--timeout" "300s"
+          "--allow-unauthenticated"
+          "--no-traffic"
+        )
         
         # Add service account if specified
         if [ -n "${_SERVICE_ACCOUNT}" ]; then
           echo "Using service account: ${_SERVICE_ACCOUNT}"
-          DEPLOY_CMD="$DEPLOY_CMD --service-account ${_SERVICE_ACCOUNT}"
+          DEPLOY_CMD+=("--service-account" "${_SERVICE_ACCOUNT}")
         fi
         
         # Add secrets if specified
@@ -147,18 +150,18 @@ steps:
           echo "Mounting secrets from Secret Manager..."
           IFS=',' read -ra SECRETS_ARRAY <<< "${_SECRETS}"
           for secret in "$${SECRETS_ARRAY[@]}"; do
-            DEPLOY_CMD="$DEPLOY_CMD --set-secrets $secret"
+            DEPLOY_CMD+=("--set-secrets" "$secret")
           done
         fi
         
         # Add environment variables if specified
         if [ -n "${_ENV_VARS}" ]; then
           echo "Setting environment variables..."
-          DEPLOY_CMD="$DEPLOY_CMD --set-env-vars ${_ENV_VARS}"
+          DEPLOY_CMD+=("--set-env-vars" "${_ENV_VARS}")
         fi
         
         # Execute deployment
-        eval $DEPLOY_CMD
+        "${DEPLOY_CMD[@]}"
         
         # Get the new revision name
         REVISION=$(gcloud run services describe ${_SERVICE_NAME} \

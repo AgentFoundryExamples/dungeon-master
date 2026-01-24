@@ -84,6 +84,16 @@ fi
 log_info "Setting active GCP project..."
 gcloud config set project "$PROJECT_ID"
 
+# Validate that the image exists in Artifact Registry
+log_info "Validating image exists in Artifact Registry..."
+if ! gcloud artifacts docker images describe "$IMAGE_URL" --format="value(name)" &> /dev/null; then
+    log_error "Image not found in Artifact Registry: $IMAGE_URL"
+    log_error "Please build and push the image first:"
+    log_error "  gcloud builds submit --config=cloudbuild.yaml --substitutions=_PROJECT_ID=$PROJECT_ID"
+    exit 1
+fi
+log_info "Image validated: $IMAGE_URL"
+
 # Deploy to Cloud Run
 log_info "Deploying to Cloud Run..."
 
