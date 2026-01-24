@@ -1249,15 +1249,18 @@ def test_custom(client):
 
 The Dungeon Master service is designed for deployment to Google Cloud Platform using **Cloud Build** for CI/CD automation and **Cloud Run** for hosting.
 
-### CI/CD with Cloud Build
+> **📖 Complete Deployment Guide**: See **[DEPLOYMENT.md](DEPLOYMENT.md)** for comprehensive, end-to-end deployment documentation including:
+> - Prerequisites and initial provisioning (from scratch to first deployment)
+> - Environment configuration (dev/staging/prod)
+> - Cloud Build trigger configuration
+> - Secrets management (Secret Manager, no JSON keys)
+> - Deployment procedures (automated and manual)
+> - Traffic management and rollout strategies
+> - Monitoring and alerting setup
+> - Rollback procedures
+> - Troubleshooting common issues
 
-The repository includes a complete Cloud Build pipeline (`cloudbuild.yaml`) that automates:
-1. **Test Phase**: Runs pytest unit and integration tests
-2. **Build Phase**: Builds Docker container with multi-stage optimization
-3. **Push Phase**: Pushes to Artifact Registry with commit SHA and latest tags
-4. **Deploy Phase**: Deploys to Cloud Run with traffic management
-
-#### Quick Start
+### Quick Start
 
 **Manual deployment:**
 ```bash
@@ -1278,12 +1281,13 @@ gcloud builds triggers create github \
   --substitutions="_PROJECT_ID=YOUR_PROJECT_ID,_SERVICE_ACCOUNT=dungeon-master-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com"
 ```
 
-See **[infra/README.md](infra/README.md)** for comprehensive Cloud Build setup instructions, including:
-- Prerequisites and API enablement
-- Service account configuration
-- Secrets management with Secret Manager
-- Traffic management and canary deployments
-- Troubleshooting guide
+### Additional Resources
+
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide with runbooks and troubleshooting
+- **[gcp_deployment_reference.md](gcp_deployment_reference.md)** - Deployment architecture, rationale, and advanced configuration
+- **[infra/README.md](infra/README.md)** - Infrastructure-as-code documentation
+- **[infra/monitoring/README.md](infra/monitoring/README.md)** - Monitoring, alerting, and observability setup
+- **[infra/networking/README.md](infra/networking/README.md)** - Service discovery, custom domains, and networking
 
 #### Deployment Script
 
