@@ -1,3 +1,184 @@
+# Deployment Documentation - Implementation Summary
+
+## Overview
+Created comprehensive, end-to-end deployment documentation consolidating all deployment workflows, procedures, and troubleshooting guidance into a single reference document for developers.
+
+## Status
+**Implementation Complete**
+
+## Key Features
+
+### 1. New DEPLOYMENT.md File
+
+**File Created:**
+- `DEPLOYMENT.md`: Comprehensive deployment guide with runbooks and operational procedures
+
+**Content Structure:**
+- **Prerequisites**: Tools, GCP account setup, API enablement
+- **Initial Provisioning**: Step-by-step infrastructure setup from scratch
+  - Artifact Registry repository creation
+  - Service account creation with minimal permissions
+  - Cloud Build permissions configuration
+  - Workload Identity Federation setup (no JSON keys)
+- **Environment Configuration**: Local dev vs cloud deployment settings
+- **Secrets Management**: Secret Manager usage, rotation procedures (zero-downtime)
+- **Cloud Build Configuration**: Manual triggers and automated GitHub triggers
+- **Deployment Procedures**: Pre-deployment checklist, automated and manual methods
+- **Traffic Management**: Blue/Green, Canary, and A/B testing strategies
+- **Service Health Verification**: Health checks, smoke tests, metrics, and logs
+- **Monitoring and Alerts**: Dashboard setup, alert policies, notification channels
+- **Rollback Procedures**: Fast rollback (traffic shift) and complete rollback (redeploy)
+- **Troubleshooting**: Build errors, IAM issues, unhealthy revisions, network issues
+- **Environment-Specific Guidance**: Dev/staging/prod configurations and best practices
+- **Ongoing Operations**: Maintenance tasks, scaling adjustments, cost optimization
+
+**Key Design Decisions:**
+- Consolidates information from multiple sources (README, gcp_deployment_reference.md, infra/)
+- Provides clear runbooks for common operations (deployment, rollback, secret rotation)
+- Differentiates local development vs cloud deployment steps
+- Environment-specific sections prevent cross-project mistakes
+- Links to all IaC files for infrastructure maintenance
+
+### 2. README.md Updates
+
+**Files Modified:**
+- `README.md`: Updated deployment section with clear reference to DEPLOYMENT.md
+
+**Changes:**
+- Added prominent link to DEPLOYMENT.md at top of deployment section
+- Consolidated deployment resources into "Additional Resources" section
+- Links to DEPLOYMENT.md, gcp_deployment_reference.md, and infra/ documentation
+- Maintains quick start commands for immediate reference
+
+### 3. Cross-References to Infrastructure
+
+**IaC Files Referenced:**
+- `cloudbuild.yaml` - CI/CD pipeline definition
+- `infra/cloudrun/service.yaml` - Cloud Run service configuration
+- `infra/monitoring/alert_policies.yaml` - Alert policy definitions
+- `infra/monitoring/log_metrics.yaml` - Log-based metrics
+- `infra/monitoring/dashboard.json` - Service health dashboard
+- `infra/networking/vpc_connector.tf` - VPC connector configuration
+- `.env.example` - Environment variable template
+
+**Documentation Links Validated:**
+- All internal links to IaC files verified
+- Console links provided for GCP services (Cloud Run, Cloud Build, Monitoring, Logging)
+- External links to official GCP documentation
+
+### 4. Deployment Automation Scope
+
+**Cloud Build Pipeline** (`cloudbuild.yaml`):
+- **Test Phase**: Automated pytest execution (fails build if tests fail)
+- **Build Phase**: Docker image build with caching
+- **Push Phase**: Push to Artifact Registry with SHA and latest tags
+- **Deploy Phase**: Zero-downtime deployment with traffic management
+
+**Deployment Safety:**
+- New revisions deployed with 0% traffic (--no-traffic flag)
+- Allows testing before traffic shift
+- Supports gradual rollout (10% → 50% → 100%)
+- Instant rollback via traffic shift (< 30 seconds)
+
+**Monitoring Integration:**
+- Log-based metrics for LLM errors, turn processing, policy triggers
+- Alert policies for error rate, latency, instance count, availability
+- Dashboards for real-time service health visualization
+- Uptime checks for synthetic monitoring
+
+### 5. Troubleshooting Coverage
+
+**Build Errors:**
+- Tests failing in Cloud Build
+- Docker build failures
+- Dependency version mismatches
+
+**IAM and Permission Issues:**
+- "Permission Denied" during deployment
+- "Secret Not Found" errors
+- Cloud Build service account missing roles
+
+**Unhealthy Revisions:**
+- Service returning 502/503 errors
+- High latency (> 5s per turn)
+- Health check failures
+
+**Network Connectivity Issues:**
+- Cannot reach journey-log service
+- VPC connector misconfiguration
+- Firewall rules blocking egress
+
+### 6. Environment-Specific Guidance
+
+**Development Environment:**
+- Local testing with stub LLM responses
+- Debug endpoints enabled
+- No Cloud Run deployment
+
+**Staging Environment:**
+- Pre-production testing
+- Triggered by `develop` branch
+- Service name: `dungeon-master-staging`
+- Separate secrets
+
+**Production Environment:**
+- Live player traffic
+- Triggered by `main` branch
+- Service name: `dungeon-master`
+- IAM authentication required
+- Min instances to eliminate cold starts
+- Comprehensive monitoring and alerting
+
+**Cross-Environment Mistakes Prevented:**
+- Using production secrets in staging/dev
+- Deploying debug endpoints to production
+- Using same service name across environments
+- Hardcoding environment-specific URLs
+
+### 7. Operational Runbooks
+
+**Secret Rotation (Zero-Downtime):**
+1. Create new secret version in Secret Manager
+2. Cloud Run picks up latest version on cold start (or force restart)
+3. Verify service health after rotation
+4. Disable old secret version after verification period (24-48 hours)
+
+**Rollback Procedures:**
+- **Fast Rollback**: Traffic shift to previous revision (< 30 seconds recovery)
+- **Complete Rollback**: Redeploy previous image (2-5 minutes recovery)
+- Includes rollback checklist (identify root cause, document, monitor)
+
+**Scaling Adjustments:**
+- Commands for increasing max instances (traffic spikes)
+- Commands for adding min instances (eliminate cold starts)
+- Commands for increasing resources (CPU/memory)
+
+**Ongoing Maintenance:**
+- Weekly tasks: Review dashboards, check error logs, verify resources
+- Monthly tasks: Update dependencies, rotate secrets, disaster recovery drills
+- Quarterly tasks: Update Python version, security audit, performance review
+
+## Benefits
+
+1. **Single Source of Truth**: All deployment procedures in one document
+2. **End-to-End Coverage**: From prerequisites to ongoing operations
+3. **Runbook Format**: Step-by-step procedures for common operations
+4. **Environment Safety**: Clear guidance prevents cross-environment mistakes
+5. **Troubleshooting Focus**: Common issues with diagnosis and solutions
+6. **IaC Integration**: Links to all infrastructure code for maintenance
+7. **Quick Reference**: Common commands and URLs at bottom of document
+
+## References
+
+- `DEPLOYMENT.md` - New comprehensive deployment guide
+- `README.md` - Updated with deployment documentation references
+- `gcp_deployment_reference.md` - Detailed architecture and rationale (existing)
+- `infra/README.md` - Infrastructure setup instructions (existing)
+- `infra/monitoring/README.md` - Monitoring setup (existing)
+- `infra/networking/README.md` - Service discovery and networking (existing)
+
+---
+
 # End-to-End Tests and Turn Lifecycle Documentation - Implementation Summary
 
 ## Overview
