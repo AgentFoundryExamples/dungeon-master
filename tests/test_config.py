@@ -260,12 +260,13 @@ def test_config_gcp_project_id_validation():
             gcp_project_id="short"
         )
     
-    # Too long
+    # Too long (31 characters)
+    long_project_id = "a" + "b" * 29 + "z"  # 31 characters total
     with pytest.raises(ValidationError, match="6-30 characters"):
         Settings(
             journey_log_base_url="http://localhost:8000",
             openai_api_key="sk-test",
-            gcp_project_id="a" * 31
+            gcp_project_id=long_project_id
         )
     
     # Must start with letter
@@ -274,6 +275,22 @@ def test_config_gcp_project_id_validation():
             journey_log_base_url="http://localhost:8000",
             openai_api_key="sk-test",
             gcp_project_id="123-project"
+        )
+    
+    # Cannot end with hyphen
+    with pytest.raises(ValidationError, match="cannot end with a hyphen"):
+        Settings(
+            journey_log_base_url="http://localhost:8000",
+            openai_api_key="sk-test",
+            gcp_project_id="my-project-"
+        )
+    
+    # Cannot have consecutive hyphens
+    with pytest.raises(ValidationError, match="cannot contain consecutive hyphens"):
+        Settings(
+            journey_log_base_url="http://localhost:8000",
+            openai_api_key="sk-test",
+            gcp_project_id="my--project-123"
         )
     
     # Invalid characters (uppercase)
@@ -328,12 +345,13 @@ def test_config_cloud_run_service_validation():
             cloud_run_service=""
         )
     
-    # Too long (> 63 characters)
+    # Too long (64 characters)
+    long_service_name = "service-" + "x" * 57  # 64 characters total
     with pytest.raises(ValidationError, match="max 63 characters"):
         Settings(
             journey_log_base_url="http://localhost:8000",
             openai_api_key="sk-test",
-            cloud_run_service="a" * 64
+            cloud_run_service=long_service_name
         )
     
     # Invalid characters (uppercase)

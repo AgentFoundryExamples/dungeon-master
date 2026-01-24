@@ -306,7 +306,7 @@ class Settings(BaseSettings):
             return None
         
         # GCP project IDs must be 6-30 characters, lowercase letters, digits, and hyphens
-        # Cannot start with a digit or hyphen
+        # Cannot start with a digit or hyphen, cannot end with hyphen, no consecutive hyphens
         v = v.strip()
         if len(v) < 6 or len(v) > 30:
             raise ValueError(
@@ -316,6 +316,16 @@ class Settings(BaseSettings):
         if not v[0].isalpha():
             raise ValueError(
                 f"gcp_project_id must start with a letter, got: {v[0]}"
+            )
+        
+        if v[-1] == '-':
+            raise ValueError(
+                "gcp_project_id cannot end with a hyphen"
+            )
+        
+        if '--' in v:
+            raise ValueError(
+                "gcp_project_id cannot contain consecutive hyphens"
             )
         
         if not all(c.islower() or c.isdigit() or c == '-' for c in v):
@@ -329,14 +339,19 @@ class Settings(BaseSettings):
     @classmethod
     def validate_gcp_region(cls, v: str) -> str:
         """Validate GCP region format."""
+        import re
+        
         if not v or v.strip() == "":
             raise ValueError("gcp_region cannot be empty")
         
-        # Basic format check: region should match pattern like us-central1
         v = v.strip().lower()
-        if not v.replace('-', '').replace('1', '').replace('2', '').replace('3', '').replace('4', '').isalpha():
+        
+        # GCP regions follow pattern: <continent>-<area><number>
+        # Examples: us-central1, europe-west1, asia-northeast1
+        # Pattern: letters, hyphens, and digits in reasonable format
+        if not re.match(r'^[a-z]+-[a-z]+\d+$', v):
             raise ValueError(
-                f"gcp_region must be a valid GCP region (e.g., us-central1), got: {v}"
+                f"gcp_region must be a valid GCP region format (e.g., us-central1, europe-west1), got: {v}"
             )
         
         return v
