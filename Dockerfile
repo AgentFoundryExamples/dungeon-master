@@ -29,7 +29,7 @@ COPY example_openai_usage.py .
 
 # Copy policy config if it exists, otherwise use example
 # Production deployments should mount proper config via Secret Manager or ConfigMap
-COPY policy_config.jso[n] ./policy_config.json* ./
+COPY policy_config.json* ./
 
 # Ensure scripts in .local are usable
 ENV PATH=/root/.local/bin:$PATH
