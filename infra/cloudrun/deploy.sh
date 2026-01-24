@@ -132,9 +132,7 @@ if [[ -n "${VPC_CONNECTOR:-}" ]]; then
 fi
 
 # Execute deployment
-"${DEPLOY_CMD[@]}"
-
-if [[ $? -eq 0 ]]; then
+if "${DEPLOY_CMD[@]}"; then
     log_info "Deployment successful!"
     
     # Get service URL
