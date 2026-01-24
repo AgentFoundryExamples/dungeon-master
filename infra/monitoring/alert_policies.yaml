@@ -1,0 +1,213 @@
+# Cloud Monitoring Alert Policies for Dungeon Master Service
+#
+# This file defines alert policies for monitoring service health and performance.
+# Deploy with: gcloud alpha monitoring policies create --policy-from-file=alert_policies.yaml
+#
+# Note: Replace PROJECT_ID with your actual GCP project ID before deploying
+
+---
+# Alert Policy 1: High 5xx Error Rate
+# Triggers when error rate exceeds 5% of total requests
+displayName: "[Dungeon Master] High 5xx Error Rate"
+documentation:
+  content: |
+    ## High 5xx Error Rate Alert
+    
+    **Service**: Dungeon Master Cloud Run
+    **Severity**: Critical
+    **Condition**: Error rate > 5% of total requests over 5-minute window
+    
+    ### Possible Causes
+    - Service crash or restart loop
+    - LLM API errors (OpenAI rate limits, authentication failures)
+    - Journey-log service unavailable
+    - Database connection failures
+    - Configuration errors (missing environment variables)
+    
+    ### Mitigation Steps
+    1. Check Cloud Run logs for recent errors:
+       ```
+       gcloud logging read 'resource.type="cloud_run_revision"
+         resource.labels.service_name="dungeon-master"
+         severity>=ERROR' --limit=50
+       ```
+    2. Verify OpenAI API key is valid and not rate-limited
+    3. Check journey-log service health
+    4. Review recent deployments (possible bad deploy)
+    5. Consider rolling back to previous revision if issue persists
+    
+    ### Rollback Command
+    ```
+    gcloud run services update-traffic dungeon-master \
+      --to-revisions PREVIOUS_REVISION=100 \
+      --region us-central1
+    ```
+  mimeType: text/markdown
+
+conditions:
+  - displayName: "5xx error rate > 5%"
+    conditionThreshold:
+      filter: |
+        resource.type = "cloud_run_revision"
+        AND resource.labels.service_name = "dungeon-master"
+        AND metric.type = "run.googleapis.com/request_count"
+        AND metric.labels.response_code_class = "5xx"
+      comparison: COMPARISON_GT
+      thresholdValue: 0.05
+      duration: 300s
+      aggregations:
+        - alignmentPeriod: 60s
+          perSeriesAligner: ALIGN_RATE
+          crossSeriesReducer: REDUCE_SUM
+          groupByFields:
+            - resource.label.service_name
+
+alertStrategy:
+  autoClose: 1800s  # Auto-close after 30 minutes if condition resolves
+
+---
+# Alert Policy 2: High Request Latency (P95)
+# Triggers when 95th percentile latency exceeds 5 seconds
+displayName: "[Dungeon Master] High Request Latency (P95)"
+documentation:
+  content: |
+    ## High Request Latency Alert
+    
+    **Service**: Dungeon Master Cloud Run
+    **Severity**: Warning
+    **Condition**: P95 latency > 5 seconds over 10-minute window
+    
+    ### Possible Causes
+    - OpenAI API slowdowns
+    - Cold starts (if min-instances = 0)
+    - Resource contention (CPU/memory limits)
+    - Large narrative context (many recent turns)
+    - Journey-log service slow responses
+    
+    ### Mitigation Steps
+    1. Check LLM API latency metrics
+    2. Review CPU and memory utilization
+    3. Consider increasing min-instances to reduce cold starts
+    4. Verify journey-log service performance
+    5. Check for large turn contexts (trim if needed)
+  mimeType: text/markdown
+
+conditions:
+  - displayName: "P95 latency > 5 seconds"
+    conditionThreshold:
+      filter: |
+        resource.type = "cloud_run_revision"
+        AND resource.labels.service_name = "dungeon-master"
+        AND metric.type = "run.googleapis.com/request_latencies"
+      comparison: COMPARISON_GT
+      thresholdValue: 5000  # 5000ms = 5 seconds
+      duration: 600s
+      aggregations:
+        - alignmentPeriod: 60s
+          perSeriesAligner: ALIGN_DELTA
+          crossSeriesReducer: REDUCE_PERCENTILE_95
+          groupByFields:
+            - resource.label.service_name
+
+alertStrategy:
+  autoClose: 3600s  # Auto-close after 1 hour
+
+---
+# Alert Policy 3: Instance Count Near Limit
+# Triggers when running instances approach max-instances limit
+displayName: "[Dungeon Master] Instance Count Near Limit"
+documentation:
+  content: |
+    ## Instance Count Near Limit Alert
+    
+    **Service**: Dungeon Master Cloud Run
+    **Severity**: Warning
+    **Condition**: Running instances > 90 (90% of max-instances=100)
+    
+    ### Possible Causes
+    - Traffic spike (expected or unexpected)
+    - Slow request processing (high concurrency per instance)
+    - DDoS or abuse
+    
+    ### Mitigation Steps
+    1. Review traffic patterns (expected spike?)
+    2. Check for abuse (unusual request patterns)
+    3. Consider increasing max-instances quota
+    4. Optimize request processing to reduce latency
+    5. Enable rate limiting if abuse detected
+    
+    ### Increase Max Instances
+    ```
+    gcloud run services update dungeon-master \
+      --max-instances 200 \
+      --region us-central1
+    ```
+  mimeType: text/markdown
+
+conditions:
+  - displayName: "Instance count > 90"
+    conditionThreshold:
+      filter: |
+        resource.type = "cloud_run_revision"
+        AND resource.labels.service_name = "dungeon-master"
+        AND metric.type = "run.googleapis.com/container/instance_count"
+      comparison: COMPARISON_GT
+      thresholdValue: 90
+      duration: 300s
+      aggregations:
+        - alignmentPeriod: 60s
+          perSeriesAligner: ALIGN_MAX
+          crossSeriesReducer: REDUCE_SUM
+          groupByFields:
+            - resource.label.service_name
+
+alertStrategy:
+  autoClose: 1800s
+
+---
+# Alert Policy 4: Deployment Failure
+# Triggers when Cloud Build deployment fails
+displayName: "[Dungeon Master] Deployment Failure"
+documentation:
+  content: |
+    ## Deployment Failure Alert
+    
+    **Service**: Dungeon Master Cloud Run
+    **Severity**: High
+    **Condition**: Cloud Build status = FAILURE
+    
+    ### Possible Causes
+    - Test failures (pytest)
+    - Build errors (Docker, dependencies)
+    - Deployment rejection (invalid service config)
+    - Permission issues (IAM)
+    
+    ### Mitigation Steps
+    1. Check Cloud Build logs for error details
+    2. Review recent code changes
+    3. Run tests locally to reproduce failure
+    4. Verify dependencies are pinned correctly
+    5. Check service account permissions
+    
+    ### View Build Logs
+    ```
+    gcloud builds log BUILD_ID
+    ```
+  mimeType: text/markdown
+
+conditions:
+  - displayName: "Build status = FAILURE"
+    conditionThreshold:
+      filter: |
+        resource.type = "build"
+        AND metric.type = "cloudbuild.googleapis.com/build/status"
+        AND metric.labels.status = "FAILURE"
+      comparison: COMPARISON_GT
+      thresholdValue: 0
+      duration: 0s
+      aggregations:
+        - alignmentPeriod: 60s
+          perSeriesAligner: ALIGN_COUNT
+
+alertStrategy:
+  autoClose: 7200s  # Auto-close after 2 hours
